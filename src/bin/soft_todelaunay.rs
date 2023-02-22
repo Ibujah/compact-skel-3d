@@ -7,9 +7,9 @@ use compact_skel_3d::algorithm::delaunay_alg;
 
 #[derive(Parser)]
 struct Cli {
-    #[arg(default_value="", long = "objfile")]
+    #[arg(default_value="./ressources/hand.obj", long = "objfile")]
     obj_path: std::path::PathBuf,
-    #[arg(default_value="", long = "objoutfile")]
+    #[arg(default_value="./ressources/hand_del.obj", long = "objoutfile")]
     obj_out_path: std::path::PathBuf,
 }
 
