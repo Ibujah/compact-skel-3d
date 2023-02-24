@@ -2,7 +2,7 @@ use anyhow::Result;
 use tritet::{StrError, Tetgen};
 use std::collections::{HashSet, HashMap};
 
-use crate::boundary3d::topo_mesh::{self, TopoMesh, HalfEdge, FaceVertices};
+use crate::boundary3d::topo_mesh::{self, TopoMesh, IterHalfEdge, IterFace};
 
 pub type Edge = [usize; 2];
 pub type Triangle = [usize; 3];
@@ -52,7 +52,11 @@ impl<'a> DelaunayStruct<'a> {
             .map_err(to_anyhow)?;
 
         for v in 0..self.topomesh.get_nb_vertices() {
-            let vert = self.topomesh.get_vertex(v)?;
+            let vert = 
+                self
+                .topomesh
+                .get_vertex(v)?
+                .vertex();
 
             tetgen
                 .set_point(v, vert[0] as f64, vert[1] as f64, vert[2] as f64)
@@ -126,7 +130,7 @@ impl<'a> DelaunayStruct<'a> {
     pub fn count_non_del_halfedges(&self) -> Result<usize> {
         let mut nb_non_del = 0;
         for i in 0..self.topomesh.get_nb_halfedges() {
-            let he = self.topomesh.get_halfedge(i)?;
+            let he = self.topomesh.get_halfedge(i)?.halfedge();
             nb_non_del = nb_non_del + if self.is_edge_in(&he) {0} else {1};
         }
         Ok(nb_non_del)
@@ -141,16 +145,20 @@ impl<'a> DelaunayStruct<'a> {
         Ok(nb_non_del)
     }
     
-    fn get_opposite_angle(&self, ind_halfedge: usize) -> Result<f32> {
-        let ind_next = self.topomesh.get_next_halfedge(ind_halfedge)?;
-
-        let ind_vert1 = self.topomesh.get_halfedge(ind_halfedge)?[0];
-        let ind_vert2 = self.topomesh.get_halfedge(ind_halfedge)?[1];
-        let ind_vert3 = self.topomesh.get_halfedge(ind_next)?[1];
-
-        let vert1 = self.topomesh.get_vertex(ind_vert1)?;
-        let vert2 = self.topomesh.get_vertex(ind_vert2)?;
-        let vert3 = self.topomesh.get_vertex(ind_vert3)?;
+    fn get_opposite_angle(&self, halfedge: IterHalfEdge) -> Result<f32> {
+        let vert1 = 
+            halfedge
+            .first_vertex()?
+            .vertex();
+        let vert2 = 
+            halfedge
+            .last_vertex()?
+            .vertex();
+        let vert3 = 
+            halfedge
+            .next_edge()?
+            .last_vertex()?
+            .vertex();
 
         let vec31 = vert1 - vert3;
         let vec32 = vert2 - vert3;
@@ -161,15 +169,14 @@ impl<'a> DelaunayStruct<'a> {
         Ok(angle)
     }
 
-    pub fn get_local_non_del_halfedge(&self, shift: Option<usize>) -> Result<Option<(usize, HalfEdge)>>{
+    pub fn get_local_non_del_halfedge(&self, shift: Option<usize>) -> Result<Option<(usize, IterHalfEdge)>>{
         let shift = shift.unwrap_or(0);
         for i in 0..self.topomesh.get_nb_halfedges() {
             let ind_he = (i+shift)%self.topomesh.get_nb_halfedges();
             let he = self.topomesh.get_halfedge(ind_he)?;
-            if !self.is_edge_in(&he) {
-                let angle1 = self.get_opposite_angle(ind_he)?;
-                let ind_opp = self.topomesh.get_opposite_halfedge(ind_he)?;
-                let angle2 = self.get_opposite_angle(ind_opp)?;
+            if !self.is_edge_in(&he.halfedge()) {
+                let angle1 = self.get_opposite_angle(he)?;
+                let angle2 = self.get_opposite_angle(he.opposite_edge()?)?;
 
                 if angle1 + angle2 >= std::f32::consts::PI {
                     return Ok(Some((ind_he, he)));
@@ -179,22 +186,23 @@ impl<'a> DelaunayStruct<'a> {
         Ok(None)
     }
     
-    pub fn get_non_del_halfedge(&self, shift: Option<usize>) -> Result<Option<(usize, HalfEdge)>>{
+    pub fn get_non_del_halfedge(&self, shift: Option<usize>) -> Result<Option<IterHalfEdge>>{
         let shift = shift.unwrap_or(0);
         for i in 0..self.topomesh.get_nb_halfedges() {
             let ind_he = (i+shift)%self.topomesh.get_nb_halfedges();
             let he = self.topomesh.get_halfedge(ind_he)?;
-            if !self.is_edge_in(&he) {return Ok(Some((ind_he, he)))};
+            if !self.is_edge_in(&he.halfedge()) {return Ok(Some(he))};
         }
         Ok(None)
     }
     
-    pub fn get_non_del_face(&self, shift: Option<usize>) -> Result<Option<(usize, FaceVertices)>>{
+    pub fn get_non_del_face(&self, shift: Option<usize>) -> Result<Option<IterFace>>{
         let shift = shift.unwrap_or(0);
         for i in 0..self.topomesh.get_nb_faces() {
             let ind_face = (i+shift)%self.topomesh.get_nb_faces();
-            let face = self.topomesh.get_face_vertices(ind_face)?;
-            if !self.is_face_in(&face) {return Ok(Some((ind_face, face)))};
+            let face = self.topomesh.get_face(ind_face)?;
+            let face_ind = face.vertices_inds()?;
+            if !self.is_face_in(&face_ind) {return Ok(Some(face))};
         }
         Ok(None)
     }
@@ -204,7 +212,7 @@ impl<'a> DelaunayStruct<'a> {
         
         for i in 0..self.topomesh.get_nb_halfedges() {
             let he = self.topomesh.get_halfedge(i)?;
-            if !self.is_edge_in(&he) {non_del.push(i);};
+            if !self.is_edge_in(&he.halfedge()) {non_del.push(i);};
         }
 
         Ok(non_del)

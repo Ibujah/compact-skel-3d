@@ -1,7 +1,7 @@
 use anyhow::Result;
 use std::collections::HashSet;
 
-use crate::boundary3d::topo_mesh::{self, TopoMesh};
+use crate::boundary3d::topo_mesh::{self, TopoMesh, IterFace};
 use crate::boundary3d::delaunay_struct::DelaunayStruct;
 
 fn extract_physical_edges(topomesh: &TopoMesh, ang_max: Option<f32>) -> Result<HashSet<topo_mesh::HalfEdge>> {
@@ -12,33 +12,33 @@ fn extract_physical_edges(topomesh: &TopoMesh, ang_max: Option<f32>) -> Result<H
     // set physical edges
     for e in 0..topomesh.get_nb_halfedges() {
         let he = topomesh.get_halfedge(e)?;
-        if he[0] > he[1] {
+        if he.halfedge()[0] > he.halfedge()[1] {
             continue
         }
         
         if ang_max == std::f32::consts::PI {
-            physical.insert(he);
+            physical.insert(he.halfedge());
         }
         
         // compute angles between adjacent faces
-        let ind_fac1 = topomesh.get_associated_face(e)?;
-        let ind_fac2 = topomesh.get_associated_face(topomesh.get_opposite_halfedge(e)?)?;
+        let face_a = he.face()?;
+        let face_b = he.opposite_edge()?.face()?;
         
         // getting vertices
-        let vert1 = topomesh.get_face_vertices(ind_fac1)?; 
-        let pt_a_1 = topomesh.get_vertex(vert1[0])?;
-        let pt_b_1 = topomesh.get_vertex(vert1[1])?;
-        let pt_c_1 = topomesh.get_vertex(vert1[2])?;
-        let vert2 = topomesh.get_face_vertices(ind_fac2)?; 
-        let pt_a_2 = topomesh.get_vertex(vert2[0])?;
-        let pt_b_2 = topomesh.get_vertex(vert2[1])?;
-        let pt_c_2 = topomesh.get_vertex(vert2[2])?;
+        let [vert_a_1, vert_a_2, vert_a_3] = face_a.vertices()?;
+        let [vert_b_1, vert_b_2, vert_b_3] = face_b.vertices()?;
+        let pt_a_1 = vert_a_1.vertex();
+        let pt_a_2 = vert_a_2.vertex();
+        let pt_a_3 = vert_a_3.vertex();
+        let pt_b_1 = vert_b_1.vertex();
+        let pt_b_2 = vert_b_2.vertex();
+        let pt_b_3 = vert_b_3.vertex();
         
         // computing normals
-        let vec_u_1 = pt_b_1 - pt_a_1;
-        let vec_u_2 = pt_b_2 - pt_a_2;
-        let vec_v_1 = pt_c_1 - pt_a_1;
-        let vec_v_2 = pt_c_2 - pt_a_2;
+        let vec_u_1 = pt_a_2 - pt_a_1;
+        let vec_u_2 = pt_b_2 - pt_b_1;
+        let vec_v_1 = pt_a_3 - pt_a_1;
+        let vec_v_2 = pt_b_3 - pt_b_1;
         
         let nor_1 = vec_u_1.cross(&vec_v_1);
         let nor_2 = vec_u_2.cross(&vec_v_2);
@@ -47,21 +47,21 @@ fn extract_physical_edges(topomesh: &TopoMesh, ang_max: Option<f32>) -> Result<H
         let cos_cur = nor_1.dot(&nor_2).abs();
         
         if cos_cur > cos_min {
-            physical.insert(he);
+            physical.insert(he.halfedge());
         }
     }
     Ok(physical)
 }
 
-fn compute_halfedge_split_vertex(deltet: &DelaunayStruct, halfedge: [usize; 2]) -> Result<topo_mesh::Vertex> {
+fn compute_halfedge_split_vertex(deltet: &DelaunayStruct, vertex_inds: [usize; 2]) -> Result<topo_mesh::Vertex> {
     let (vert1, vert2) = 
-        if deltet.is_original_vertex(halfedge[0]) {
-            (deltet.get_topomesh().get_vertex(halfedge[0])?,
-            deltet.get_topomesh().get_vertex(halfedge[1])?)
+        if deltet.is_original_vertex(vertex_inds[0]) {
+            (deltet.get_topomesh().get_vertex(vertex_inds[0])?.vertex(), 
+             deltet.get_topomesh().get_vertex(vertex_inds[1])?.vertex())
         }
         else {
-            (deltet.get_topomesh().get_vertex(halfedge[1])?,
-            deltet.get_topomesh().get_vertex(halfedge[0])?)
+            (deltet.get_topomesh().get_vertex(vertex_inds[1])?.vertex(), 
+             deltet.get_topomesh().get_vertex(vertex_inds[0])?.vertex())
         };
     
     let vert_mid = (vert1 + vert2) * 0.5;
@@ -86,12 +86,10 @@ fn compute_halfedge_split_vertex(deltet: &DelaunayStruct, halfedge: [usize; 2]) 
     }
 }
 
-fn compute_face_split_vertex(deltet: &DelaunayStruct, face: [usize; 3]) -> Result<topo_mesh::Vertex> {
-    let vert1 = deltet.get_topomesh().get_vertex(face[0])?;
-    let vert2 = deltet.get_topomesh().get_vertex(face[1])?;
-    let vert3 = deltet.get_topomesh().get_vertex(face[2])?;
+fn compute_face_split_vertex(face: IterFace) -> Result<topo_mesh::Vertex> {
+    let [vert1, vert2, vert3] = face.vertices()?;
 
-    Ok((vert1 + vert2 + vert3) / 3.0)
+    Ok((vert1.vertex() + vert2.vertex() + vert3.vertex()) / 3.0)
 }
 
 pub fn to_delaunay(topomesh: &mut TopoMesh, ang_max: Option<f32>) -> Result<()> {
@@ -115,13 +113,15 @@ pub fn to_delaunay(topomesh: &mut TopoMesh, ang_max: Option<f32>) -> Result<()> 
     print!("\r{} flip(s), {} edge split(s), {} face split(s)", num_flip, num_split_edge, num_split_face);
 
     loop {
-        if let Some((ind_he, mut he)) = deltet.get_non_del_halfedge(Some(shift_edge))? {
+        if let Some(he) = deltet.get_non_del_halfedge(Some(shift_edge))? {
             shift_edge = (shift_edge+1)%deltet.get_topomesh().get_nb_halfedges();
-            he.sort();
-            let is_physical = physical.contains(&he);
+            let mut he_inds = he.halfedge();
+            he_inds.sort();
+            let is_physical = physical.contains(&he_inds);
+            let index_he = he.ind();
             let flipped = 
                 if !is_physical && cpt_force_split < nb_non_del_hedges {
-                    deltet.flip_halfedge(ind_he)?
+                    deltet.flip_halfedge(index_he)?
                 }
                 else {
                     false
@@ -131,16 +131,16 @@ pub fn to_delaunay(topomesh: &mut TopoMesh, ang_max: Option<f32>) -> Result<()> 
                 cpt_force_split = cpt_force_split + 1;
             }
             else {
-                let vert_split = compute_halfedge_split_vertex(&deltet, he)?;
-                deltet.split_halfedge(&vert_split, ind_he)?;
+                let vert_split = compute_halfedge_split_vertex(&deltet, he_inds)?;
+                deltet.split_halfedge(&vert_split, index_he)?;
                 num_split_edge = num_split_edge + 1;
                 cpt_force_split = 0;
             }
         }
-        else if let Some((ind_face, face)) = deltet.get_non_del_face(Some(shift_face))? {
+        else if let Some(face) = deltet.get_non_del_face(Some(shift_face))? {
             shift_face = shift_face+1;
-            let vert_split = compute_face_split_vertex(&deltet, face)?;
-            deltet.split_face(&vert_split, ind_face)?;
+            let vert_split = compute_face_split_vertex(face)?;
+            deltet.split_face(&vert_split, face.ind())?;
             num_split_face = num_split_face + 1;
         }
         else {

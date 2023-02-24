@@ -18,18 +18,21 @@ pub struct TopoMesh {
     map_hedg_prev: Vec<Option<usize>>,
 }
 
+#[derive(Copy, Clone)]
 pub struct IterVertex<'a> {
     topomesh: &'a TopoMesh,
     ind_vertex: usize,
     vertex: Vertex,
 }
 
+#[derive(Copy, Clone)]
 pub struct IterHalfEdge<'a> {
     topomesh: &'a TopoMesh,
     ind_halfedge: usize,
     halfedge: HalfEdge,
 }
 
+#[derive(Copy, Clone)]
 pub struct IterFace<'a> {
     topomesh: &'a TopoMesh,
     ind_face: usize,
@@ -267,24 +270,28 @@ impl TopoMesh {
         Ok(face_v)
     }
 
-    fn can_flip_halfedge(&self, ind_halfedge: usize) -> Result<bool> {
-        if ind_halfedge >= self.halfedges.len() {
-            return Err(anyhow::Error::msg("can_flip_halfedge(): Index out of bounds"));
-        }
-        let ind_hedge_opp = self.map_hedg_opp[ind_halfedge].ok_or(anyhow::Error::msg("can_flip_halfedge(): Empty halfedge"))?;
-        let ind_hedge_next = self.map_hedg_next[ind_halfedge].ok_or(anyhow::Error::msg("can_flip_halfedge(): Empty halfedge"))?;
-        let ind_hedge_opp_next = self.map_hedg_next[ind_hedge_opp].ok_or(anyhow::Error::msg("can_flip_halfedge(): Empty halfedge"))?;
+    pub fn can_flip_halfedge(&self, ind_halfedge: usize) -> Result<bool> {
+        let halfedge = self.get_halfedge(ind_halfedge)?;
         
-        let opp_vert1 = self.halfedges[ind_hedge_next][1];
-        let opp_vert2 = self.halfedges[ind_hedge_opp_next][1];
+        let opp_vert1 = 
+            halfedge
+            .next_edge()?
+            .last_vertex()?;
+        let opp_vert2 = 
+            halfedge
+            .opposite_edge()?
+            .next_edge()?
+            .last_vertex()?;
         
         let edg_found = 
-            self.map_vert_hedg[opp_vert1]
+            opp_vert1
+            .halfedges()?
             .iter()
-            .fold(false,
-                  |res, &ind_he| {
-                    self.halfedges[ind_he][1] == opp_vert2 || res
-                  });
+            .fold(Ok(false),
+                  |res: Result<bool>, &he| {
+                      let b = res.unwrap();
+                      Ok(b || he.last_vertex()?.ind() == opp_vert2.ind())
+                  })?;
 
         Ok(!edg_found)
     }
@@ -638,7 +645,7 @@ impl<'a> IterVertex<'a> {
         self.ind_vertex
     }
 
-    pub fn halfedges(&self) -> Result<Vec<IterHalfEdge>> {
+    pub fn halfedges(&self) -> Result<Vec<IterHalfEdge<'a>>> {
         self.topomesh.get_vertex_halfedges(self.ind_vertex)
     }
 }
@@ -660,19 +667,19 @@ impl<'a> IterHalfEdge<'a> {
         self.topomesh.get_vertex(self.halfedge[1])
     }
 
-    pub fn next_edge(&self) -> Result<IterHalfEdge> {
+    pub fn next_edge(&self) -> Result<IterHalfEdge<'a>> {
         self.topomesh.get_next_halfedge(self.ind_halfedge)
     }
 
-    pub fn prev_edge(&self) -> Result<IterHalfEdge> {
+    pub fn prev_edge(&self) -> Result<IterHalfEdge<'a>> {
         self.topomesh.get_prev_halfedge(self.ind_halfedge)
     }
 
-    pub fn opposite_edge(&self) -> Result<IterHalfEdge> {
+    pub fn opposite_edge(&self) -> Result<IterHalfEdge<'a>> {
         self.topomesh.get_opposite_halfedge(self.ind_halfedge)
     }
 
-    pub fn face(&self) -> Result<IterFace> {
+    pub fn face(&self) -> Result<IterFace<'a>> {
         self.topomesh.get_associated_face(self.ind_halfedge)
     }
 }
@@ -680,15 +687,37 @@ impl<'a> IterHalfEdge<'a> {
 impl<'a> IterFace<'a> {
 
     pub fn halfedges(&self) -> Result<[IterHalfEdge<'a>; 3]>{
-        self.face
+        Ok(self.face
             .iter()
             .map(|&x| self.topomesh.get_halfedge(x))
             .collect::<Result<Vec<IterHalfEdge<'a>>>>()
             .unwrap()
+            .try_into()
+            .map_err(|_x: Vec<_>| anyhow::Error::msg("couldn't collect halfedges"))
+            .unwrap())
     }
 
-    pub fn face_vertices(&self) -> Result<FaceVertices> {
-        self.topomesh.get_face_vertices(self.ind_face)
+    pub fn vertices(&self) -> Result<[IterVertex<'a>; 3]>{
+        let he = self.halfedges()?;
+        Ok(he
+           .iter()
+           .map(|x| x.first_vertex())
+           .collect::<Result<Vec<IterVertex<'a>>>>()
+           .unwrap()
+           .try_into()
+           .map_err(|_x: Vec<_>| anyhow::Error::msg("couldn't collect vertices"))
+           .unwrap())
+    }
+
+    pub fn vertices_inds(&self) -> Result<[usize; 3]>{
+        let ve = self.vertices()?;
+        Ok(ve
+           .iter()
+           .map(|x| x.ind())
+           .collect::<Vec<usize>>()
+           .try_into()
+           .map_err(|_x: Vec<_>| anyhow::Error::msg("couldn't collect vertices index"))
+           .unwrap())
     }
 
     pub fn ind(&self) -> usize {
