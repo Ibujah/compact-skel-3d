@@ -59,13 +59,22 @@ pub fn save_obj(filename: &str, topomesh: &TopoMesh) -> Result<()> {
     let mut file = File::create(filename)?;
 
     for v in 0..topomesh.get_nb_vertices() {
-        let vert = topomesh.get_vertex(v)?;
+        let vert = 
+            topomesh
+            .get_vertex(v)?
+            .vertex();
         writeln!(file, "v {} {} {}", vert[0], vert[1], vert[2])?;
     }
 
     for f in 0..topomesh.get_nb_faces() {
-        let face = topomesh.get_face_vertices(f)?;
-        writeln!(file, "f {}// {}// {}//", face[0]+1, face[1]+1, face[2]+1)?;
+        let face = 
+            topomesh
+            .get_face(f)?
+            .vertices_inds()?;
+        writeln!(file, "f {}// {}// {}//", 
+                 face[0]+1, 
+                 face[1]+1, 
+                 face[2]+1)?;
     }
 
     Ok(())
