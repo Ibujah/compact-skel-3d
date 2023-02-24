@@ -22,11 +22,11 @@ fn extract_physical_edges(topomesh: &TopoMesh, ang_max: Option<f32>) -> Result<H
         
         // compute angles between adjacent faces
         let face_a = he.face()?;
-        let face_b = he.opposite_edge()?.face()?;
+        let face_b = he.opposite_halfedge()?.face()?;
         
         // getting vertices
-        let [vert_a_1, vert_a_2, vert_a_3] = face_a.vertices()?;
-        let [vert_b_1, vert_b_2, vert_b_3] = face_b.vertices()?;
+        let [vert_a_1, vert_a_2, vert_a_3] = face_a.vertices();
+        let [vert_b_1, vert_b_2, vert_b_3] = face_b.vertices();
         let pt_a_1 = vert_a_1.vertex();
         let pt_a_2 = vert_a_2.vertex();
         let pt_a_3 = vert_a_3.vertex();
@@ -87,7 +87,7 @@ fn compute_halfedge_split_vertex(deltet: &DelaunayStruct, vertex_inds: [usize; 2
 }
 
 fn compute_face_split_vertex(face: IterFace) -> Result<topo_mesh::Vertex> {
-    let [vert1, vert2, vert3] = face.vertices()?;
+    let [vert1, vert2, vert3] = face.vertices();
 
     Ok((vert1.vertex() + vert2.vertex() + vert3.vertex()) / 3.0)
 }

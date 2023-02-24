@@ -70,7 +70,7 @@ pub fn save_obj(filename: &str, topomesh: &TopoMesh) -> Result<()> {
         let face = 
             topomesh
             .get_face(f)?
-            .vertices_inds()?;
+            .vertices_inds();
         writeln!(file, "f {}// {}// {}//", 
                  face[0]+1, 
                  face[1]+1, 

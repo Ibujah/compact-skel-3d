@@ -148,16 +148,16 @@ impl<'a> DelaunayStruct<'a> {
     fn get_opposite_angle(&self, halfedge: IterHalfEdge) -> Result<f32> {
         let vert1 = 
             halfedge
-            .first_vertex()?
+            .first_vertex()
             .vertex();
         let vert2 = 
             halfedge
-            .last_vertex()?
+            .last_vertex()
             .vertex();
         let vert3 = 
             halfedge
-            .next_edge()?
-            .last_vertex()?
+            .next_halfedge()?
+            .last_vertex()
             .vertex();
 
         let vec31 = vert1 - vert3;
@@ -176,7 +176,7 @@ impl<'a> DelaunayStruct<'a> {
             let he = self.topomesh.get_halfedge(ind_he)?;
             if !self.is_edge_in(&he.halfedge()) {
                 let angle1 = self.get_opposite_angle(he)?;
-                let angle2 = self.get_opposite_angle(he.opposite_edge()?)?;
+                let angle2 = self.get_opposite_angle(he.opposite_halfedge()?)?;
 
                 if angle1 + angle2 >= std::f32::consts::PI {
                     return Ok(Some((ind_he, he)));
@@ -201,7 +201,7 @@ impl<'a> DelaunayStruct<'a> {
         for i in 0..self.topomesh.get_nb_faces() {
             let ind_face = (i+shift)%self.topomesh.get_nb_faces();
             let face = self.topomesh.get_face(ind_face)?;
-            let face_ind = face.vertices_inds()?;
+            let face_ind = face.vertices_inds();
             if !self.is_face_in(&face_ind) {return Ok(Some(face))};
         }
         Ok(None)

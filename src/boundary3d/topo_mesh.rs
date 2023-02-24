@@ -7,36 +7,33 @@ pub type FaceHalfedges = [usize; 3];
 pub type FaceVertices = [usize; 3];
 
 pub struct TopoMesh {
-    vertices: Vec<Vertex>,
-    halfedges: Vec<HalfEdge>,
-    faces: Vec<FaceHalfedges>,
+    pub(super) vertices: Vec<Vertex>,
+    pub(super) halfedges: Vec<HalfEdge>,
+    pub(super) faces: Vec<FaceHalfedges>,
 
-    map_vert_hedg: Vec<Vec<usize>>,
-    map_hedg_face: Vec<Option<usize>>,
-    map_hedg_opp: Vec<Option<usize>>,
-    map_hedg_next: Vec<Option<usize>>,
-    map_hedg_prev: Vec<Option<usize>>,
+    pub(super) map_vert_hedg: Vec<Vec<usize>>,
+    pub(super) map_hedg_face: Vec<Option<usize>>,
+    pub(super) map_hedg_opp: Vec<Option<usize>>,
+    pub(super) map_hedg_next: Vec<Option<usize>>,
+    pub(super) map_hedg_prev: Vec<Option<usize>>,
 }
 
 #[derive(Copy, Clone)]
 pub struct IterVertex<'a> {
     topomesh: &'a TopoMesh,
     ind_vertex: usize,
-    vertex: Vertex,
 }
 
 #[derive(Copy, Clone)]
 pub struct IterHalfEdge<'a> {
     topomesh: &'a TopoMesh,
     ind_halfedge: usize,
-    halfedge: HalfEdge,
 }
 
 #[derive(Copy, Clone)]
 pub struct IterFace<'a> {
     topomesh: &'a TopoMesh,
     ind_face: usize,
-    face: FaceHalfedges,
 }
 
 impl TopoMesh {
@@ -68,7 +65,6 @@ impl TopoMesh {
         Ok(IterVertex {
             topomesh: self,
             ind_vertex,
-            vertex: self.vertices[ind_vertex],
         })
     }
 
@@ -116,7 +112,6 @@ impl TopoMesh {
         Ok(IterHalfEdge {
             topomesh: self,
             ind_halfedge,
-            halfedge: self.halfedges[ind_halfedge]
         })
     }
 
@@ -181,78 +176,11 @@ impl TopoMesh {
         Ok(IterFace {
             topomesh: self,
             ind_face,
-            face: self.faces[ind_face]
         })
     }
 
     pub fn get_nb_faces(&self) -> usize {
         self.faces.len()
-    }
-
-    pub fn get_vertex_halfedges(&self, ind_vertex: usize) -> Result<Vec<IterHalfEdge>> {
-        if ind_vertex >= self.map_vert_hedg.len() {
-            return Err(anyhow::Error::msg("get_vertex_halfedges(): Index out of bounds"));
-        }
-        let vec_he =
-            self.map_vert_hedg[ind_vertex] 
-            .iter()
-            .fold(Vec::new(), 
-                  |mut v, &x| {v.push(
-                          IterHalfEdge{
-                              topomesh: self,
-                              ind_halfedge: x,
-                              halfedge: self.halfedges[x]
-                          }); v});
-
-        Ok(vec_he)
-    }
-
-    pub fn get_associated_face(&self, ind_halfedge: usize) -> Result<IterFace> {
-        if ind_halfedge >= self.halfedges.len() {
-            return Err(anyhow::Error::msg("get_associated_face(): Index out of bounds"));
-        }
-        let ind_face = self.map_hedg_face[ind_halfedge].ok_or(anyhow::Error::msg("get_associated_face(): No opposite face"))?;
-        Ok(IterFace{
-            topomesh: self,
-            ind_face,
-            face: self.faces[ind_face],
-        })
-    }
-
-    pub fn get_opposite_halfedge(&self, ind_halfedge: usize) -> Result<IterHalfEdge> {
-        if ind_halfedge >= self.halfedges.len() {
-            return Err(anyhow::Error::msg("get_opposite_halfedge(): Index out of bounds"));
-        }
-        let ind_opp = self.map_hedg_opp[ind_halfedge].ok_or(anyhow::Error::msg("get_opposite_halfedge(): No opposite halfedge"))?;
-        Ok(IterHalfEdge {
-            topomesh: self,
-            ind_halfedge: ind_opp,
-            halfedge: self.halfedges[ind_opp],
-        })
-    }
-
-    pub fn get_next_halfedge(&self, ind_halfedge: usize) -> Result<IterHalfEdge> {
-        if ind_halfedge >= self.halfedges.len() {
-            return Err(anyhow::Error::msg("get_next_halfedge(): Index out of bounds"));
-        }
-        let ind_next = self.map_hedg_next[ind_halfedge].ok_or(anyhow::Error::msg("get_next_halfedge(): No opposite halfedge"))?;
-        Ok(IterHalfEdge {
-            topomesh: self,
-            ind_halfedge: ind_next,
-            halfedge: self.halfedges[ind_next],
-        })
-    }
-
-    pub fn get_prev_halfedge(&self, ind_halfedge: usize) -> Result<IterHalfEdge> {
-        if ind_halfedge >= self.halfedges.len() {
-            return Err(anyhow::Error::msg("get_prev_halfedge(): Index out of bounds"));
-        }
-        let ind_prev = self.map_hedg_prev[ind_halfedge].ok_or(anyhow::Error::msg("get_prev_halfedge(): No opposite halfedge"))?;
-        Ok(IterHalfEdge {
-            topomesh: self,
-            ind_halfedge: ind_prev,
-            halfedge: self.halfedges[ind_prev],
-        })
     }
 
     pub fn get_face_vertices(&self, ind_face: usize) -> Result<FaceVertices> {
@@ -275,23 +203,22 @@ impl TopoMesh {
         
         let opp_vert1 = 
             halfedge
-            .next_edge()?
-            .last_vertex()?;
+            .next_halfedge()?
+            .last_vertex();
         let opp_vert2 = 
             halfedge
-            .opposite_edge()?
-            .next_edge()?
-            .last_vertex()?;
+            .opposite_halfedge()?
+            .next_halfedge()?
+            .last_vertex();
         
         let edg_found = 
             opp_vert1
-            .halfedges()?
+            .halfedges()
             .iter()
-            .fold(Ok(false),
-                  |res: Result<bool>, &he| {
-                      let b = res.unwrap();
-                      Ok(b || he.last_vertex()?.ind() == opp_vert2.ind())
-                  })?;
+            .fold(false,
+                  |res, &he| {
+                      res || he.last_vertex().ind() == opp_vert2.ind()
+                  });
 
         Ok(!edg_found)
     }
@@ -482,7 +409,7 @@ impl TopoMesh {
         // 2 ------- 3      2 ------- 3 
         
         let ind_fac_123 = ind_face;
-        let [ind_he_12, ind_he_23, ind_he_31] = self.get_face(ind_face)?.face;
+        let [ind_he_12, ind_he_23, ind_he_31] = self.get_face(ind_face)?.face_halfedges();
         let ind_he_21 = self.map_hedg_opp[ind_he_12].ok_or(anyhow::Error::msg("split_face(): Empty halfedge"))?;
         let ind_he_32 = self.map_hedg_opp[ind_he_23].ok_or(anyhow::Error::msg("split_face(): Empty halfedge"))?;
         let ind_he_13 = self.map_hedg_opp[ind_he_31].ok_or(anyhow::Error::msg("split_face(): Empty halfedge"))?;
@@ -529,14 +456,11 @@ impl TopoMesh {
     }
     
     fn check_face(&self, ind_face: usize) -> Result<()> {
-        if ind_face >= self.faces.len() {
-            return Err(anyhow::Error::msg("check_face(): Index out of bounds"));
-        }
+        let face = self.get_face(ind_face)?;
         // check edges existence
-        for i in 0..3 {
-            let ind_edg = self.get_face(ind_face)?.face[i];
-            let fac_comp = self.map_hedg_face[ind_edg].ok_or(anyhow::Error::msg("check_face(): Halfedge linked to nothing"))?;
-            if fac_comp != ind_face {
+        for hedg in face.halfedges() {
+            let face_comp = hedg.face()?;
+            if face_comp.ind() != face.ind() {
                 return Err(anyhow::Error::msg("check_face(): HalfEdge linked to wrong face"));
             }
         }
@@ -544,55 +468,47 @@ impl TopoMesh {
     }
     
     fn check_halfedge(&self, ind_hedge: usize) -> Result<()> {
-        if ind_hedge >= self.halfedges.len() {
-            return Err(anyhow::Error::msg("check_halfedge(): Index out of bounds"));
-        }
-        let halfedge = self.get_halfedge(ind_hedge)?.halfedge;
+        let halfedge = self.get_halfedge(ind_hedge)?;
+        
+        let face = halfedge.face()?;
 
-        // check next and previous
-        let ind_fac = self.map_hedg_face[ind_hedge].ok_or(anyhow::Error::msg("check_halfedge(): No neighbor face"))?;
+        let halfedge_next = halfedge.next_halfedge()?;
+        let halfedge_prev = halfedge.prev_halfedge()?;
 
-        let ind_next = self.map_hedg_next[ind_hedge].ok_or(anyhow::Error::msg("check_halfedge(): No next halfedge"))?;
-        let ind_prev = self.map_hedg_prev[ind_hedge].ok_or(anyhow::Error::msg("check_halfedge(): No previous halfedge"))?;
+        let face_next = halfedge_next.face()?;
+        let face_prev = halfedge_prev.face()?;
 
-        let halfedge_next = self.get_halfedge(ind_next)?.halfedge;
-        let halfedge_prev = self.get_halfedge(ind_prev)?.halfedge;
-
-        let ind_fac_next = self.map_hedg_face[ind_next].ok_or(anyhow::Error::msg("check_halfedge(): No neighbor face"))?;
-        let ind_fac_prev = self.map_hedg_face[ind_prev].ok_or(anyhow::Error::msg("check_halfedge(): No neighbor face"))?;
-
-        if halfedge[1] != halfedge_next[0] {
+        if halfedge.last_vertex().ind() != halfedge_next.first_vertex().ind() {
             return Err(anyhow::Error::msg("check_halfedge(): Next halfedge not starting with last vertex"));
         }
-        if halfedge[0] != halfedge_prev[1] {
+        if halfedge.first_vertex().ind() != halfedge_prev.last_vertex().ind() {
             return Err(anyhow::Error::msg("check_halfedge(): Previous halfedge not ending with first vertex"));
         }
 
-        if ind_fac != ind_fac_next {
+        if face.ind() != face_next.ind() {
             return Err(anyhow::Error::msg("check_halfedge(): Next halfedge not on the same face"));
         }
-        if ind_fac != ind_fac_prev {
+        if face.ind() != face_prev.ind() {
             return Err(anyhow::Error::msg("check_halfedge(): Previous halfedge not on the same face"));
         }
 
         // check opposite
-        let ind_opp = self.map_hedg_opp[ind_hedge].ok_or(anyhow::Error::msg("check_halfedge(): No opposite halfedge"))?;
-        let halfedge_opp = self.get_halfedge(ind_opp)?.halfedge;
-        if halfedge[1] != halfedge_opp[0] {
+        let halfedge_opp = halfedge.opposite_halfedge()?;
+        if halfedge.first_vertex().ind() != halfedge_opp.last_vertex().ind() {
             return Err(anyhow::Error::msg("check_halfedge(): Opposite halfedge not starting with last vertex"));
         }
-        if halfedge[0] != halfedge_opp[1] {
+        if halfedge.last_vertex().ind() != halfedge_opp.first_vertex().ind() {
             return Err(anyhow::Error::msg("check_halfedge(): Opposite halfedge not ending with first vertex"));
         }
 
         // check vertices
-        let neigh_hedges = self.get_vertex_halfedges(halfedge[0])?;
+        let neigh_hedges = halfedge.first_vertex().halfedges();
         
         let is_in = neigh_hedges
             .iter()
             .fold(false,
-                  |res, iterhedge| {
-                      res || iterhedge.ind_halfedge == ind_hedge
+                  |res, &iterhedge| {
+                      res || iterhedge.ind() == halfedge.ind()
                   });
 
         if !is_in {
@@ -603,14 +519,10 @@ impl TopoMesh {
     }
 
     fn check_vertex(&self, ind_vertex: usize) -> Result<()> {
-        if ind_vertex >= self.vertices.len() {
-            return Err(anyhow::Error::msg("check_vertex(): Index out of bounds"));
-        }
+        let vertex = self.get_vertex(ind_vertex)?;
         
-        for i in 0..self.map_vert_hedg[ind_vertex].len() {
-            let ind_he = self.map_vert_hedg[ind_vertex][i];
-            let he = self.get_halfedge(ind_he)?.halfedge;
-            if ind_vertex != he[0] {
+        for he in vertex.halfedges() {
+            if he.first_vertex().ind() != ind_vertex {
                 return Err(anyhow::Error::msg("check_vertex(): Vertex contains non coherent halfedge"));
             }
         }
@@ -638,86 +550,129 @@ impl TopoMesh {
 
 impl<'a> IterVertex<'a> {
     pub fn vertex(&self) -> Vertex {
-        self.vertex
+        self.topomesh.vertices[self.ind_vertex]
     }
 
     pub fn ind(&self) -> usize {
         self.ind_vertex
     }
 
-    pub fn halfedges(&self) -> Result<Vec<IterHalfEdge<'a>>> {
-        self.topomesh.get_vertex_halfedges(self.ind_vertex)
+    pub fn halfedges(&self) -> Vec<IterHalfEdge<'a>> {
+        let vec_he =
+            self.topomesh.map_vert_hedg[self.ind_vertex] 
+            .iter()
+            .fold(Vec::new(), 
+                  |mut v, &x| {v.push(
+                          IterHalfEdge{
+                              topomesh: self.topomesh,
+                              ind_halfedge: x,
+                          }); v});
+        vec_he
     }
 }
 
 impl<'a> IterHalfEdge<'a> {
     pub fn halfedge(&self) -> HalfEdge {
-        self.halfedge
+        self.topomesh.halfedges[self.ind_halfedge]
     }
 
     pub fn ind(&self) -> usize {
         self.ind_halfedge
     }
 
-    pub fn first_vertex(&self) -> Result<IterVertex<'a>> {
-        self.topomesh.get_vertex(self.halfedge[0])
+    pub fn first_vertex(&self) -> IterVertex<'a> {
+        IterVertex {
+            topomesh: self.topomesh,
+            ind_vertex: self.halfedge()[0],
+        }
     }
 
-    pub fn last_vertex(&self) -> Result<IterVertex<'a>> {
-        self.topomesh.get_vertex(self.halfedge[1])
+    pub fn last_vertex(&self) -> IterVertex<'a> {
+        IterVertex {
+            topomesh: self.topomesh,
+            ind_vertex: self.halfedge()[1],
+        }
     }
 
-    pub fn next_edge(&self) -> Result<IterHalfEdge<'a>> {
-        self.topomesh.get_next_halfedge(self.ind_halfedge)
+    pub fn next_halfedge(&self) -> Result<IterHalfEdge<'a>> {
+        let ind_next = self.topomesh.map_hedg_next[self.ind_halfedge]
+            .ok_or(anyhow::Error::msg("next_halfedge(): No next halfedge"))?;
+        Ok(IterHalfEdge {
+            topomesh: self.topomesh,
+            ind_halfedge: ind_next,
+        })
     }
 
-    pub fn prev_edge(&self) -> Result<IterHalfEdge<'a>> {
-        self.topomesh.get_prev_halfedge(self.ind_halfedge)
+    pub fn prev_halfedge(&self) -> Result<IterHalfEdge<'a>> {
+        let ind_prev = self.topomesh.map_hedg_prev[self.ind_halfedge]
+            .ok_or(anyhow::Error::msg("prev_halfedge(): No previous halfedge"))?;
+        Ok(IterHalfEdge {
+            topomesh: self.topomesh,
+            ind_halfedge: ind_prev,
+        })
     }
 
-    pub fn opposite_edge(&self) -> Result<IterHalfEdge<'a>> {
-        self.topomesh.get_opposite_halfedge(self.ind_halfedge)
+    pub fn opposite_halfedge(&self) -> Result<IterHalfEdge<'a>> {
+        let ind_opp = self.topomesh.map_hedg_opp[self.ind_halfedge]
+            .ok_or(anyhow::Error::msg("opposite_halfedge(): No opposite halfedge"))?;
+        Ok(IterHalfEdge {
+            topomesh: self.topomesh,
+            ind_halfedge: ind_opp,
+        })
     }
 
     pub fn face(&self) -> Result<IterFace<'a>> {
-        self.topomesh.get_associated_face(self.ind_halfedge)
+        let ind_face = self.topomesh.map_hedg_face[self.ind_halfedge]
+            .ok_or(anyhow::Error::msg("face(): No associated face"))?;
+        Ok(IterFace{
+            topomesh: self.topomesh,
+            ind_face,
+        })
     }
 }
 
 impl<'a> IterFace<'a> {
-
-    pub fn halfedges(&self) -> Result<[IterHalfEdge<'a>; 3]>{
-        Ok(self.face
-            .iter()
-            .map(|&x| self.topomesh.get_halfedge(x))
-            .collect::<Result<Vec<IterHalfEdge<'a>>>>()
-            .unwrap()
-            .try_into()
-            .map_err(|_x: Vec<_>| anyhow::Error::msg("couldn't collect halfedges"))
-            .unwrap())
+    
+    pub fn face_halfedges(&self) -> FaceHalfedges {
+        self.topomesh.faces[self.ind_face]
     }
 
-    pub fn vertices(&self) -> Result<[IterVertex<'a>; 3]>{
-        let he = self.halfedges()?;
-        Ok(he
-           .iter()
-           .map(|x| x.first_vertex())
-           .collect::<Result<Vec<IterVertex<'a>>>>()
-           .unwrap()
-           .try_into()
-           .map_err(|_x: Vec<_>| anyhow::Error::msg("couldn't collect vertices"))
-           .unwrap())
+    pub fn halfedges(&self) -> [IterHalfEdge<'a>; 3] {
+        let face = self.topomesh.faces[self.ind_face];
+
+        [
+            IterHalfEdge{
+                topomesh: self.topomesh,
+                ind_halfedge: face[0],
+            },
+            IterHalfEdge{
+                topomesh: self.topomesh,
+                ind_halfedge: face[1],
+            },
+            IterHalfEdge{
+                topomesh: self.topomesh,
+                ind_halfedge: face[2],
+            },
+        ]
     }
 
-    pub fn vertices_inds(&self) -> Result<[usize; 3]>{
-        let ve = self.vertices()?;
-        Ok(ve
-           .iter()
-           .map(|x| x.ind())
-           .collect::<Vec<usize>>()
-           .try_into()
-           .map_err(|_x: Vec<_>| anyhow::Error::msg("couldn't collect vertices index"))
-           .unwrap())
+    pub fn vertices(&self) -> [IterVertex<'a>; 3] {
+        let he = self.halfedges();
+        
+        [
+            he[0].first_vertex(),
+            he[1].first_vertex(),
+            he[2].first_vertex(),
+        ]
+    }
+
+    pub fn vertices_inds(&self) -> [usize; 3]{
+        let ve = self.vertices();
+        [
+            ve[0].ind(),
+            ve[1].ind(),
+            ve[2].ind(),
+        ]
     }
 
     pub fn ind(&self) -> usize {
