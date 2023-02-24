@@ -3,12 +3,12 @@ use std::fs::File;
 use std::io::{self, BufRead, Write};
 use nalgebra::base::*;
 
-use crate::boundary3d::topo_mesh::TopoMesh;
+use crate::mesh3d::Mesh3D;
 
 
-pub fn load_obj(filename: &str) -> Result<TopoMesh> {
+pub fn load_obj(filename: &str) -> Result<Mesh3D> {
     
-    let mut topomesh = TopoMesh::init();
+    let mut mesh = Mesh3D::new();
     
     let file = File::open(filename)?; 
     let lines = io::BufReader::new(file).lines();
@@ -27,7 +27,7 @@ pub fn load_obj(filename: &str) -> Result<TopoMesh> {
                         vert[i] = cur.parse::<f32>()?;
                     }
 
-                    topomesh.add_vertex(&vert);
+                    mesh.add_vertex(&vert);
                 }
                 if &line[..2] == "f " {
                     let mut line_split = line.split_whitespace();
@@ -46,29 +46,29 @@ pub fn load_obj(filename: &str) -> Result<TopoMesh> {
                         face[i] = ind.parse::<usize>()? - 1;
                     }
 
-                    topomesh.add_face(face[0], face[1], face[2])?;
+                    mesh.add_face(face[0], face[1], face[2])?;
                 }
             }
         }
     }
 
-    Ok(topomesh)
+    Ok(mesh)
 }
 
-pub fn save_obj(filename: &str, topomesh: &TopoMesh) -> Result<()> {
+pub fn save_obj(filename: &str, mesh: &Mesh3D) -> Result<()> {
     let mut file = File::create(filename)?;
 
-    for v in 0..topomesh.get_nb_vertices() {
+    for v in 0..mesh.get_nb_vertices() {
         let vert = 
-            topomesh
+            mesh
             .get_vertex(v)?
             .vertex();
         writeln!(file, "v {} {} {}", vert[0], vert[1], vert[2])?;
     }
 
-    for f in 0..topomesh.get_nb_faces() {
+    for f in 0..mesh.get_nb_faces() {
         let face = 
-            topomesh
+            mesh
             .get_face(f)?
             .vertices_inds();
         writeln!(file, "f {}// {}// {}//", 

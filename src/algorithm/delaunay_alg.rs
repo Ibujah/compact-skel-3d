@@ -1,17 +1,17 @@
 use anyhow::Result;
 use std::collections::HashSet;
 
-use crate::boundary3d::topo_mesh::{self, TopoMesh, IterFace};
-use crate::boundary3d::delaunay_struct::DelaunayStruct;
+use crate::mesh3d::{mesh3d, Mesh3D};
+use crate::algorithm::delaunay_struct::DelaunayStruct;
 
-fn extract_physical_edges(topomesh: &TopoMesh, ang_max: Option<f32>) -> Result<HashSet<topo_mesh::HalfEdge>> {
+fn extract_physical_edges(mesh: &Mesh3D, ang_max: Option<f32>) -> Result<HashSet<mesh3d::HalfEdge>> {
     let ang_max = ang_max.unwrap_or(std::f32::consts::PI);
     let cos_min = ang_max.cos();
 
-    let mut physical : HashSet<topo_mesh::HalfEdge> = HashSet::new();
+    let mut physical : HashSet<mesh3d::HalfEdge> = HashSet::new();
     // set physical edges
-    for e in 0..topomesh.get_nb_halfedges() {
-        let he = topomesh.get_halfedge(e)?;
+    for e in 0..mesh.get_nb_halfedges() {
+        let he = mesh.get_halfedge(e)?;
         if he.halfedge()[0] > he.halfedge()[1] {
             continue
         }
@@ -53,15 +53,15 @@ fn extract_physical_edges(topomesh: &TopoMesh, ang_max: Option<f32>) -> Result<H
     Ok(physical)
 }
 
-fn compute_halfedge_split_vertex(deltet: &DelaunayStruct, vertex_inds: [usize; 2]) -> Result<topo_mesh::Vertex> {
+fn compute_halfedge_split_vertex(deltet: &DelaunayStruct, vertex_inds: [usize; 2]) -> Result<mesh3d::Vertex> {
     let (vert1, vert2) = 
         if deltet.is_original_vertex(vertex_inds[0]) {
-            (deltet.get_topomesh().get_vertex(vertex_inds[0])?.vertex(), 
-             deltet.get_topomesh().get_vertex(vertex_inds[1])?.vertex())
+            (deltet.get_mesh().get_vertex(vertex_inds[0])?.vertex(), 
+             deltet.get_mesh().get_vertex(vertex_inds[1])?.vertex())
         }
         else {
-            (deltet.get_topomesh().get_vertex(vertex_inds[1])?.vertex(), 
-             deltet.get_topomesh().get_vertex(vertex_inds[0])?.vertex())
+            (deltet.get_mesh().get_vertex(vertex_inds[1])?.vertex(), 
+             deltet.get_mesh().get_vertex(vertex_inds[0])?.vertex())
         };
     
     let vert_mid = (vert1 + vert2) * 0.5;
@@ -86,22 +86,22 @@ fn compute_halfedge_split_vertex(deltet: &DelaunayStruct, vertex_inds: [usize; 2
     }
 }
 
-fn compute_face_split_vertex(face: IterFace) -> Result<topo_mesh::Vertex> {
+fn compute_face_split_vertex(face: mesh3d::IterFace) -> Result<mesh3d::Vertex> {
     let [vert1, vert2, vert3] = face.vertices();
 
     Ok((vert1.vertex() + vert2.vertex() + vert3.vertex()) / 3.0)
 }
 
-pub fn to_delaunay(topomesh: &mut TopoMesh, ang_max: Option<f32>) -> Result<()> {
-    let mut deltet = DelaunayStruct::init(topomesh)?;
+pub fn to_delaunay(mesh: &mut Mesh3D, ang_max: Option<f32>) -> Result<()> {
+    let mut deltet = DelaunayStruct::from_mesh(mesh)?;
 
-    let physical = extract_physical_edges(deltet.get_topomesh(), ang_max)?;
+    let physical = extract_physical_edges(deltet.get_mesh(), ang_max)?;
     
     let mut nb_non_del_hedges = deltet.count_non_del_halfedges()?;
     let mut nb_non_del_faces = deltet.count_non_del_faces()?;
-    println!("Vertices: {}", deltet.get_topomesh().get_nb_vertices());
-    println!("Non delaunay edges: {}/{}", nb_non_del_hedges >> 1, deltet.get_topomesh().get_nb_halfedges()>>1);
-    println!("Non delaunay faces: {}/{}", nb_non_del_faces, deltet.get_topomesh().get_nb_faces());
+    println!("Vertices: {}", deltet.get_mesh().get_nb_vertices());
+    println!("Non delaunay edges: {}/{}", nb_non_del_hedges >> 1, deltet.get_mesh().get_nb_halfedges()>>1);
+    println!("Non delaunay faces: {}/{}", nb_non_del_faces, deltet.get_mesh().get_nb_faces());
 
     let mut num_split_edge = 0;
     let mut num_split_face = 0;
@@ -114,7 +114,7 @@ pub fn to_delaunay(topomesh: &mut TopoMesh, ang_max: Option<f32>) -> Result<()> 
 
     loop {
         if let Some(he) = deltet.get_non_del_halfedge(Some(shift_edge))? {
-            shift_edge = (shift_edge+1)%deltet.get_topomesh().get_nb_halfedges();
+            shift_edge = (shift_edge+1)%deltet.get_mesh().get_nb_halfedges();
             let mut he_inds = he.halfedge();
             he_inds.sort();
             let is_physical = physical.contains(&he_inds);
@@ -156,9 +156,9 @@ pub fn to_delaunay(topomesh: &mut TopoMesh, ang_max: Option<f32>) -> Result<()> 
     
     nb_non_del_hedges = deltet.count_non_del_halfedges()?;
     nb_non_del_faces = deltet.count_non_del_faces()?;
-    println!("Vertices: {}", deltet.get_topomesh().get_nb_vertices());
-    println!("Non delaunay edges: {}/{}", nb_non_del_hedges>>1, deltet.get_topomesh().get_nb_halfedges()>>1);
-    println!("Non delaunay faces: {}/{}", nb_non_del_faces, deltet.get_topomesh().get_nb_faces());
+    println!("Vertices: {}", deltet.get_mesh().get_nb_vertices());
+    println!("Non delaunay edges: {}/{}", nb_non_del_hedges>>1, deltet.get_mesh().get_nb_halfedges()>>1);
+    println!("Non delaunay faces: {}/{}", nb_non_del_faces, deltet.get_mesh().get_nb_faces());
 
     Ok(())
 }
