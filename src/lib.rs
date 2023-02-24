@@ -1,2 +1,2 @@
-pub mod boundary3d;
+pub mod mesh3d;
 pub mod algorithm;
