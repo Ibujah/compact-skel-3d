@@ -1,13 +1,12 @@
 use anyhow::Result;
-use nalgebra::base::*;
 use std::collections::HashMap;
 
-use crate::mesh3d::Mesh3D;
+use crate::algorithm::delaunay_struct::DelaunayStruct;
 use crate::skeleton3d::Skeleton3D;
 
-pub struct VonoroiInterface3D<'a> {
-    mesh: &'a mut Mesh3D,
-    skeleton: &'a mut Skeleton3D,
+pub struct VonoroiInterface3D<'a, 'b> {
+    del_str: &'a mut DelaunayStruct<'a>,
+    skeleton: &'b mut Skeleton3D,
 
     // delaunay related
     del_tet: HashMap<[usize; 4], usize>, // list of delaunay tetrahedra
@@ -51,40 +50,49 @@ pub struct VonoroiInterface3D<'a> {
     palve_opp: Vec<usize>,        // opposite partial alveola
 }
 
-pub struct IterNode<'a> {
-    voronoi: &'a VonoroiInterface3D<'a>,
+#[derive(Copy, Clone)]
+pub struct IterNode<'a, 'b, 'c> {
+    voronoi: &'c VonoroiInterface3D<'a, 'b>,
     ind_node: usize,
 }
 
-pub struct IterEdge<'a> {
-    voronoi: &'a VonoroiInterface3D<'a>,
+#[derive(Copy, Clone)]
+pub struct IterEdge<'a, 'b, 'c> {
+    voronoi: &'c VonoroiInterface3D<'a, 'b>,
     ind_edge: usize,
 }
 
-pub struct IterAlveola<'a> {
-    voronoi: &'a VonoroiInterface3D<'a>,
+#[derive(Copy, Clone)]
+pub struct IterAlveola<'a, 'b, 'c> {
+    voronoi: &'c VonoroiInterface3D<'a, 'b>,
     ind_alveola: usize,
 }
 
-pub struct IterPartialNode<'a> {
-    voronoi: &'a VonoroiInterface3D<'a>,
+#[derive(Copy, Clone)]
+pub struct IterPartialNode<'a, 'b, 'c> {
+    voronoi: &'c VonoroiInterface3D<'a, 'b>,
     ind_pnode: usize,
 }
 
-pub struct IterPartialEdge<'a> {
-    voronoi: &'a VonoroiInterface3D<'a>,
+#[derive(Copy, Clone)]
+pub struct IterPartialEdge<'a, 'b, 'c> {
+    voronoi: &'c VonoroiInterface3D<'a, 'b>,
     ind_pedge: usize,
 }
 
-pub struct IterPartialAlveola<'a> {
-    voronoi: &'a VonoroiInterface3D<'a>,
+#[derive(Copy, Clone)]
+pub struct IterPartialAlveola<'a, 'b, 'c> {
+    voronoi: &'c VonoroiInterface3D<'a, 'b>,
     ind_palveola: usize,
 }
 
-impl<'a> VonoroiInterface3D<'a> {
-    pub fn new(mesh: &'a mut Mesh3D, skeleton: &'a mut Skeleton3D) -> VonoroiInterface3D<'a> {
+impl<'a, 'b, 'c> VonoroiInterface3D<'a, 'b> {
+    pub fn new(
+        del_str: &'a mut DelaunayStruct<'a>,
+        skeleton: &'b mut Skeleton3D,
+    ) -> VonoroiInterface3D<'a, 'b> {
         VonoroiInterface3D {
-            mesh,
+            del_str,
             skeleton,
             del_tet: HashMap::new(),
             del_tri: HashMap::new(),
@@ -116,7 +124,7 @@ impl<'a> VonoroiInterface3D<'a> {
         }
     }
 
-    pub fn add_node(&mut self, del_tet: &[usize; 4]) -> Result<IterNode> {
+    pub fn add_node(&'c mut self, del_tet: &[usize; 4]) -> Result<IterNode<'a, 'b, 'c>> {
         if let Some(&ind_node) = self.del_tet.get(del_tet) {
             return Ok(IterNode {
                 voronoi: self,
@@ -125,9 +133,6 @@ impl<'a> VonoroiInterface3D<'a> {
         }
 
         let ind_node = self.del_tet.len();
-
-        let center = Vector3::new(0.0, 0.0, 0.0);
-        let radius = 0.0;
 
         self.del_tet.insert(*del_tet, ind_node);
 
@@ -322,9 +327,83 @@ impl<'a> VonoroiInterface3D<'a> {
         self.palve_pedge[self.alve_palve[ind_alve[2]][1]].push(self.edge_pedge_opp[ind_edge][1]);
         self.palve_pedge[self.alve_palve[ind_alve[0]][0]].push(self.edge_pedge_opp[ind_edge][2]);
     }
+
+    pub fn get_node(&'c self, ind_node: usize) -> IterNode<'a, 'b, 'c> {
+        IterNode {
+            voronoi: self,
+            ind_node,
+        }
+    }
+
+    pub fn get_edge(&'c self, ind_edge: usize) -> IterEdge<'a, 'b, 'c> {
+        IterEdge {
+            voronoi: self,
+            ind_edge,
+        }
+    }
+
+    pub fn get_alveola(&'c self, ind_alveola: usize) -> IterAlveola<'a, 'b, 'c> {
+        IterAlveola {
+            voronoi: self,
+            ind_alveola,
+        }
+    }
+
+    pub fn propagate_edge(&mut self, ind_edge: usize) -> () {
+        todo!();
+    }
+
+    pub fn compute_alveola(&mut self, ind_alveola: usize) -> () {
+        todo!();
+    }
+
+    pub fn include_alveola_in_skel(&mut self, ind_alveola: usize) -> Result<()> {
+        let alveola = self.get_alveola(ind_alveola);
+        let palve = alveola.partial_alveolae()[0];
+        let vec_pedg = palve.partial_edges();
+
+        let mut inds_and_bnd = Vec::new();
+        let mut lis_edg = Vec::new();
+        let mut lis_nods = Vec::new();
+        let mut pedg_cur = vec_pedg[0];
+        for i in 0..vec_pedg.len() {
+            let pnode = vec_pedg[i]
+                .partial_node_first()
+                .ok_or(anyhow::Error::msg("Uncomputed node"))?;
+            let node = pnode.node();
+            let del_tet = node.delaunay_tetrahedron();
+            let ind_nod = node.ind();
+            let boundary_points = [
+                self.del_str.get_mesh().get_vertex(del_tet[0])?.vertex(),
+                self.del_str.get_mesh().get_vertex(del_tet[1])?.vertex(),
+                self.del_str.get_mesh().get_vertex(del_tet[2])?.vertex(),
+                self.del_str.get_mesh().get_vertex(del_tet[3])?.vertex(),
+            ];
+            inds_and_bnd.push((ind_nod, boundary_points));
+            let ind_edg_cur = pedg_cur.edge().ind();
+            let nod_ext = [
+                pedg_cur.edge().nodes()[0].ind(),
+                pedg_cur.edge().nodes()[1].ind(),
+            ];
+            lis_edg.push(ind_edg_cur);
+            lis_nods.push(nod_ext);
+            pedg_cur = pedg_cur.partial_edge_next();
+        }
+        for i in 0..inds_and_bnd.len() {
+            let (ind_nod, boundary_points) = inds_and_bnd[i];
+            self.skeleton.add_node(ind_nod, boundary_points);
+        }
+        for i in 0..lis_edg.len() {
+            let ind_edge = lis_edg[i];
+            let ind_nodes = lis_nods[i];
+            self.skeleton.add_edge(ind_edge, ind_nodes);
+        }
+        self.skeleton.add_alveola(ind_alveola, lis_edg);
+        Ok(())
+    }
 }
 
-impl<'a> IterNode<'a> {
+impl<'a, 'b, 'c> IterNode<'a, 'b, 'c> {
     pub fn ind(&self) -> usize {
         self.ind_node
     }
@@ -333,7 +412,7 @@ impl<'a> IterNode<'a> {
         self.voronoi.node_tet[self.ind_node]
     }
 
-    pub fn partial_nodes(&self) -> [IterPartialNode; 4] {
+    pub fn partial_nodes(&self) -> [IterPartialNode<'a, 'b, 'c>; 4] {
         [
             IterPartialNode {
                 voronoi: self.voronoi,
@@ -354,7 +433,7 @@ impl<'a> IterNode<'a> {
         ]
     }
 
-    pub fn edges(&self) -> [IterEdge; 4] {
+    pub fn edges(&self) -> [IterEdge<'a, 'b, 'c>; 4] {
         [
             IterEdge {
                 voronoi: self.voronoi,
@@ -376,7 +455,7 @@ impl<'a> IterNode<'a> {
     }
 }
 
-impl<'a> IterEdge<'a> {
+impl<'a, 'b, 'c> IterEdge<'a, 'b, 'c> {
     pub fn ind(&self) -> usize {
         self.ind_edge
     }
@@ -385,7 +464,7 @@ impl<'a> IterEdge<'a> {
         self.voronoi.edge_tri[self.ind_edge]
     }
 
-    pub fn nodes(&self) -> Vec<IterNode> {
+    pub fn nodes(&self) -> Vec<IterNode<'a, 'b, 'c>> {
         let mut nods: Vec<IterNode> = Vec::new();
         self.voronoi.edge_node[self.ind_edge]
             .iter()
@@ -401,7 +480,7 @@ impl<'a> IterEdge<'a> {
         nods
     }
 
-    pub fn alveolae(&self) -> [IterAlveola; 3] {
+    pub fn alveolae(&self) -> [IterAlveola<'a, 'b, 'c>; 3] {
         [
             IterAlveola {
                 voronoi: self.voronoi,
@@ -418,7 +497,7 @@ impl<'a> IterEdge<'a> {
         ]
     }
 
-    pub fn partial_edges(&self) -> [IterPartialEdge; 6] {
+    pub fn partial_edges(&self) -> [IterPartialEdge<'a, 'b, 'c>; 6] {
         [
             IterPartialEdge {
                 voronoi: self.voronoi,
@@ -448,7 +527,7 @@ impl<'a> IterEdge<'a> {
     }
 }
 
-impl<'a> IterAlveola<'a> {
+impl<'a, 'b, 'c> IterAlveola<'a, 'b, 'c> {
     pub fn ind(&self) -> usize {
         self.ind_alveola
     }
@@ -457,7 +536,7 @@ impl<'a> IterAlveola<'a> {
         self.voronoi.alve_seg[self.ind_alveola]
     }
 
-    pub fn edges(&self) -> Vec<IterEdge> {
+    pub fn edges(&self) -> Vec<IterEdge<'a, 'b, 'c>> {
         self.voronoi.alve_edge[self.ind_alveola]
             .iter()
             .map(|&ind_edge| IterEdge {
@@ -467,7 +546,7 @@ impl<'a> IterAlveola<'a> {
             .collect()
     }
 
-    pub fn partial_alveolae(&self) -> [IterPartialAlveola; 2] {
+    pub fn partial_alveolae(&self) -> [IterPartialAlveola<'a, 'b, 'c>; 2] {
         [
             IterPartialAlveola {
                 voronoi: self.voronoi,
@@ -481,7 +560,7 @@ impl<'a> IterAlveola<'a> {
     }
 }
 
-impl<'a> IterPartialNode<'a> {
+impl<'a, 'b, 'c> IterPartialNode<'a, 'b, 'c> {
     pub fn ind(&self) -> usize {
         self.ind_pnode
     }
@@ -490,14 +569,14 @@ impl<'a> IterPartialNode<'a> {
         self.voronoi.pnode_corner[self.ind_pnode]
     }
 
-    pub fn node(&self) -> IterNode {
+    pub fn node(&self) -> IterNode<'a, 'b, 'c> {
         IterNode {
             voronoi: self.voronoi,
             ind_node: self.voronoi.pnode_node[self.ind_pnode],
         }
     }
 
-    pub fn partial_edge_next(&self) -> [IterPartialEdge; 3] {
+    pub fn partial_edge_next(&self) -> [IterPartialEdge<'a, 'b, 'c>; 3] {
         [
             IterPartialEdge {
                 voronoi: self.voronoi,
@@ -515,7 +594,7 @@ impl<'a> IterPartialNode<'a> {
     }
 }
 
-impl<'a> IterPartialEdge<'a> {
+impl<'a, 'b, 'c> IterPartialEdge<'a, 'b, 'c> {
     pub fn ind(&self) -> usize {
         self.ind_pedge
     }
@@ -524,14 +603,14 @@ impl<'a> IterPartialEdge<'a> {
         self.voronoi.pedge_corner[self.ind_pedge]
     }
 
-    pub fn edge(&self) -> IterEdge {
+    pub fn edge(&self) -> IterEdge<'a, 'b, 'c> {
         IterEdge {
             voronoi: self.voronoi,
             ind_edge: self.voronoi.pedge_edge[self.ind_pedge],
         }
     }
 
-    pub fn partial_node_first(&self) -> Option<IterPartialNode> {
+    pub fn partial_node_first(&self) -> Option<IterPartialNode<'a, 'b, 'c>> {
         match self.voronoi.pedge_pnode[self.ind_pedge][0] {
             None => None,
             Some(ind_pnode) => Some(IterPartialNode {
@@ -541,7 +620,7 @@ impl<'a> IterPartialEdge<'a> {
         }
     }
 
-    pub fn partial_node_last(&self) -> Option<IterPartialNode> {
+    pub fn partial_node_last(&self) -> Option<IterPartialNode<'a, 'b, 'c>> {
         match self.voronoi.pedge_pnode[self.ind_pedge][1] {
             None => None,
             Some(ind_pnode) => Some(IterPartialNode {
@@ -551,21 +630,29 @@ impl<'a> IterPartialEdge<'a> {
         }
     }
 
-    pub fn partial_edge_opposite(&self) -> IterPartialEdge {
+    pub fn partial_edge_opposite(&self) -> IterPartialEdge<'a, 'b, 'c> {
         IterPartialEdge {
             voronoi: self.voronoi,
             ind_pedge: self.voronoi.pedge_opp[self.ind_pedge],
         }
     }
 
-    pub fn partial_edge_neighbor(&self) -> IterPartialEdge {
+    pub fn partial_edge_neighbor(&self) -> IterPartialEdge<'a, 'b, 'c> {
         IterPartialEdge {
             voronoi: self.voronoi,
             ind_pedge: self.voronoi.pedge_neigh[self.ind_pedge],
         }
     }
 
-    pub fn partial_alveolae(&self) -> IterPartialAlveola {
+    pub fn partial_edge_next(&self) -> IterPartialEdge<'a, 'b, 'c> {
+        todo!();
+    }
+
+    pub fn partial_edge_prev(&self) -> IterPartialEdge<'a, 'b, 'c> {
+        todo!();
+    }
+
+    pub fn partial_alveolae(&self) -> IterPartialAlveola<'a, 'b, 'c> {
         IterPartialAlveola {
             voronoi: self.voronoi,
             ind_palveola: self.voronoi.pedge_palve[self.ind_pedge],
@@ -573,7 +660,7 @@ impl<'a> IterPartialEdge<'a> {
     }
 }
 
-impl<'a> IterPartialAlveola<'a> {
+impl<'a, 'b, 'c> IterPartialAlveola<'a, 'b, 'c> {
     pub fn ind(&self) -> usize {
         self.ind_palveola
     }
@@ -582,21 +669,21 @@ impl<'a> IterPartialAlveola<'a> {
         self.voronoi.palve_corner[self.ind_palveola]
     }
 
-    pub fn alveola(&self) -> IterAlveola {
+    pub fn alveola(&self) -> IterAlveola<'a, 'b, 'c> {
         IterAlveola {
             voronoi: self.voronoi,
             ind_alveola: self.voronoi.palve_alve[self.ind_palveola],
         }
     }
 
-    pub fn partial_alveola_opposite(&self) -> IterPartialAlveola {
+    pub fn partial_alveola_opposite(&self) -> IterPartialAlveola<'a, 'b, 'c> {
         IterPartialAlveola {
             voronoi: self.voronoi,
             ind_palveola: self.voronoi.palve_opp[self.ind_palveola],
         }
     }
 
-    pub fn partial_edges(&self) -> Vec<IterPartialEdge> {
+    pub fn partial_edges(&self) -> Vec<IterPartialEdge<'a, 'b, 'c>> {
         self.voronoi.palve_pedge[self.ind_palveola]
             .iter()
             .map(|&ind_pedge| IterPartialEdge {
