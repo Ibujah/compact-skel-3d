@@ -64,7 +64,7 @@ pub fn include_alveola_in_skel(voro: &mut SkeletonInterface3D, ind_alveola: usiz
             .ok_or(anyhow::Error::msg("Non complete partial edge"))?;
     }
     for (ind_nod, boundary_points) in bnd_pts {
-        voro.skeleton.add_node(ind_nod, boundary_points);
+        voro.skeleton.add_node(ind_nod, boundary_points)?;
     }
     for (ind_edge, ind_nodes) in edges_map {
         voro.skeleton.add_edge(ind_edge, ind_nodes);

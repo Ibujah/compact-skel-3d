@@ -1,5 +1,8 @@
+use anyhow::Result;
 use nalgebra::base::*;
 use std::collections::HashMap;
+
+use crate::geometry::geometry_operations;
 
 #[derive(Copy, Clone)]
 pub struct Sphere {
@@ -25,14 +28,14 @@ impl Skeleton3D {
         }
     }
 
-    pub fn add_node(&mut self, ind_node: usize, boundary_points: [Vector3<f32>; 4]) -> () {
+    pub fn add_node(&mut self, ind_node: usize, boundary_points: [Vector3<f32>; 4]) -> Result<()> {
         if !self.nodes.contains_key(&ind_node) {
-            let sphere = Sphere {
-                center: Vector3::new(0.0, 0.0, 0.0),
-                radius: 0.0,
-            };
+            let (center, radius) = geometry_operations::center_and_radius(boundary_points)
+                .ok_or(anyhow::Error::msg("Flat tetrahedron"))?;
+            let sphere = Sphere { center, radius };
             self.nodes.insert(ind_node, sphere);
         }
+        Ok(())
     }
 
     pub fn add_edge(&mut self, ind_edge: usize, ind_nodes: [usize; 2]) -> () {
