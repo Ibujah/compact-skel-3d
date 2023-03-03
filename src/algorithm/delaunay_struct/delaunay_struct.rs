@@ -1,33 +1,30 @@
 use anyhow::Result;
+use std::collections::{HashMap, HashSet};
 use tritet::{StrError, Tetgen};
-use std::collections::{HashSet, HashMap};
 
-use crate::mesh3d::{Mesh3D, mesh3d};
 use crate::mesh3d::mesh_operations;
-
+use crate::mesh3d::{mesh3d, Mesh3D};
 
 pub type Edge = [usize; 2];
 pub type Triangle = [usize; 3];
-pub type Tetrahedra = [usize; 4];
+pub type Tetrahedron = [usize; 4];
 
-pub struct DelaunayStruct<'a>{
+pub struct DelaunayStruct<'a> {
     mesh: &'a mut Mesh3D,
 
     edges: HashSet<Edge>,
-    faces: HashMap<Triangle, Vec<Tetrahedra> >,
-    tetras: HashSet<Tetrahedra>,
-    
+    faces: HashMap<Triangle, Vec<Tetrahedron>>,
+    tetras: HashSet<Tetrahedron>,
+
     initial_vertices_number: usize,
 }
 
-fn to_anyhow(err: StrError) -> anyhow::Error
-{
+fn to_anyhow(err: StrError) -> anyhow::Error {
     anyhow::Error::msg(err.to_string())
 }
 
 impl<'a> DelaunayStruct<'a> {
-    
-    fn insert_tetra(&mut self, tetra: &mut Tetrahedra) -> () {
+    fn insert_tetra(&mut self, tetra: &mut Tetrahedron) -> () {
         tetra.sort();
 
         self.edges.insert([tetra[0], tetra[1]]);
@@ -36,47 +33,55 @@ impl<'a> DelaunayStruct<'a> {
         self.edges.insert([tetra[1], tetra[2]]);
         self.edges.insert([tetra[1], tetra[3]]);
         self.edges.insert([tetra[2], tetra[3]]);
-        
-        self.faces.entry([tetra[0], tetra[1], tetra[2]]).or_insert(Vec::new()).push(*tetra);
-        self.faces.entry([tetra[0], tetra[1], tetra[3]]).or_insert(Vec::new()).push(*tetra);
-        self.faces.entry([tetra[0], tetra[2], tetra[3]]).or_insert(Vec::new()).push(*tetra);
-        self.faces.entry([tetra[1], tetra[2], tetra[3]]).or_insert(Vec::new()).push(*tetra);
+
+        self.faces
+            .entry([tetra[0], tetra[1], tetra[2]])
+            .or_insert(Vec::new())
+            .push(*tetra);
+        self.faces
+            .entry([tetra[0], tetra[1], tetra[3]])
+            .or_insert(Vec::new())
+            .push(*tetra);
+        self.faces
+            .entry([tetra[0], tetra[2], tetra[3]])
+            .or_insert(Vec::new())
+            .push(*tetra);
+        self.faces
+            .entry([tetra[1], tetra[2], tetra[3]])
+            .or_insert(Vec::new())
+            .push(*tetra);
 
         self.tetras.insert([tetra[0], tetra[1], tetra[2], tetra[3]]);
     }
-    
+
     fn generate_struct(&mut self) -> Result<()> {
-        let mut tetgen = 
-            Tetgen::new(self.mesh.get_nb_vertices(), 
-                        Some(vec![3; self.mesh.get_nb_faces()]), 
-                        None, 
-                        None)
-            .map_err(to_anyhow)?;
+        let mut tetgen = Tetgen::new(
+            self.mesh.get_nb_vertices(),
+            Some(vec![3; self.mesh.get_nb_faces()]),
+            None,
+            None,
+        )
+        .map_err(to_anyhow)?;
 
         for v in 0..self.mesh.get_nb_vertices() {
-            let vert = 
-                self
-                .mesh
-                .get_vertex(v)?
-                .vertex();
+            let vert = self.mesh.get_vertex(v)?.vertex();
 
             tetgen
                 .set_point(v, vert[0] as f64, vert[1] as f64, vert[2] as f64)
                 .map_err(to_anyhow)?;
         }
 
-        tetgen.generate_delaunay(false)
-            .map_err(to_anyhow)?;
+        tetgen.generate_delaunay(false).map_err(to_anyhow)?;
 
         for t in 0..tetgen.ntet() {
             let mut tetra = [0; 4];
             for m in 0..4 {
                 tetra[m] = tetgen.tet_node(t, m);
             }
-            
+
             self.insert_tetra(&mut tetra);
         }
-        
+
         Ok(())
     }
 
@@ -90,7 +95,7 @@ impl<'a> DelaunayStruct<'a> {
 
     pub fn from_mesh(mesh: &'a mut Mesh3D) -> Result<DelaunayStruct<'a>> {
         let initial_vertices_number = mesh.get_nb_vertices();
-        let mut deltet = DelaunayStruct { 
+        let mut deltet = DelaunayStruct {
             mesh,
             edges: HashSet::new(),
             faces: HashMap::new(),
@@ -102,9 +107,20 @@ impl<'a> DelaunayStruct<'a> {
 
         Ok(deltet)
     }
-    
+
     pub fn get_mesh(&self) -> &Mesh3D {
         self.mesh
+    }
+
+    pub fn get_tetrahedra_from_triangle(&self, del_tri: Triangle) -> Result<Vec<Tetrahedron>> {
+        let vec = self
+            .faces
+            .get(&del_tri)
+            .ok_or(anyhow::Error::msg("Triangle does not exist"))?
+            .iter()
+            .map(|&x| x)
+            .collect();
+        Ok(vec)
     }
 
     pub fn is_original_vertex(&self, ind_vertex: usize) -> bool {
@@ -123,7 +139,7 @@ impl<'a> DelaunayStruct<'a> {
         self.faces.contains_key(&face_sort)
     }
 
-    pub fn is_tetra_in(&self, tetra: &Tetrahedra) -> bool {
+    pub fn is_tetra_in(&self, tetra: &Tetrahedron) -> bool {
         let mut tetra_sort = [tetra[0], tetra[1], tetra[2], tetra[3]];
         tetra_sort.sort();
         self.tetras.contains(&tetra_sort)
@@ -133,7 +149,7 @@ impl<'a> DelaunayStruct<'a> {
         let mut nb_non_del = 0;
         for i in 0..self.mesh.get_nb_halfedges() {
             let he = self.mesh.get_halfedge(i)?.halfedge();
-            nb_non_del = nb_non_del + if self.is_edge_in(&he) {0} else {1};
+            nb_non_del = nb_non_del + if self.is_edge_in(&he) { 0 } else { 1 };
         }
         Ok(nb_non_del)
     }
@@ -142,39 +158,32 @@ impl<'a> DelaunayStruct<'a> {
         let mut nb_non_del = 0;
         for i in 0..self.mesh.get_nb_faces() {
             let face = self.mesh.get_face_vertices(i)?;
-            nb_non_del = nb_non_del + if self.is_face_in(&face) {0} else {1};
+            nb_non_del = nb_non_del + if self.is_face_in(&face) { 0 } else { 1 };
         }
         Ok(nb_non_del)
     }
-    
+
     fn get_opposite_angle(&self, halfedge: mesh3d::IterHalfEdge) -> Result<f32> {
-        let vert1 = 
-            halfedge
-            .first_vertex()
-            .vertex();
-        let vert2 = 
-            halfedge
-            .last_vertex()
-            .vertex();
-        let vert3 = 
-            halfedge
-            .next_halfedge()?
-            .last_vertex()
-            .vertex();
+        let vert1 = halfedge.first_vertex().vertex();
+        let vert2 = halfedge.last_vertex().vertex();
+        let vert3 = halfedge.next_halfedge()?.last_vertex().vertex();
 
         let vec31 = vert1 - vert3;
         let vec32 = vert2 - vert3;
-        
+
         let vx = vec31.dot(&vec32);
         let vy = vec31.cross(&vec32).norm();
         let angle = vy.atan2(vx);
         Ok(angle)
     }
 
-    pub fn get_local_non_del_halfedge(&self, shift: Option<usize>) -> Result<Option<mesh3d::IterHalfEdge>>{
+    pub fn get_local_non_del_halfedge(
+        &self,
+        shift: Option<usize>,
+    ) -> Result<Option<mesh3d::IterHalfEdge>> {
         let shift = shift.unwrap_or(0);
         for i in 0..self.mesh.get_nb_halfedges() {
-            let ind_he = (i+shift)%self.mesh.get_nb_halfedges();
+            let ind_he = (i + shift) % self.mesh.get_nb_halfedges();
             let he = self.mesh.get_halfedge(ind_he)?;
             if !self.is_edge_in(&he.halfedge()) {
                 let angle1 = self.get_opposite_angle(he)?;
@@ -187,51 +196,62 @@ impl<'a> DelaunayStruct<'a> {
         }
         Ok(None)
     }
-    
-    pub fn get_non_del_halfedge(&self, shift: Option<usize>) -> Result<Option<mesh3d::IterHalfEdge>>{
+
+    pub fn get_non_del_halfedge(
+        &self,
+        shift: Option<usize>,
+    ) -> Result<Option<mesh3d::IterHalfEdge>> {
         let shift = shift.unwrap_or(0);
         for i in 0..self.mesh.get_nb_halfedges() {
-            let ind_he = (i+shift)%self.mesh.get_nb_halfedges();
+            let ind_he = (i + shift) % self.mesh.get_nb_halfedges();
             let he = self.mesh.get_halfedge(ind_he)?;
-            if !self.is_edge_in(&he.halfedge()) {return Ok(Some(he))};
+            if !self.is_edge_in(&he.halfedge()) {
+                return Ok(Some(he));
+            };
         }
         Ok(None)
     }
-    
-    pub fn get_non_del_face(&self, shift: Option<usize>) -> Result<Option<mesh3d::IterFace>>{
+
+    pub fn get_non_del_face(&self, shift: Option<usize>) -> Result<Option<mesh3d::IterFace>> {
         let shift = shift.unwrap_or(0);
         for i in 0..self.mesh.get_nb_faces() {
-            let ind_face = (i+shift)%self.mesh.get_nb_faces();
+            let ind_face = (i + shift) % self.mesh.get_nb_faces();
             let face = self.mesh.get_face(ind_face)?;
             let face_ind = face.vertices_inds();
-            if !self.is_face_in(&face_ind) {return Ok(Some(face))};
+            if !self.is_face_in(&face_ind) {
+                return Ok(Some(face));
+            };
         }
         Ok(None)
     }
-    
-    pub fn get_all_non_del_halfedge(&self) -> Result<Vec<usize>>{
+
+    pub fn get_all_non_del_halfedge(&self) -> Result<Vec<usize>> {
         let mut non_del = Vec::new();
-        
+
         for i in 0..self.mesh.get_nb_halfedges() {
             let he = self.mesh.get_halfedge(i)?;
-            if !self.is_edge_in(&he.halfedge()) {non_del.push(i);};
+            if !self.is_edge_in(&he.halfedge()) {
+                non_del.push(i);
+            };
         }
 
         Ok(non_del)
     }
-    
-    pub fn get_all_non_del_face(&self) -> Result<Vec<usize>>{
+
+    pub fn get_all_non_del_face(&self) -> Result<Vec<usize>> {
         let mut non_del = Vec::new();
-        
+
         for i in 0..self.mesh.get_nb_faces() {
             let face = self.mesh.get_face_vertices(i)?;
-            if !self.is_face_in(&face) {non_del.push(i);};
+            if !self.is_face_in(&face) {
+                non_del.push(i);
+            };
         }
 
         Ok(non_del)
     }
-    
-    pub fn flip_halfedge(&mut self, ind_halfedge: usize) -> Result<bool>{
+
+    pub fn flip_halfedge(&mut self, ind_halfedge: usize) -> Result<bool> {
         mesh_operations::flip_halfedge(self.mesh, ind_halfedge)
     }
 
@@ -245,4 +265,3 @@ impl<'a> DelaunayStruct<'a> {
         self.recompute_struct()
     }
 }
-

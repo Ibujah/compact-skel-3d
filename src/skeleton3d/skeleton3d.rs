@@ -10,7 +10,7 @@ pub struct Sphere {
 pub struct Skeleton3D {
     nodes: HashMap<usize, Sphere>,
     edges: HashMap<usize, [usize; 2]>,    // connects two nodes
-    alveolae: HashMap<usize, Vec<usize>>, // ordered list of edges
+    alveolae: HashMap<usize, Vec<usize>>, // ordered list of nodes
 
     labels: HashMap<usize, Option<usize>>, // alveolae labels
 }
@@ -41,9 +41,9 @@ impl Skeleton3D {
         }
     }
 
-    pub fn add_alveola(&mut self, ind_alveola: usize, ind_edges: Vec<usize>) -> () {
+    pub fn add_alveola(&mut self, ind_alveola: usize, ind_nodes: Vec<usize>) -> () {
         if !self.alveolae.contains_key(&ind_alveola) {
-            self.alveolae.insert(ind_alveola, ind_edges);
+            self.alveolae.insert(ind_alveola, ind_nodes);
             self.labels.insert(ind_alveola, None);
         }
     }
