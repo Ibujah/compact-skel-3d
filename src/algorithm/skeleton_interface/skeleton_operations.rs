@@ -2,18 +2,18 @@ use anyhow::Result;
 use nalgebra::base::*;
 use std::collections::HashMap;
 
-use crate::algorithm::voronoi_interface::VonoroiInterface3D;
+use crate::algorithm::skeleton_interface::SkeletonInterface3D;
 
-pub fn propagate_edge(voro: &mut VonoroiInterface3D, ind_edge: usize) -> Result<()> {
+pub fn propagate_edge(voro: &mut SkeletonInterface3D, ind_edge: usize) -> Result<()> {
     let del_tri = voro.edge_tri[ind_edge];
-    let del_tets = voro.del_str.get_tetrahedra_from_triangle(del_tri)?;
+    let del_tets = voro.get_tetrahedra_from_triangle(del_tri)?;
     for del_tet in del_tets {
         voro.add_node(&del_tet)?;
     }
     Ok(())
 }
 
-pub fn compute_alveola(voro: &mut VonoroiInterface3D, ind_alveola: usize) -> Result<()> {
+pub fn compute_alveola(voro: &mut SkeletonInterface3D, ind_alveola: usize) -> Result<()> {
     let vec_pedg = voro.get_alveola(ind_alveola).partial_alveolae()[0].partial_edges();
     let pedg_first = vec_pedg[0].ind();
     let mut pedg_cur = pedg_first;
@@ -31,7 +31,7 @@ pub fn compute_alveola(voro: &mut VonoroiInterface3D, ind_alveola: usize) -> Res
     Ok(())
 }
 
-pub fn include_alveola_in_skel(voro: &mut VonoroiInterface3D, ind_alveola: usize) -> Result<()> {
+pub fn include_alveola_in_skel(voro: &mut SkeletonInterface3D, ind_alveola: usize) -> Result<()> {
     let vec_pedg = voro.get_alveola(ind_alveola).partial_alveolae()[0].partial_edges();
 
     let mut bnd_pts = HashMap::new();
@@ -46,7 +46,7 @@ pub fn include_alveola_in_skel(voro: &mut VonoroiInterface3D, ind_alveola: usize
         let boundary_points = node
             .delaunay_tetrahedron()
             .iter()
-            .map(|&ind_vertex| Ok(voro.del_str.get_mesh().get_vertex(ind_vertex)?.vertex()))
+            .map(|&ind_vertex| Ok(voro.mesh.get_vertex(ind_vertex)?.vertex()))
             .collect::<Result<Vec<Vector3<f32>>>>()?
             .try_into()
             .map_err(|_x: Vec<_>| anyhow::Error::msg("Could not convert vec to array"))

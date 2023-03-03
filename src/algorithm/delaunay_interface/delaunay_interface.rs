@@ -9,7 +9,7 @@ pub type Edge = [usize; 2];
 pub type Triangle = [usize; 3];
 pub type Tetrahedron = [usize; 4];
 
-pub struct DelaunayStruct<'a> {
+pub struct DelaunayInterface<'a> {
     mesh: &'a mut Mesh3D,
 
     edges: HashSet<Edge>,
@@ -23,7 +23,7 @@ fn to_anyhow(err: StrError) -> anyhow::Error {
     anyhow::Error::msg(err.to_string())
 }
 
-impl<'a> DelaunayStruct<'a> {
+impl<'a> DelaunayInterface<'a> {
     fn insert_tetra(&mut self, tetra: &mut Tetrahedron) -> () {
         tetra.sort();
 
@@ -93,9 +93,9 @@ impl<'a> DelaunayStruct<'a> {
         self.generate_struct()
     }
 
-    pub fn from_mesh(mesh: &'a mut Mesh3D) -> Result<DelaunayStruct<'a>> {
+    pub fn from_mesh(mesh: &'a mut Mesh3D) -> Result<DelaunayInterface<'a>> {
         let initial_vertices_number = mesh.get_nb_vertices();
-        let mut deltet = DelaunayStruct {
+        let mut deltet = DelaunayInterface {
             mesh,
             edges: HashSet::new(),
             faces: HashMap::new(),
@@ -110,6 +110,18 @@ impl<'a> DelaunayStruct<'a> {
 
     pub fn get_mesh(&self) -> &Mesh3D {
         self.mesh
+    }
+
+    pub fn get_edges(&self) -> &HashSet<Edge> {
+        &self.edges
+    }
+
+    pub fn get_faces(&self) -> &HashMap<Triangle, Vec<Tetrahedron>> {
+        &self.faces
+    }
+
+    pub fn get_tetrahedra(&self) -> &HashSet<Tetrahedron> {
+        &self.tetras
     }
 
     pub fn get_tetrahedra_from_triangle(&self, del_tri: Triangle) -> Result<Vec<Tetrahedron>> {

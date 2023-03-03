@@ -1,3 +1,3 @@
 pub mod delaunay_alg;
-mod delaunay_struct;
-mod voronoi_interface;
+pub mod delaunay_interface;
+pub mod skeleton_interface;

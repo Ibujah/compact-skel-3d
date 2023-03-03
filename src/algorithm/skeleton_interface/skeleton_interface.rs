@@ -1,12 +1,17 @@
 use anyhow::Result;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
-use crate::algorithm::delaunay_struct::DelaunayStruct;
+use crate::algorithm::delaunay_interface::DelaunayInterface;
+use crate::mesh3d::Mesh3D;
 use crate::skeleton3d::Skeleton3D;
 
-pub struct VonoroiInterface3D<'a, 'b> {
-    pub(super) del_str: &'a mut DelaunayStruct<'a>,
+pub struct SkeletonInterface3D<'a, 'b> {
+    pub(super) mesh: &'a mut Mesh3D,
     pub(super) skeleton: &'b mut Skeleton3D,
+
+    // existing delaunay
+    pub(super) faces: HashMap<[usize; 3], Vec<[usize; 4]>>,
+    pub(super) tetras: HashSet<[usize; 4]>,
 
     // delaunay related
     pub(super) del_tet: HashMap<[usize; 4], usize>, // list of delaunay tetrahedra
@@ -53,76 +58,96 @@ pub struct VonoroiInterface3D<'a, 'b> {
 
 #[derive(Copy, Clone)]
 pub struct IterNode<'a, 'b, 'c> {
-    voronoi: &'c VonoroiInterface3D<'a, 'b>,
+    voronoi: &'c SkeletonInterface3D<'a, 'b>,
     ind_node: usize,
 }
 
 #[derive(Copy, Clone)]
 pub struct IterEdge<'a, 'b, 'c> {
-    voronoi: &'c VonoroiInterface3D<'a, 'b>,
+    voronoi: &'c SkeletonInterface3D<'a, 'b>,
     ind_edge: usize,
 }
 
 #[derive(Copy, Clone)]
 pub struct IterAlveola<'a, 'b, 'c> {
-    voronoi: &'c VonoroiInterface3D<'a, 'b>,
+    voronoi: &'c SkeletonInterface3D<'a, 'b>,
     ind_alveola: usize,
 }
 
 #[derive(Copy, Clone)]
 pub struct IterPartialNode<'a, 'b, 'c> {
-    voronoi: &'c VonoroiInterface3D<'a, 'b>,
+    voronoi: &'c SkeletonInterface3D<'a, 'b>,
     ind_pnode: usize,
 }
 
 #[derive(Copy, Clone)]
 pub struct IterPartialEdge<'a, 'b, 'c> {
-    voronoi: &'c VonoroiInterface3D<'a, 'b>,
+    voronoi: &'c SkeletonInterface3D<'a, 'b>,
     ind_pedge: usize,
 }
 
 #[derive(Copy, Clone)]
 pub struct IterPartialAlveola<'a, 'b, 'c> {
-    voronoi: &'c VonoroiInterface3D<'a, 'b>,
+    voronoi: &'c SkeletonInterface3D<'a, 'b>,
     ind_palveola: usize,
 }
 
-impl<'a, 'b, 'c> VonoroiInterface3D<'a, 'b> {
-    pub fn new(
-        del_str: &'a mut DelaunayStruct<'a>,
+impl<'a, 'b, 'c> SkeletonInterface3D<'a, 'b> {
+    pub fn init(
+        mesh: &'a mut Mesh3D,
         skeleton: &'b mut Skeleton3D,
-    ) -> VonoroiInterface3D<'a, 'b> {
-        VonoroiInterface3D {
-            del_str,
-            skeleton,
-            del_tet: HashMap::new(),
-            del_tri: HashMap::new(),
-            del_seg: HashMap::new(),
-            node_tet: Vec::new(),
-            node_pnode: Vec::new(),
-            node_edge: Vec::new(),
-            edge_tri: Vec::new(),
-            edge_pedge_dir: Vec::new(),
-            edge_pedge_opp: Vec::new(),
-            edge_node: Vec::new(),
-            edge_alve: Vec::new(),
-            alve_seg: Vec::new(),
-            alve_palve: Vec::new(),
-            alve_edge: Vec::new(),
-            pnode_corner: Vec::new(),
-            pnode_node: Vec::new(),
-            pnode_pedge_next: Vec::new(),
-            pnode_pedge_prev: Vec::new(),
-            pedge_corner: Vec::new(),
-            pedge_edge: Vec::new(),
-            pedge_pnode: Vec::new(),
-            pedge_palve: Vec::new(),
-            pedge_neigh: Vec::new(),
-            pedge_opp: Vec::new(),
-            palve_corner: Vec::new(),
-            palve_alve: Vec::new(),
-            palve_pedge: Vec::new(),
-            palve_opp: Vec::new(),
+    ) -> Result<SkeletonInterface3D<'a, 'b>> {
+        let deltet = DelaunayInterface::from_mesh(mesh)?;
+        let nb_non_del_hedges = deltet.count_non_del_halfedges()?;
+        let nb_non_del_faces = deltet.count_non_del_faces()?;
+
+        let faces = deltet
+            .get_faces()
+            .iter()
+            .map(|(&tri, tetras)| {
+                let tetras_cpy = tetras.iter().map(|&tetra| tetra).collect();
+                (tri, tetras_cpy)
+            })
+            .collect();
+        let tetras = deltet.get_tetrahedra().iter().map(|&tetra| tetra).collect();
+
+        if nb_non_del_hedges != 0 || nb_non_del_faces != 0 {
+            Err(anyhow::Error::msg("Mesh is not Delaunay"))
+        } else {
+            Ok(SkeletonInterface3D {
+                mesh,
+                skeleton,
+                faces,
+                tetras,
+                del_tet: HashMap::new(),
+                del_tri: HashMap::new(),
+                del_seg: HashMap::new(),
+                node_tet: Vec::new(),
+                node_pnode: Vec::new(),
+                node_edge: Vec::new(),
+                edge_tri: Vec::new(),
+                edge_pedge_dir: Vec::new(),
+                edge_pedge_opp: Vec::new(),
+                edge_node: Vec::new(),
+                edge_alve: Vec::new(),
+                alve_seg: Vec::new(),
+                alve_palve: Vec::new(),
+                alve_edge: Vec::new(),
+                pnode_corner: Vec::new(),
+                pnode_node: Vec::new(),
+                pnode_pedge_next: Vec::new(),
+                pnode_pedge_prev: Vec::new(),
+                pedge_corner: Vec::new(),
+                pedge_edge: Vec::new(),
+                pedge_pnode: Vec::new(),
+                pedge_palve: Vec::new(),
+                pedge_neigh: Vec::new(),
+                pedge_opp: Vec::new(),
+                palve_corner: Vec::new(),
+                palve_alve: Vec::new(),
+                palve_pedge: Vec::new(),
+                palve_opp: Vec::new(),
+            })
         }
     }
 
@@ -375,6 +400,25 @@ impl<'a, 'b, 'c> VonoroiInterface3D<'a, 'b> {
             voronoi: self,
             ind_palveola,
         }
+    }
+
+    pub fn get_skeleton(&self) -> &Skeleton3D {
+        self.skeleton
+    }
+
+    pub fn get_mesh(&self) -> &Mesh3D {
+        self.mesh
+    }
+
+    pub fn get_tetrahedra_from_triangle(&self, del_tri: [usize; 3]) -> Result<Vec<[usize; 4]>> {
+        let vec = self
+            .faces
+            .get(&del_tri)
+            .ok_or(anyhow::Error::msg("Triangle does not exist"))?
+            .iter()
+            .map(|&x| x)
+            .collect();
+        Ok(vec)
     }
 }
 

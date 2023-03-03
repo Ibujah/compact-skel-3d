@@ -1,7 +1,7 @@
 use anyhow::Result;
 use std::collections::HashSet;
 
-use crate::algorithm::delaunay_struct::DelaunayStruct;
+use crate::algorithm::delaunay_interface::DelaunayInterface;
 use crate::mesh3d::{mesh3d, Mesh3D};
 
 fn extract_physical_edges(
@@ -57,7 +57,7 @@ fn extract_physical_edges(
 }
 
 fn compute_halfedge_split_vertex(
-    deltet: &DelaunayStruct,
+    deltet: &DelaunayInterface,
     vertex_inds: [usize; 2],
 ) -> Result<mesh3d::Vertex> {
     let (vert1, vert2) = if deltet.is_original_vertex(vertex_inds[0]) {
@@ -100,7 +100,7 @@ fn compute_face_split_vertex(face: mesh3d::IterFace) -> Result<mesh3d::Vertex> {
 }
 
 pub fn to_delaunay(mesh: &mut Mesh3D, ang_max: Option<f32>) -> Result<()> {
-    let mut deltet = DelaunayStruct::from_mesh(mesh)?;
+    let mut deltet = DelaunayInterface::from_mesh(mesh)?;
 
     let physical = extract_physical_edges(deltet.get_mesh(), ang_max)?;
 
