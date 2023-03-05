@@ -37,7 +37,6 @@ fn main() -> Result<()> {
 
     println!("Finding first node");
     let ind_first_node = skeleton_operations::first_node_in(&mut skeleton_interface)?;
-    skeleton_interface.print_all();
 
     println!("Checking skeleton");
     skeleton_interface.check()?;

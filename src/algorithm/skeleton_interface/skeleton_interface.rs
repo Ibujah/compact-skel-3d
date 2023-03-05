@@ -589,13 +589,13 @@ impl<'a, 'b, 'c> SkeletonInterface3D<'a, 'b> {
                 return Err(anyhow::Error::msg(msg));
             }
 
-            let nod_last = pedge
-                .partial_node_last()
-                .ok_or(anyhow::Error::msg("Last node should exist"))?;
+            let nod_last = pedge.partial_node_last().ok_or(anyhow::Error::msg(
+                "Last node of current partial edge should exist",
+            ))?;
 
-            let nod_first = pedge_next
-                .partial_node_first()
-                .ok_or(anyhow::Error::msg("First node should exist"))?;
+            let nod_first = pedge_next.partial_node_first().ok_or(anyhow::Error::msg(
+                "First node of next partial edge should exist",
+            ))?;
 
             if nod_first.ind() != nod_last.ind() {
                 let msg = format!(
@@ -617,13 +617,13 @@ impl<'a, 'b, 'c> SkeletonInterface3D<'a, 'b> {
                 return Err(anyhow::Error::msg(msg));
             }
 
-            let nod_last = pedge_prev
-                .partial_node_last()
-                .ok_or(anyhow::Error::msg("Last node should exist"))?;
+            let nod_last = pedge_prev.partial_node_last().ok_or(anyhow::Error::msg(
+                "Last node of previous partial edge should exist",
+            ))?;
 
-            let nod_first = pedge
-                .partial_node_first()
-                .ok_or(anyhow::Error::msg("First node should exist"))?;
+            let nod_first = pedge.partial_node_first().ok_or(anyhow::Error::msg(
+                "First node of current partial edge should exist",
+            ))?;
 
             if nod_first.ind() != nod_last.ind() {
                 let msg = format!(
@@ -671,19 +671,15 @@ impl<'a, 'b, 'c> SkeletonInterface3D<'a, 'b> {
     }
 
     pub fn check(&self) -> Result<()> {
-        println!("Checking nodes");
         for ind_node in 0..self.node_tet.len() {
             self.check_node(ind_node)?;
         }
-        println!("Checking edges");
         for ind_edge in 0..self.edge_tri.len() {
             self.check_edge(ind_edge)?;
         }
-        println!("Checking alveolae");
         for ind_alve in 0..self.alve_seg.len() {
             self.check_alveola(ind_alve)?;
         }
-        println!("Checking partial edges");
         for ind_pedge in 0..self.pedge_edge.len() {
             self.check_partial_edge(ind_pedge)?;
         }
@@ -1095,7 +1091,7 @@ impl<'a, 'b, 'c> IterPartialEdge<'a, 'b, 'c> {
     }
 
     pub fn partial_edge_prev(&self) -> Result<Option<IterPartialEdge<'a, 'b, 'c>>> {
-        match self.partial_node_last() {
+        match self.partial_node_first() {
             None => Ok(None),
             Some(pnode) => {
                 let palve = self.partial_alveolae().ind();
