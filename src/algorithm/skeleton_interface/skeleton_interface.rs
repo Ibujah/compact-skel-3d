@@ -257,8 +257,8 @@ impl<'a, 'b, 'c> SkeletonInterface3D<'a, 'b> {
         self.pedge_opp.push(pedges_opp[2]);
         self.pedge_opp.push(pedges_opp[0]);
         self.pedge_opp.push(pedges_dir[2]);
-        self.pedge_opp.push(pedges_dir[1]);
         self.pedge_opp.push(pedges_dir[0]);
+        self.pedge_opp.push(pedges_dir[1]);
         (pedges_dir, pedges_opp)
     }
 
@@ -348,58 +348,79 @@ impl<'a, 'b, 'c> SkeletonInterface3D<'a, 'b> {
         self.pedge_palve[self.edge_pedge_dir[ind_edge][0]] = self.alve_palve[ind_alve[2]][0];
         self.pedge_palve[self.edge_pedge_dir[ind_edge][1]] = self.alve_palve[ind_alve[0]][0];
         self.pedge_palve[self.edge_pedge_dir[ind_edge][2]] = self.alve_palve[ind_alve[1]][1];
-        self.pedge_palve[self.edge_pedge_opp[ind_edge][0]] = self.alve_palve[ind_alve[1]][1];
+        self.pedge_palve[self.edge_pedge_opp[ind_edge][0]] = self.alve_palve[ind_alve[1]][0];
         self.pedge_palve[self.edge_pedge_opp[ind_edge][1]] = self.alve_palve[ind_alve[2]][1];
-        self.pedge_palve[self.edge_pedge_opp[ind_edge][2]] = self.alve_palve[ind_alve[0]][0];
+        self.pedge_palve[self.edge_pedge_opp[ind_edge][2]] = self.alve_palve[ind_alve[0]][1];
 
         self.palve_pedge[self.alve_palve[ind_alve[2]][0]].push(self.edge_pedge_dir[ind_edge][0]);
         self.palve_pedge[self.alve_palve[ind_alve[0]][0]].push(self.edge_pedge_dir[ind_edge][1]);
         self.palve_pedge[self.alve_palve[ind_alve[1]][1]].push(self.edge_pedge_dir[ind_edge][2]);
-        self.palve_pedge[self.alve_palve[ind_alve[1]][1]].push(self.edge_pedge_opp[ind_edge][0]);
+        self.palve_pedge[self.alve_palve[ind_alve[1]][0]].push(self.edge_pedge_opp[ind_edge][0]);
         self.palve_pedge[self.alve_palve[ind_alve[2]][1]].push(self.edge_pedge_opp[ind_edge][1]);
-        self.palve_pedge[self.alve_palve[ind_alve[0]][0]].push(self.edge_pedge_opp[ind_edge][2]);
+        self.palve_pedge[self.alve_palve[ind_alve[0]][1]].push(self.edge_pedge_opp[ind_edge][2]);
     }
 
-    pub fn get_node(&'c self, ind_node: usize) -> IterNode<'a, 'b, 'c> {
-        IterNode {
+    pub fn get_node(&'c self, ind_node: usize) -> Result<IterNode<'a, 'b, 'c>> {
+        if ind_node >= self.node_tet.len() {
+            return Err(anyhow::Error::msg("Node index out of bounds"));
+        }
+        Ok(IterNode {
             voronoi: self,
             ind_node,
-        }
+        })
     }
 
-    pub fn get_partial_node(&'c self, ind_pnode: usize) -> IterPartialNode<'a, 'b, 'c> {
-        IterPartialNode {
+    pub fn get_partial_node(&'c self, ind_pnode: usize) -> Result<IterPartialNode<'a, 'b, 'c>> {
+        if ind_pnode >= self.pnode_node.len() {
+            return Err(anyhow::Error::msg("Partial node index out of bounds"));
+        }
+        Ok(IterPartialNode {
             voronoi: self,
             ind_pnode,
-        }
+        })
     }
 
-    pub fn get_edge(&'c self, ind_edge: usize) -> IterEdge<'a, 'b, 'c> {
-        IterEdge {
+    pub fn get_edge(&'c self, ind_edge: usize) -> Result<IterEdge<'a, 'b, 'c>> {
+        if ind_edge >= self.edge_tri.len() {
+            return Err(anyhow::Error::msg("Edge index out of bounds"));
+        }
+        Ok(IterEdge {
             voronoi: self,
             ind_edge,
-        }
+        })
     }
 
-    pub fn get_partial_edge(&'c self, ind_pedge: usize) -> IterPartialEdge<'a, 'b, 'c> {
-        IterPartialEdge {
+    pub fn get_partial_edge(&'c self, ind_pedge: usize) -> Result<IterPartialEdge<'a, 'b, 'c>> {
+        if ind_pedge >= self.pedge_edge.len() {
+            return Err(anyhow::Error::msg("Partial edge index out of bounds"));
+        }
+        Ok(IterPartialEdge {
             voronoi: self,
             ind_pedge,
-        }
+        })
     }
 
-    pub fn get_alveola(&'c self, ind_alveola: usize) -> IterAlveola<'a, 'b, 'c> {
-        IterAlveola {
+    pub fn get_alveola(&'c self, ind_alveola: usize) -> Result<IterAlveola<'a, 'b, 'c>> {
+        if ind_alveola >= self.alve_seg.len() {
+            return Err(anyhow::Error::msg("Alveola index out of bounds"));
+        }
+        Ok(IterAlveola {
             voronoi: self,
             ind_alveola,
-        }
+        })
     }
 
-    pub fn get_partial_alveola(&'c self, ind_palveola: usize) -> IterPartialAlveola<'a, 'b, 'c> {
-        IterPartialAlveola {
+    pub fn get_partial_alveola(
+        &'c self,
+        ind_palveola: usize,
+    ) -> Result<IterPartialAlveola<'a, 'b, 'c>> {
+        if ind_palveola >= self.palve_alve.len() {
+            return Err(anyhow::Error::msg("Partial alveola index out of bounds"));
+        }
+        Ok(IterPartialAlveola {
             voronoi: self,
             ind_palveola,
-        }
+        })
     }
 
     pub fn get_skeleton(&self) -> &Skeleton3D {
@@ -419,6 +440,389 @@ impl<'a, 'b, 'c> SkeletonInterface3D<'a, 'b> {
             .map(|&x| x)
             .collect();
         Ok(vec)
+    }
+
+    fn check_node(&self, ind_node: usize) -> Result<()> {
+        let node = self.get_node(ind_node)?;
+
+        // checking link between edges and node
+        for edge in node.edges() {
+            let in_edge = edge
+                .nodes()
+                .iter()
+                .fold(false, |b, nod| b || nod.ind() == node.ind());
+            if !in_edge {
+                let msg = format!("Node {} not contained in edge {}", node.ind(), edge.ind());
+                return Err(anyhow::Error::msg(msg));
+            }
+        }
+
+        for pnode in node.partial_nodes() {
+            if pnode.node().ind() != node.ind() {
+                let msg = format!(
+                    "Node {} not contained in partial node {}",
+                    node.ind(),
+                    pnode.ind()
+                );
+                return Err(anyhow::Error::msg(msg));
+            }
+
+            for pedge in pnode.partial_edge_next() {
+                match pedge.partial_node_first() {
+                    None => {
+                        let msg = format!("No first node for partial edge {}", pedge.ind());
+                        return Err(anyhow::Error::msg(msg));
+                    }
+                    Some(pn) => {
+                        if pn.ind() != pnode.ind() {
+                            let msg = format!(
+                                "Partial node {} not first node of partial edge {}",
+                                pnode.ind(),
+                                pedge.ind()
+                            );
+                            return Err(anyhow::Error::msg(msg));
+                        }
+                    }
+                }
+            }
+
+            for pedge in pnode.partial_edge_prev() {
+                match pedge.partial_node_last() {
+                    None => {
+                        let msg = format!("No last node for partial edge {}", pedge.ind());
+                        return Err(anyhow::Error::msg(msg));
+                    }
+                    Some(pn) => {
+                        if pn.ind() != pnode.ind() {
+                            let msg = format!(
+                                "Partial node {} not last node of partial edge {}",
+                                pnode.ind(),
+                                pedge.ind()
+                            );
+                            return Err(anyhow::Error::msg(msg));
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    fn check_edge(&self, ind_edge: usize) -> Result<()> {
+        let edge = self.get_edge(ind_edge)?;
+
+        for pedge in edge.partial_edges() {
+            if pedge.edge().ind() != edge.ind() {
+                let msg = format!(
+                    "Partial edge {} not connected to edge {}",
+                    pedge.ind(),
+                    edge.ind()
+                );
+                return Err(anyhow::Error::msg(msg));
+            }
+        }
+
+        for alve in edge.alveolae() {
+            let is_in = alve
+                .edges()
+                .iter()
+                .fold(false, |b, edg| b || edg.ind() == edge.ind());
+            if !is_in {
+                let msg = format!("Edge {} not in alveola {}", edge.ind(), alve.ind());
+                return Err(anyhow::Error::msg(msg));
+            }
+        }
+        Ok(())
+    }
+
+    fn check_partial_edge(&self, ind_pedge: usize) -> Result<()> {
+        let pedge = self.get_partial_edge(ind_pedge)?;
+
+        let edge = pedge.edge();
+        let is_in_edg = edge
+            .partial_edges()
+            .iter()
+            .fold(false, |b, ped| b || ped.ind() == pedge.ind());
+        if !is_in_edg {
+            let msg = format!("Partial edge {} not in edge {}", pedge.ind(), edge.ind());
+            return Err(anyhow::Error::msg(msg));
+        }
+
+        if let Some(pnode) = pedge.partial_node_first() {
+            let is_in_pnd = pnode
+                .partial_edge_next()
+                .iter()
+                .fold(false, |b, ped| b || ped.ind() == pedge.ind());
+            if !is_in_pnd {
+                let msg = format!(
+                    "Partial edge {} not a next of partial node {}",
+                    pedge.ind(),
+                    pnode.ind()
+                );
+                return Err(anyhow::Error::msg(msg));
+            }
+        }
+
+        if let Some(pnode) = pedge.partial_node_last() {
+            let is_in_pnd = pnode
+                .partial_edge_prev()
+                .iter()
+                .fold(false, |b, ped| b || ped.ind() == pedge.ind());
+            if !is_in_pnd {
+                let msg = format!(
+                    "Partial edge {} not a prev of partial node {}",
+                    pedge.ind(),
+                    pnode.ind()
+                );
+                return Err(anyhow::Error::msg(msg));
+            }
+        }
+
+        if let Some(pedge_next) = pedge.partial_edge_next()? {
+            if pedge_next.partial_alveolae().ind() != pedge.partial_alveolae().ind() {
+                let msg = format!(
+                    "Partial edge {} and next partial edge {} not on same alveola",
+                    pedge.ind(),
+                    pedge_next.ind()
+                );
+                return Err(anyhow::Error::msg(msg));
+            }
+
+            let nod_last = pedge
+                .partial_node_last()
+                .ok_or(anyhow::Error::msg("Last node should exist"))?;
+
+            let nod_first = pedge_next
+                .partial_node_first()
+                .ok_or(anyhow::Error::msg("First node should exist"))?;
+
+            if nod_first.ind() != nod_last.ind() {
+                let msg = format!(
+                    "Last node of partial edge {} different to first node of partial edge {}",
+                    pedge.ind(),
+                    pedge_next.ind()
+                );
+                return Err(anyhow::Error::msg(msg));
+            }
+        }
+
+        if let Some(pedge_prev) = pedge.partial_edge_prev()? {
+            if pedge_prev.partial_alveolae().ind() != pedge.partial_alveolae().ind() {
+                let msg = format!(
+                    "Partial edge {} and prev partial edge {} not on same alveola",
+                    pedge.ind(),
+                    pedge_prev.ind()
+                );
+                return Err(anyhow::Error::msg(msg));
+            }
+
+            let nod_last = pedge_prev
+                .partial_node_last()
+                .ok_or(anyhow::Error::msg("Last node should exist"))?;
+
+            let nod_first = pedge
+                .partial_node_first()
+                .ok_or(anyhow::Error::msg("First node should exist"))?;
+
+            if nod_first.ind() != nod_last.ind() {
+                let msg = format!(
+                    "First node of partial edge {} different to last node of partial edge {}",
+                    pedge.ind(),
+                    pedge_prev.ind()
+                );
+                return Err(anyhow::Error::msg(msg));
+            }
+        }
+
+        Ok(())
+    }
+
+    fn check_alveola(&self, ind_alve: usize) -> Result<()> {
+        let alve = self.get_alveola(ind_alve)?;
+
+        for edge in alve.edges() {
+            let is_in = edge
+                .alveolae()
+                .iter()
+                .fold(false, |b, alv| b || alv.ind() == alve.ind());
+            if !is_in {
+                let msg = format!(
+                    "Edge {} not connected to alveola {}",
+                    edge.ind(),
+                    alve.ind()
+                );
+                return Err(anyhow::Error::msg(msg));
+            }
+        }
+
+        for palve in alve.partial_alveolae() {
+            if palve.alveola().ind() != alve.ind() {
+                let msg = format!(
+                    "Partial alveola {} not connected to alveola {}",
+                    palve.ind(),
+                    alve.ind()
+                );
+                return Err(anyhow::Error::msg(msg));
+            }
+        }
+
+        Ok(())
+    }
+
+    pub fn check(&self) -> Result<()> {
+        println!("Checking nodes");
+        for ind_node in 0..self.node_tet.len() {
+            self.check_node(ind_node)?;
+        }
+        println!("Checking edges");
+        for ind_edge in 0..self.edge_tri.len() {
+            self.check_edge(ind_edge)?;
+        }
+        println!("Checking alveolae");
+        for ind_alve in 0..self.alve_seg.len() {
+            self.check_alveola(ind_alve)?;
+        }
+        println!("Checking partial edges");
+        for ind_pedge in 0..self.pedge_edge.len() {
+            self.check_partial_edge(ind_pedge)?;
+        }
+        Ok(())
+    }
+
+    pub fn print_node(&self, ind_node: usize) -> () {
+        let tet = self.node_tet[ind_node];
+        let pnods = self.node_pnode[ind_node];
+        let edges = self.node_edge[ind_node];
+        println!("{} node", ind_node);
+        println!(
+            "  Tetrahedron: ({}, {}, {}, {})",
+            tet[0], tet[1], tet[2], tet[3]
+        );
+        println!(
+            "  Partial nodes: {}, {}, {}, {}",
+            pnods[0], pnods[1], pnods[2], pnods[3]
+        );
+        println!(
+            "  Edges: {}, {}, {}, {}",
+            edges[0], edges[1], edges[2], edges[3]
+        );
+    }
+
+    pub fn print_edge(&self, ind_edge: usize) -> () {
+        let tri = self.edge_tri[ind_edge];
+        let nods = self.edge_node[ind_edge];
+        let pedg_dir = self.edge_pedge_dir[ind_edge];
+        let pedg_opp = self.edge_pedge_opp[ind_edge];
+        let alv = self.edge_alve[ind_edge];
+        println!("{} edge", ind_edge);
+        println!("  Triangle: ({}, {}, {})", tri[0], tri[1], tri[2]);
+        print!("  Nodes, (");
+        if let Some(nod) = nods[0] {
+            print!("{}, ", nod);
+        } else {
+            print!("[], ");
+        }
+        if let Some(nod) = nods[1] {
+            println!("{})", nod);
+        } else {
+            println!("[])");
+        }
+        println!("  Alveolae: {}, {}, {}", alv[0], alv[1], alv[2]);
+        println!(
+            "  Partial edges dir: ({}, {}, {})",
+            pedg_dir[0], pedg_dir[1], pedg_dir[2]
+        );
+        println!(
+            "  Partial edges opp: ({}, {}, {})",
+            pedg_opp[0], pedg_opp[1], pedg_opp[2]
+        );
+    }
+
+    pub fn print_alveola(&self, ind_alve: usize) -> () {
+        let seg = self.alve_seg[ind_alve];
+        let edgs = self.alve_edge[ind_alve].iter();
+        let palv = self.alve_palve[ind_alve];
+        println!("{} alveola", ind_alve);
+        println!("  Segment: ({}, {})", seg[0], seg[1]);
+        print!("  Edges: ");
+        for edg in edgs {
+            print!("{}, ", edg);
+        }
+        println!("");
+        println!("  Partial alveolae: ({}, {})", palv[0], palv[1]);
+    }
+
+    pub fn print_partial_node(&self, ind_pnode: usize) -> () {
+        let nod = self.pnode_node[ind_pnode];
+        let corner = self.pnode_corner[ind_pnode];
+        let pedg_next = self.pnode_pedge_next[ind_pnode].iter();
+        let pedg_prev = self.pnode_pedge_prev[ind_pnode].iter();
+        println!("{} partial node; node {}", ind_pnode, nod);
+        println!("  Corner: {}", corner);
+        print!("  Next: ");
+        for (a, e) in pedg_next {
+            print!(" ({}, {}), ", a, e);
+        }
+        println!("");
+        print!("  Prev: ");
+        for (a, e) in pedg_prev {
+            print!(" ({}, {}), ", a, e);
+        }
+        println!("");
+    }
+
+    pub fn print_partial_edge(&self, ind_pedge: usize) -> () {
+        let edg = self.pedge_edge[ind_pedge];
+        let corner = self.pedge_corner[ind_pedge];
+        let pnods = self.pedge_pnode[ind_pedge];
+        let palve = self.pedge_palve[ind_pedge];
+        let pneigh = self.pedge_neigh[ind_pedge];
+        let popp = self.pedge_opp[ind_pedge];
+        println!("{} partial edge; edge {}", ind_pedge, edg);
+        println!("  Corner: {}", corner);
+        print!("  Partial nodes, (");
+        if let Some(pnod) = pnods[0] {
+            print!("{}, ", pnod);
+        } else {
+            print!("[], ");
+        }
+        if let Some(pnod) = pnods[1] {
+            println!("{})", pnod);
+        } else {
+            println!("[])");
+        }
+        println!("  Partial alveola: {}", palve);
+        println!("  Neighbor partial edge: {}", pneigh);
+        println!("  Opposite partial edge: {}", popp);
+    }
+
+    pub fn print_all(&self) -> () {
+        println!("Nodes");
+        for ind_node in 0..self.node_tet.len() {
+            self.print_node(ind_node);
+        }
+        println!("");
+        println!("Edges");
+        for ind_edge in 0..self.edge_tri.len() {
+            self.print_edge(ind_edge);
+        }
+        println!("");
+        println!("Alveolae");
+        for ind_alve in 0..self.alve_seg.len() {
+            self.print_alveola(ind_alve);
+        }
+        println!("");
+        println!("Partial nodes");
+        for ind_pnode in 0..self.pnode_node.len() {
+            self.print_partial_node(ind_pnode);
+        }
+        println!("");
+        println!("Partial edges");
+        for ind_pedge in 0..self.pedge_edge.len() {
+            self.print_partial_edge(ind_pedge);
+        }
+        println!("");
     }
 }
 
@@ -608,7 +1012,9 @@ impl<'a, 'b, 'c> IterPartialNode<'a, 'b, 'c> {
     fn partial_edge_prev_on_alve(&self, ind_palve: usize) -> Result<IterPartialEdge<'a, 'b, 'c>> {
         let &ind_pedge = self.voronoi.pnode_pedge_prev[self.ind_pnode]
             .get(&ind_palve)
-            .ok_or(anyhow::Error::msg("Could not find partial alveola"))?;
+            .ok_or(anyhow::Error::msg(
+                "Could not find previous partial edge from partial alveola",
+            ))?;
         Ok(IterPartialEdge {
             voronoi: self.voronoi,
             ind_pedge,
@@ -628,7 +1034,9 @@ impl<'a, 'b, 'c> IterPartialNode<'a, 'b, 'c> {
     fn partial_edge_next_on_alve(&self, ind_palve: usize) -> Result<IterPartialEdge<'a, 'b, 'c>> {
         let &ind_pedge = self.voronoi.pnode_pedge_next[self.ind_pnode]
             .get(&ind_palve)
-            .ok_or(anyhow::Error::msg("Could not find partial alveola"))?;
+            .ok_or(anyhow::Error::msg(
+                "Could not find next partial edge from partial alveola",
+            ))?;
         Ok(IterPartialEdge {
             voronoi: self.voronoi,
             ind_pedge,

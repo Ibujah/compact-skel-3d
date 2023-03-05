@@ -3,17 +3,18 @@ use nalgebra::base::*;
 use rand::Rng;
 use std::collections::HashMap;
 
-use crate::algorithm::skeleton_interface::{skeleton_interface::*, SkeletonInterface3D};
+use crate::algorithm::skeleton_interface::SkeletonInterface3D;
 
 pub fn first_node_in<'a, 'b, 'c>(
     skeleton_interface: &'c mut SkeletonInterface3D<'a, 'b>,
-) -> Result<IterNode<'a, 'b, 'c>> {
+) -> Result<usize> {
     let mut rng = rand::thread_rng();
     let rand_fac = rng.gen_range(0..skeleton_interface.mesh.get_nb_faces());
 
-    let face = skeleton_interface.mesh.get_face(rand_fac)?;
+    let face = skeleton_interface.get_mesh().get_face(rand_fac)?;
 
-    let triangle = face.vertices_inds();
+    let mut triangle = face.vertices_inds();
+    triangle.sort();
     let hedges = face.halfedges();
     let vec1 = hedges[0].last_vertex().vertex() - hedges[0].first_vertex().vertex();
     let vec2 = hedges[1].last_vertex().vertex() - hedges[1].first_vertex().vertex();
@@ -28,17 +29,18 @@ pub fn first_node_in<'a, 'b, 'c>(
 
     for i in 0..vec_tets.len() {
         let tet = vec_tets[i];
-        let v0 = skeleton_interface.mesh.get_vertex(tet[0])?.vertex();
-        let v1 = skeleton_interface.mesh.get_vertex(tet[1])?.vertex();
-        let v2 = skeleton_interface.mesh.get_vertex(tet[2])?.vertex();
-        let v3 = skeleton_interface.mesh.get_vertex(tet[3])?.vertex();
+        let v0 = skeleton_interface.get_mesh().get_vertex(tet[0])?.vertex();
+        let v1 = skeleton_interface.get_mesh().get_vertex(tet[1])?.vertex();
+        let v2 = skeleton_interface.get_mesh().get_vertex(tet[2])?.vertex();
+        let v3 = skeleton_interface.get_mesh().get_vertex(tet[3])?.vertex();
 
         let v_mean = (v0 + v1 + v2 + v3) * 0.25;
 
         let inside = normal.dot(&(v_mean - pt_face)) < 0.0;
 
         if inside {
-            return skeleton_interface.add_node(&tet);
+            let node = skeleton_interface.add_node(&tet)?;
+            return Ok(node.ind());
         }
     }
 
@@ -59,7 +61,7 @@ pub fn compute_alveola(
     ind_alveola: usize,
 ) -> Result<()> {
     let vec_pedg = skeleton_interface
-        .get_alveola(ind_alveola)
+        .get_alveola(ind_alveola)?
         .partial_alveolae()[0]
         .partial_edges();
     let pedg_first = vec_pedg[0].ind();
@@ -67,7 +69,7 @@ pub fn compute_alveola(
     loop {
         propagate_edge(skeleton_interface, skeleton_interface.pedge_edge[pedg_cur])?;
         pedg_cur = skeleton_interface
-            .get_partial_edge(pedg_cur)
+            .get_partial_edge(pedg_cur)?
             .partial_edge_next()?
             .ok_or(anyhow::Error::msg("Non complete partial edge"))?
             .ind();
@@ -83,7 +85,7 @@ pub fn include_alveola_in_skel(
     ind_alveola: usize,
 ) -> Result<()> {
     let vec_pedg = skeleton_interface
-        .get_alveola(ind_alveola)
+        .get_alveola(ind_alveola)?
         .partial_alveolae()[0]
         .partial_edges();
 

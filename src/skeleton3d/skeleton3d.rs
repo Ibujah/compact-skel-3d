@@ -11,11 +11,11 @@ pub struct Sphere {
 }
 
 pub struct Skeleton3D {
-    nodes: HashMap<usize, Sphere>,
-    edges: HashMap<usize, [usize; 2]>,    // connects two nodes
-    alveolae: HashMap<usize, Vec<usize>>, // ordered list of nodes
+    pub(super) nodes: HashMap<usize, Sphere>,
+    pub(super) edges: HashMap<usize, [usize; 2]>, // connects two nodes
+    pub(super) alveolae: HashMap<usize, Vec<usize>>, // ordered list of nodes
 
-    labels: HashMap<usize, Option<usize>>, // alveolae labels
+    pub(super) labels: HashMap<usize, Option<usize>>, // alveolae labels
 }
 
 impl Skeleton3D {
