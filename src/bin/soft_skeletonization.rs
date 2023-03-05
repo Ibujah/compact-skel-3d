@@ -46,7 +46,7 @@ fn main() -> Result<()> {
 
     let edges = cur_node.edges();
 
-    let mut ind_alveola = None;
+    let mut vec_alveola = Vec::new();
     for edge in edges {
         let tri = edge.delaunay_triangle();
 
@@ -62,22 +62,35 @@ fn main() -> Result<()> {
                     .is_edge_in(seg[0], seg[1])?
                     .is_none()
                 {
-                    ind_alveola = Some(alve.ind());
+                    vec_alveola.push(alve.ind());
                 }
             }
         }
     }
 
-    if let Some(ind) = ind_alveola {
-        println!("Compute alveola");
-        skeleton_operations::compute_alveola(&mut skeleton_interface, ind)?;
-        println!("Include alveola in skeleton");
-        skeleton_operations::include_alveola_in_skel(&mut skeleton_interface, ind)?;
+    println!("Propagating skeleton");
+    loop {
+        if let Some(ind_alveola) = vec_alveola.pop() {
+            print!("\r{} alveolae remaining     ", vec_alveola.len());
+            if !skeleton_interface.get_alveola(ind_alveola)?.is_computed()
+                && skeleton_interface.get_alveola(ind_alveola)?.is_in()?
+            {
+                skeleton_operations::compute_alveola(&mut skeleton_interface, ind_alveola)?;
+                skeleton_operations::include_alveola_in_skel(&mut skeleton_interface, ind_alveola)?;
+                let mut vec_neigh =
+                    skeleton_operations::neighbor_alveolae(&mut skeleton_interface, ind_alveola)?;
+                vec_alveola.append(&mut vec_neigh);
+            }
+        } else {
+            break;
+        }
     }
+    println!("");
 
     println!("Checking skeleton");
     skeleton_interface.check()?;
 
+    println!("Saving skeleton and mesh");
     mesh3d::io::save_obj("./ressources/mesh.obj", skeleton_interface.get_mesh())?;
 
     skeleton3d::io::save_obj(

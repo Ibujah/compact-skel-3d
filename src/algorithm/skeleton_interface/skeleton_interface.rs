@@ -12,6 +12,7 @@ pub struct SkeletonInterface3D<'a, 'b> {
     // existing delaunay
     pub(super) faces: HashMap<[usize; 3], Vec<[usize; 4]>>,
     pub(super) tetras: HashSet<[usize; 4]>,
+    pub(super) segments: HashSet<[usize; 2]>,
 
     // delaunay related
     pub(super) del_tet: HashMap<[usize; 4], usize>, // list of delaunay tetrahedra
@@ -110,6 +111,7 @@ impl<'a, 'b, 'c> SkeletonInterface3D<'a, 'b> {
             })
             .collect();
         let tetras = deltet.get_tetrahedra().iter().map(|&tetra| tetra).collect();
+        let segments = deltet.get_edges().iter().map(|&segment| segment).collect();
 
         if nb_non_del_hedges != 0 || nb_non_del_faces != 0 {
             Err(anyhow::Error::msg("Mesh is not Delaunay"))
@@ -119,6 +121,7 @@ impl<'a, 'b, 'c> SkeletonInterface3D<'a, 'b> {
                 skeleton,
                 faces,
                 tetras,
+                segments,
                 del_tet: HashMap::new(),
                 del_tri: HashMap::new(),
                 del_seg: HashMap::new(),
@@ -899,6 +902,20 @@ impl<'a, 'b, 'c> IterEdge<'a, 'b, 'c> {
         nods
     }
 
+    pub fn is_computed(&self) -> bool {
+        let nods = self.voronoi.edge_node[self.ind_edge];
+        nods[0].is_some() && nods[1].is_some()
+    }
+
+    pub fn is_in(&self) -> Result<bool> {
+        let tri = self.delaunay_triangle();
+        Ok(self
+            .voronoi
+            .mesh
+            .is_face_in(tri[0], tri[1], tri[2])?
+            .is_none())
+    }
+
     pub fn alveolae(&self) -> [IterAlveola<'a, 'b, 'c>; 3] {
         [
             IterAlveola {
@@ -963,6 +980,21 @@ impl<'a, 'b, 'c> IterAlveola<'a, 'b, 'c> {
                 ind_edge,
             })
             .collect()
+    }
+
+    pub fn is_computed(&self) -> bool {
+        self.voronoi.alve_edge[self.ind_alveola]
+            .iter()
+            .map(|&ind_edge| IterEdge {
+                voronoi: self.voronoi,
+                ind_edge,
+            })
+            .fold(true, |b, ed| b && ed.is_computed())
+    }
+
+    pub fn is_in(&self) -> Result<bool> {
+        let seg = self.delaunay_segment();
+        Ok(self.voronoi.mesh.is_edge_in(seg[0], seg[1])?.is_none())
     }
 
     pub fn partial_alveolae(&self) -> [IterPartialAlveola<'a, 'b, 'c>; 2] {

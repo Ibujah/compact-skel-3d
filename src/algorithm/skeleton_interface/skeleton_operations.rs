@@ -131,3 +131,22 @@ pub fn include_alveola_in_skel(
         .add_alveola(ind_alveola, lis_nods);
     Ok(())
 }
+
+pub fn neighbor_alveolae(
+    skeleton_interface: &mut SkeletonInterface3D,
+    ind_alveola: usize,
+) -> Result<Vec<usize>> {
+    let mut vec_neigh = Vec::new();
+
+    let alve = skeleton_interface.get_alveola(ind_alveola)?;
+
+    for edge in alve.edges() {
+        for alv in edge.alveolae() {
+            if alv.ind() != ind_alveola {
+                vec_neigh.push(alv.ind());
+            }
+        }
+    }
+
+    Ok(vec_neigh)
+}

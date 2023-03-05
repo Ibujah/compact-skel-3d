@@ -30,7 +30,7 @@ impl Skeleton3D {
 
     pub fn add_node(&mut self, ind_node: usize, boundary_points: [Vector3<f32>; 4]) -> Result<()> {
         if !self.nodes.contains_key(&ind_node) {
-            let (center, radius) = geometry_operations::center_and_radius(boundary_points)
+            let (center, radius) = geometry_operations::center_and_radius(boundary_points, None)
                 .ok_or(anyhow::Error::msg("Flat tetrahedron"))?;
             let sphere = Sphere { center, radius };
             self.nodes.insert(ind_node, sphere);

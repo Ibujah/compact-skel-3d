@@ -44,6 +44,16 @@ pub fn save_obj(filename: &str, skeleton: &Skeleton3D) -> Result<()> {
                 skel_ind_to_ind[&alv[ind + 1]],
             )?;
         }
+
+        // for i in 1..(alv.len() - 2) {
+        //     writeln!(
+        //         file,
+        //         "f {}// {}// {}//",
+        //         skel_ind_to_ind[&alv[0]],
+        //         skel_ind_to_ind[&alv[i]],
+        //         skel_ind_to_ind[&alv[i + 1]],
+        //     )?;
+        // }
     }
 
     Ok(())
