@@ -141,6 +141,9 @@ pub fn neighbor_alveolae(
     let alve = skeleton_interface.get_alveola(ind_alveola)?;
 
     for edge in alve.edges() {
+        if !edge.is_computed() {
+            return Err(anyhow::Error::msg("Alveola not fully computed"));
+        }
         for alv in edge.alveolae() {
             if alv.ind() != ind_alveola {
                 vec_neigh.push(alv.ind());

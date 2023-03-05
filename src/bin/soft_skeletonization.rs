@@ -27,7 +27,8 @@ fn generate_test_mesh() -> Result<Mesh3D> {
 fn main() -> Result<()> {
     // let mut mesh = generate_test_mesh()?;
 
-    let mut mesh = mesh3d::io::load_obj("./ressources/hand_del.obj")?;
+    // let mut mesh = mesh3d::io::load_obj("./ressources/hand_del.obj")?;
+    let mut mesh = mesh3d::io::load_obj("./ressources/box_del.obj")?;
     mesh.check_mesh()?;
 
     let mut skeleton = Skeleton3D::new();
@@ -69,23 +70,34 @@ fn main() -> Result<()> {
     }
 
     println!("Propagating skeleton");
+    let mut nb_alv = 0;
     loop {
         if let Some(ind_alveola) = vec_alveola.pop() {
-            print!("\r{} alveolae remaining     ", vec_alveola.len());
-            if !skeleton_interface.get_alveola(ind_alveola)?.is_computed()
-                && skeleton_interface.get_alveola(ind_alveola)?.is_in()?
-            {
+            print!(
+                "\r{} alveolae remaining, {} computed     ",
+                vec_alveola.len(),
+                nb_alv
+            );
+            let alveola = skeleton_interface.get_alveola(ind_alveola)?;
+            if !alveola.is_computed() && alveola.is_in()? {
                 skeleton_operations::compute_alveola(&mut skeleton_interface, ind_alveola)?;
                 skeleton_operations::include_alveola_in_skel(&mut skeleton_interface, ind_alveola)?;
                 let mut vec_neigh =
                     skeleton_operations::neighbor_alveolae(&mut skeleton_interface, ind_alveola)?;
                 vec_alveola.append(&mut vec_neigh);
+                nb_alv = nb_alv + 1;
             }
         } else {
             break;
         }
     }
     println!("");
+
+    if skeleton_interface.fully_computed()? {
+        println!("Fully computed");
+    } else {
+        println!("Non computed alveolae");
+    }
 
     println!("Checking skeleton");
     skeleton_interface.check()?;
