@@ -52,18 +52,28 @@ fn main() -> Result<()> {
 
     println!("Checking mesh");
     mesh.check_mesh()?;
+    println!("");
 
     println!("Mesh to delaunay");
+    let now = Instant::now();
     delaunay_alg::to_delaunay(&mut mesh, Some(std::f32::consts::PI * 20.0 / 180.0))?;
+    let duration = now.elapsed();
+    let sec = duration.as_secs();
+    let min = sec / 60;
+    let sec = sec - min * 60;
+    println!("Delaunay computed in {}m{}s", min, sec);
+    println!("");
 
     let now = Instant::now();
     let mut skeleton = Skeleton3D::new();
+    println!("Full skeletonization");
     skeleton_alg::full_skeletonization(&mut mesh, &mut skeleton)?;
     let duration = now.elapsed();
     let sec = duration.as_secs();
     let min = sec / 60;
     let sec = sec - min * 60;
     println!("Skeleton computed in {}m{}s", min, sec);
+    println!("");
 
     println!("Saving skeleton and mesh");
     mesh3d::io::save_obj(obj_out_path_str, &mesh)?;
