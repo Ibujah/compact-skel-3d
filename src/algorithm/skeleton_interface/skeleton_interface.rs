@@ -921,6 +921,17 @@ impl<'a, 'b, 'c> IterEdge<'a, 'b, 'c> {
             .is_none())
     }
 
+    pub fn degree(&self) -> Result<usize> {
+        self.alveolae().iter().fold(Ok(3), |rd, alv| {
+            let d = rd?;
+            if !alv.is_in()? {
+                Ok(d - 1)
+            } else {
+                Ok(d)
+            }
+        })
+    }
+
     pub fn alveolae(&self) -> [IterAlveola<'a, 'b, 'c>; 3] {
         [
             IterAlveola {
