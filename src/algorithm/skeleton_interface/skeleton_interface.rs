@@ -1,5 +1,5 @@
 use anyhow::Result;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 use crate::algorithm::delaunay_interface::DelaunayInterface;
 use crate::mesh3d::Mesh3D;
