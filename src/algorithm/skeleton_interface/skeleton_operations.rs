@@ -56,27 +56,43 @@ pub fn propagate_edge(skeleton_interface: &mut SkeletonInterface3D, ind_edge: us
     Ok(())
 }
 
+fn compute_alveola_helper(
+    skeleton_interface: &mut SkeletonInterface3D,
+    ind_alveola: usize,
+) -> Result<Vec<usize>> {
+    let ind_pedge_first = skeleton_interface
+        .get_alveola(ind_alveola)?
+        .partial_alveolae()[0]
+        .partial_edges()[0]
+        .ind();
+    let mut ind_pedge_cur = ind_pedge_first;
+    let mut surround_pedg = Vec::new();
+    loop {
+        surround_pedg.push(ind_pedge_cur);
+        propagate_edge(
+            skeleton_interface,
+            skeleton_interface
+                .get_partial_edge_uncheck(ind_pedge_cur)
+                .edge()
+                .ind(),
+        )?;
+        ind_pedge_cur = skeleton_interface
+            .get_partial_edge_uncheck(ind_pedge_cur)
+            .partial_edge_next()
+            .ok_or(anyhow::Error::msg("Non complete partial edge"))?
+            .ind();
+        if ind_pedge_cur == ind_pedge_first {
+            break;
+        }
+    }
+    Ok(surround_pedg)
+}
+
 pub fn compute_alveola(
     skeleton_interface: &mut SkeletonInterface3D,
     ind_alveola: usize,
 ) -> Result<()> {
-    let vec_pedg = skeleton_interface
-        .get_alveola(ind_alveola)?
-        .partial_alveolae()[0]
-        .partial_edges();
-    let pedg_first = vec_pedg[0].ind();
-    let mut pedg_cur = pedg_first;
-    loop {
-        propagate_edge(skeleton_interface, skeleton_interface.pedge_edge[pedg_cur])?;
-        pedg_cur = skeleton_interface
-            .get_partial_edge(pedg_cur)?
-            .partial_edge_next()?
-            .ok_or(anyhow::Error::msg("Non complete partial edge"))?
-            .ind();
-        if pedg_cur == pedg_first {
-            break;
-        }
-    }
+    compute_alveola_helper(skeleton_interface, ind_alveola)?;
     Ok(())
 }
 
@@ -115,7 +131,7 @@ pub fn include_alveola_in_skel(
         edges_map.insert(ind_edg_cur, nod_ext);
         lis_nods.push(node.ind());
         pedg_cur = pedg_cur
-            .partial_edge_next()?
+            .partial_edge_next()
             .ok_or(anyhow::Error::msg("Non complete partial edge"))?;
     }
     for (ind_nod, boundary_points) in bnd_pts {
@@ -152,4 +168,32 @@ pub fn neighbor_alveolae(
     }
 
     Ok(vec_neigh)
+}
+
+pub fn compute_sheet(
+    skeleton_interface: &mut SkeletonInterface3D,
+    ind_alveola: usize,
+) -> Result<()> {
+    skeleton_interface.get_alveola(ind_alveola)?;
+    let mut to_compute = Vec::new();
+    to_compute.push(ind_alveola);
+
+    loop {
+        if let Some(ind_alveola) = to_compute.pop() {
+            if !skeleton_interface.get_alveola(ind_alveola)?.is_computed() {
+                let vec_neigh_pedge = compute_alveola_helper(skeleton_interface, ind_alveola)?;
+                vec_neigh_pedge.iter().filter(|&ind_pedge| {
+                    skeleton_interface
+                        .get_partial_edge_uncheck(*ind_pedge)
+                        .edge()
+                        .degree()
+                        == 2
+                });
+            }
+        } else {
+            break;
+        }
+    }
+
+    Ok(())
 }

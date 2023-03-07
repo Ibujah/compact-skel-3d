@@ -357,54 +357,90 @@ impl<'a, 'b, 'c> SkeletonInterface3D<'a, 'b> {
         self.palve_pedge[self.alve_palve[ind_alve[0]][1]].push(self.edge_pedge_opp[ind_edge][2]);
     }
 
+    pub(super) fn get_node_uncheck(&'c self, ind_node: usize) -> IterNode<'a, 'b, 'c> {
+        IterNode {
+            voronoi: self,
+            ind_node,
+        }
+    }
+
+    pub(super) fn get_partial_node_uncheck(
+        &'c self,
+        ind_pnode: usize,
+    ) -> IterPartialNode<'a, 'b, 'c> {
+        IterPartialNode {
+            voronoi: self,
+            ind_pnode,
+        }
+    }
+
+    pub(super) fn get_edge_uncheck(&'c self, ind_edge: usize) -> IterEdge<'a, 'b, 'c> {
+        IterEdge {
+            voronoi: self,
+            ind_edge,
+        }
+    }
+
+    pub(super) fn get_partial_edge_uncheck(
+        &'c self,
+        ind_pedge: usize,
+    ) -> IterPartialEdge<'a, 'b, 'c> {
+        IterPartialEdge {
+            voronoi: self,
+            ind_pedge,
+        }
+    }
+
+    pub(super) fn get_alveola_uncheck(&'c self, ind_alveola: usize) -> IterAlveola<'a, 'b, 'c> {
+        IterAlveola {
+            voronoi: self,
+            ind_alveola,
+        }
+    }
+
+    pub(super) fn get_partial_alveola_uncheck(
+        &'c self,
+        ind_palveola: usize,
+    ) -> IterPartialAlveola<'a, 'b, 'c> {
+        IterPartialAlveola {
+            voronoi: self,
+            ind_palveola,
+        }
+    }
+
     pub fn get_node(&'c self, ind_node: usize) -> Result<IterNode<'a, 'b, 'c>> {
         if ind_node >= self.node_tet.len() {
             return Err(anyhow::Error::msg("Node index out of bounds"));
         }
-        Ok(IterNode {
-            voronoi: self,
-            ind_node,
-        })
+        Ok(self.get_node_uncheck(ind_node))
     }
 
     pub fn get_partial_node(&'c self, ind_pnode: usize) -> Result<IterPartialNode<'a, 'b, 'c>> {
         if ind_pnode >= self.pnode_node.len() {
             return Err(anyhow::Error::msg("Partial node index out of bounds"));
         }
-        Ok(IterPartialNode {
-            voronoi: self,
-            ind_pnode,
-        })
+        Ok(self.get_partial_node_uncheck(ind_pnode))
     }
 
     pub fn get_edge(&'c self, ind_edge: usize) -> Result<IterEdge<'a, 'b, 'c>> {
         if ind_edge >= self.edge_tri.len() {
             return Err(anyhow::Error::msg("Edge index out of bounds"));
         }
-        Ok(IterEdge {
-            voronoi: self,
-            ind_edge,
-        })
+        Ok(self.get_edge_uncheck(ind_edge))
     }
 
     pub fn get_partial_edge(&'c self, ind_pedge: usize) -> Result<IterPartialEdge<'a, 'b, 'c>> {
         if ind_pedge >= self.pedge_edge.len() {
             return Err(anyhow::Error::msg("Partial edge index out of bounds"));
         }
-        Ok(IterPartialEdge {
-            voronoi: self,
-            ind_pedge,
-        })
+        Ok(self.get_partial_edge_uncheck(ind_pedge))
     }
 
     pub fn get_alveola(&'c self, ind_alveola: usize) -> Result<IterAlveola<'a, 'b, 'c>> {
         if ind_alveola >= self.alve_seg.len() {
             return Err(anyhow::Error::msg("Alveola index out of bounds"));
         }
-        Ok(IterAlveola {
-            voronoi: self,
-            ind_alveola,
-        })
+        Ok(self.get_alveola_uncheck(ind_alveola))
     }
 
     pub fn get_partial_alveola(
@@ -414,10 +450,7 @@ impl<'a, 'b, 'c> SkeletonInterface3D<'a, 'b> {
         if ind_palveola >= self.palve_alve.len() {
             return Err(anyhow::Error::msg("Partial alveola index out of bounds"));
         }
-        Ok(IterPartialAlveola {
-            voronoi: self,
-            ind_palveola,
-        })
+        Ok(self.get_partial_alveola_uncheck(ind_palveola))
     }
 
     pub fn get_skeleton(&self) -> &Skeleton3D {
@@ -576,7 +609,7 @@ impl<'a, 'b, 'c> SkeletonInterface3D<'a, 'b> {
             }
         }
 
-        if let Some(pedge_next) = pedge.partial_edge_next()? {
+        if let Some(pedge_next) = pedge.partial_edge_next() {
             if pedge_next.partial_alveolae().ind() != pedge.partial_alveolae().ind() {
                 let msg = format!(
                     "Partial edge {} and next partial edge {} not on same alveola",
@@ -604,7 +637,7 @@ impl<'a, 'b, 'c> SkeletonInterface3D<'a, 'b> {
             }
         }
 
-        if let Some(pedge_prev) = pedge.partial_edge_prev()? {
+        if let Some(pedge_prev) = pedge.partial_edge_prev() {
             if pedge_prev.partial_alveolae().ind() != pedge.partial_alveolae().ind() {
                 let msg = format!(
                     "Partial edge {} and prev partial edge {} not on same alveola",
@@ -822,7 +855,7 @@ impl<'a, 'b, 'c> SkeletonInterface3D<'a, 'b> {
         for i in 0..self.alve_seg.len() {
             let alve = self.get_alveola(i)?;
 
-            if !alve.is_computed() && alve.is_in()? {
+            if !alve.is_computed() && alve.is_in() {
                 return Ok(false);
             }
         }
@@ -912,24 +945,18 @@ impl<'a, 'b, 'c> IterEdge<'a, 'b, 'c> {
         nods[0].is_some() && nods[1].is_some()
     }
 
-    pub fn is_in(&self) -> Result<bool> {
+    pub fn is_in(&self) -> bool {
         let tri = self.delaunay_triangle();
-        Ok(self
-            .voronoi
+        self.voronoi
             .mesh
-            .is_face_in(tri[0], tri[1], tri[2])?
-            .is_none())
+            .is_face_in(tri[0], tri[1], tri[2])
+            .is_none()
     }
 
-    pub fn degree(&self) -> Result<usize> {
-        self.alveolae().iter().fold(Ok(3), |rd, alv| {
-            let d = rd?;
-            if !alv.is_in()? {
-                Ok(d - 1)
-            } else {
-                Ok(d)
-            }
-        })
+    pub fn degree(&self) -> usize {
+        self.alveolae()
+            .iter()
+            .fold(3, |d, alv| if !alv.is_in() { d - 1 } else { d })
     }
 
     pub fn alveolae(&self) -> [IterAlveola<'a, 'b, 'c>; 3] {
@@ -1008,9 +1035,9 @@ impl<'a, 'b, 'c> IterAlveola<'a, 'b, 'c> {
             .fold(true, |b, ed| b && ed.is_computed())
     }
 
-    pub fn is_in(&self) -> Result<bool> {
+    pub fn is_in(&self) -> bool {
         let seg = self.delaunay_segment();
-        Ok(self.voronoi.mesh.is_edge_in(seg[0], seg[1])?.is_none())
+        self.voronoi.mesh.is_edge_in(seg[0], seg[1]).is_none()
     }
 
     pub fn partial_alveolae(&self) -> [IterPartialAlveola<'a, 'b, 'c>; 2] {
@@ -1053,16 +1080,15 @@ impl<'a, 'b, 'c> IterPartialNode<'a, 'b, 'c> {
             .collect()
     }
 
-    fn partial_edge_prev_on_alve(&self, ind_palve: usize) -> Result<IterPartialEdge<'a, 'b, 'c>> {
-        let &ind_pedge = self.voronoi.pnode_pedge_prev[self.ind_pnode]
-            .get(&ind_palve)
-            .ok_or(anyhow::Error::msg(
-                "Could not find previous partial edge from partial alveola",
-            ))?;
-        Ok(IterPartialEdge {
-            voronoi: self.voronoi,
-            ind_pedge,
-        })
+    fn partial_edge_prev_on_alve(&self, ind_palve: usize) -> Option<IterPartialEdge<'a, 'b, 'c>> {
+        if let Some(&ind_pedge) = self.voronoi.pnode_pedge_prev[self.ind_pnode].get(&ind_palve) {
+            Some(IterPartialEdge {
+                voronoi: self.voronoi,
+                ind_pedge,
+            })
+        } else {
+            None
+        }
     }
 
     pub fn partial_edge_next(&self) -> Vec<IterPartialEdge<'a, 'b, 'c>> {
@@ -1075,16 +1101,15 @@ impl<'a, 'b, 'c> IterPartialNode<'a, 'b, 'c> {
             .collect()
     }
 
-    fn partial_edge_next_on_alve(&self, ind_palve: usize) -> Result<IterPartialEdge<'a, 'b, 'c>> {
-        let &ind_pedge = self.voronoi.pnode_pedge_next[self.ind_pnode]
-            .get(&ind_palve)
-            .ok_or(anyhow::Error::msg(
-                "Could not find next partial edge from partial alveola",
-            ))?;
-        Ok(IterPartialEdge {
-            voronoi: self.voronoi,
-            ind_pedge,
-        })
+    fn partial_edge_next_on_alve(&self, ind_palve: usize) -> Option<IterPartialEdge<'a, 'b, 'c>> {
+        if let Some(&ind_pedge) = self.voronoi.pnode_pedge_next[self.ind_pnode].get(&ind_palve) {
+            Some(IterPartialEdge {
+                voronoi: self.voronoi,
+                ind_pedge,
+            })
+        } else {
+            None
+        }
     }
 }
 
@@ -1138,25 +1163,21 @@ impl<'a, 'b, 'c> IterPartialEdge<'a, 'b, 'c> {
         }
     }
 
-    pub fn partial_edge_prev(&self) -> Result<Option<IterPartialEdge<'a, 'b, 'c>>> {
-        match self.partial_node_first() {
-            None => Ok(None),
-            Some(pnode) => {
-                let palve = self.partial_alveolae().ind();
-                let pedge = pnode.partial_edge_prev_on_alve(palve)?;
-                Ok(Some(pedge))
-            }
+    pub fn partial_edge_prev(&self) -> Option<IterPartialEdge<'a, 'b, 'c>> {
+        if let Some(pnode) = self.partial_node_first() {
+            let palve = self.partial_alveolae().ind();
+            pnode.partial_edge_prev_on_alve(palve)
+        } else {
+            None
         }
     }
 
-    pub fn partial_edge_next(&self) -> Result<Option<IterPartialEdge<'a, 'b, 'c>>> {
-        match self.partial_node_last() {
-            None => Ok(None),
-            Some(pnode) => {
-                let palve = self.partial_alveolae().ind();
-                let pedge = pnode.partial_edge_next_on_alve(palve)?;
-                Ok(Some(pedge))
-            }
+    pub fn partial_edge_next(&self) -> Option<IterPartialEdge<'a, 'b, 'c>> {
+        if let Some(pnode) = self.partial_node_last() {
+            let palve = self.partial_alveolae().ind();
+            pnode.partial_edge_next_on_alve(palve)
+        } else {
+            None
         }
     }
 

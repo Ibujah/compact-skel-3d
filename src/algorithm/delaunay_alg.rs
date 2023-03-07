@@ -24,8 +24,18 @@ fn extract_physical_edges(
         }
 
         // compute angles between adjacent faces
-        let face_a = he.face()?;
-        let face_b = he.opposite_halfedge()?.face()?;
+        let face_a = he.face().ok_or(anyhow::Error::msg(
+            "extract_physical_edges(): Halfedge should be linked to a face",
+        ))?;
+        let face_b = he
+            .opposite_halfedge()
+            .ok_or(anyhow::Error::msg(
+                "extract_physical_edges(): Halfedge should have opposite halfedge",
+            ))?
+            .face()
+            .ok_or(anyhow::Error::msg(
+                "extract_physical_edges(): Opposite halfedge should be connected to face",
+            ))?;
 
         // getting vertices
         let [vert_a_1, vert_a_2, vert_a_3] = face_a.vertices();

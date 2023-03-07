@@ -21,14 +21,14 @@ pub fn full_skeletonization(mesh: &mut Mesh3D, skeleton: &mut Skeleton3D) -> Res
 
         if skeleton_interface
             .get_mesh()
-            .is_face_in(tri[0], tri[1], tri[2])?
+            .is_face_in(tri[0], tri[1], tri[2])
             .is_none()
         {
             for alve in edge.alveolae() {
                 let seg = alve.delaunay_segment();
                 if skeleton_interface
                     .get_mesh()
-                    .is_edge_in(seg[0], seg[1])?
+                    .is_edge_in(seg[0], seg[1])
                     .is_none()
                 {
                     vec_alveola.push(alve.ind());
@@ -41,7 +41,7 @@ pub fn full_skeletonization(mesh: &mut Mesh3D, skeleton: &mut Skeleton3D) -> Res
     loop {
         if let Some(ind_alveola) = vec_alveola.pop() {
             let alveola = skeleton_interface.get_alveola(ind_alveola)?;
-            let alveola_in = alveola.is_in()?;
+            let alveola_in = alveola.is_in();
             if !alveola.is_computed() && alveola_in {
                 skeleton_operations::compute_alveola(&mut skeleton_interface, ind_alveola)?;
                 let mut vec_neigh =
