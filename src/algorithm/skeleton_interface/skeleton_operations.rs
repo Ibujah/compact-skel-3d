@@ -1,7 +1,7 @@
 use anyhow::Result;
 use nalgebra::base::*;
 use rand::Rng;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use crate::algorithm::skeleton_interface::SkeletonInterface3D;
 
@@ -47,6 +47,39 @@ pub fn first_node_in<'a, 'b, 'c>(
     Err(anyhow::Error::msg("No first node found"))
 }
 
+pub fn first_alveola_in<'a, 'b, 'c>(
+    skeleton_interface: &'c mut SkeletonInterface3D<'a, 'b>,
+) -> Result<usize> {
+    let ind_first_node = first_node_in(skeleton_interface)?;
+
+    let cur_node = skeleton_interface.get_node(ind_first_node)?;
+
+    let edges = cur_node.edges();
+
+    for edge in edges {
+        let tri = edge.delaunay_triangle();
+
+        if skeleton_interface
+            .get_mesh()
+            .is_face_in(tri[0], tri[1], tri[2])
+            .is_none()
+        {
+            for alve in edge.alveolae() {
+                let seg = alve.delaunay_segment();
+                if skeleton_interface
+                    .get_mesh()
+                    .is_edge_in(seg[0], seg[1])
+                    .is_none()
+                {
+                    return Ok(alve.ind());
+                }
+            }
+        }
+    }
+
+    Err(anyhow::Error::msg("No first alveola found"))
+}
+
 pub fn propagate_edge(skeleton_interface: &mut SkeletonInterface3D, ind_edge: usize) -> Result<()> {
     let del_tri = skeleton_interface.edge_tri[ind_edge];
     let del_tets = skeleton_interface.get_tetrahedra_from_triangle(del_tri)?;
@@ -56,19 +89,17 @@ pub fn propagate_edge(skeleton_interface: &mut SkeletonInterface3D, ind_edge: us
     Ok(())
 }
 
-fn compute_alveola_helper(
+pub fn compute_alveola(
     skeleton_interface: &mut SkeletonInterface3D,
     ind_alveola: usize,
-) -> Result<Vec<usize>> {
+) -> Result<()> {
     let ind_pedge_first = skeleton_interface
         .get_alveola(ind_alveola)?
         .partial_alveolae()[0]
         .partial_edges()[0]
         .ind();
     let mut ind_pedge_cur = ind_pedge_first;
-    let mut surround_pedg = Vec::new();
     loop {
-        surround_pedg.push(ind_pedge_cur);
         propagate_edge(
             skeleton_interface,
             skeleton_interface
@@ -85,14 +116,6 @@ fn compute_alveola_helper(
             break;
         }
     }
-    Ok(surround_pedg)
-}
-
-pub fn compute_alveola(
-    skeleton_interface: &mut SkeletonInterface3D,
-    ind_alveola: usize,
-) -> Result<()> {
-    compute_alveola_helper(skeleton_interface, ind_alveola)?;
     Ok(())
 }
 
@@ -173,6 +196,7 @@ pub fn neighbor_alveolae(
 pub fn compute_sheet(
     skeleton_interface: &mut SkeletonInterface3D,
     ind_alveola: usize,
+    computed: &mut HashSet<usize>,
 ) -> Result<()> {
     skeleton_interface.get_alveola(ind_alveola)?;
     let mut to_compute = Vec::new();
@@ -180,15 +204,21 @@ pub fn compute_sheet(
 
     loop {
         if let Some(ind_alveola) = to_compute.pop() {
-            if !skeleton_interface.get_alveola(ind_alveola)?.is_computed() {
-                let vec_neigh_pedge = compute_alveola_helper(skeleton_interface, ind_alveola)?;
-                vec_neigh_pedge.iter().filter(|&ind_pedge| {
-                    skeleton_interface
-                        .get_partial_edge_uncheck(*ind_pedge)
-                        .edge()
-                        .degree()
-                        == 2
-                });
+            if !skeleton_interface
+                .get_alveola_uncheck(ind_alveola)
+                .is_computed()
+            {
+                compute_alveola(skeleton_interface, ind_alveola)?;
+                computed.insert(ind_alveola);
+                let alve = skeleton_interface.get_alveola_uncheck(ind_alveola);
+
+                for edge in alve.edges().iter().filter(|edge| edge.degree() == 2) {
+                    edge.alveolae().iter().fold((), |_, alv| {
+                        if alv.ind() != ind_alveola && alv.is_in() {
+                            to_compute.push(alv.ind());
+                        }
+                    });
+                }
             }
         } else {
             break;
