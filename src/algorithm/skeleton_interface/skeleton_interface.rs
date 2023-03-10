@@ -33,6 +33,7 @@ pub struct SkeletonInterface3D<'a, 'b> {
     pub(super) alve_seg: Vec<[usize; 2]>, // link to delaunay segments
     pub(super) alve_palve: Vec<[usize; 2]>, // partial alveolae associated to each face, same direction then opposite orientation
     pub(super) alve_edge: Vec<Vec<usize>>,  // lists surrouding edges
+    pub(super) alve_label: Vec<Option<usize>>, // sheet label
 
     // partial node related
     pub(super) pnode_corner: Vec<usize>, // refers to associated mesh point
@@ -130,6 +131,7 @@ impl<'a, 'b, 'c> SkeletonInterface3D<'a, 'b> {
                 alve_seg: Vec::new(),
                 alve_palve: Vec::new(),
                 alve_edge: Vec::new(),
+                alve_label: Vec::new(),
                 pnode_corner: Vec::new(),
                 pnode_node: Vec::new(),
                 pnode_pedge_next: Vec::new(),
@@ -267,6 +269,7 @@ impl<'a, 'b, 'c> SkeletonInterface3D<'a, 'b> {
                 self.del_seg.insert(*del_seg, ind_alve);
                 self.alve_seg.push(*del_seg);
                 self.alve_edge.push(Vec::new());
+                self.alve_label.push(None);
                 self.add_partial_alveolae(ind_alve, del_seg);
                 ind_alve
             }
@@ -451,6 +454,15 @@ impl<'a, 'b, 'c> SkeletonInterface3D<'a, 'b> {
             return Err(anyhow::Error::msg("Partial alveola index out of bounds"));
         }
         Ok(self.get_partial_alveola_uncheck(ind_palveola))
+    }
+
+    pub fn get_sheet(&self, label: usize) -> Vec<usize> {
+        self.alve_label
+            .iter()
+            .enumerate()
+            .filter(|&(_, &lab)| lab == Some(label))
+            .map(|(i, _)| i)
+            .collect()
     }
 
     pub fn get_skeleton(&self) -> &Skeleton3D {
@@ -855,11 +867,38 @@ impl<'a, 'b, 'c> SkeletonInterface3D<'a, 'b> {
         for i in 0..self.alve_seg.len() {
             let alve = self.get_alveola(i)?;
 
-            if !alve.is_computed() && alve.is_in() {
+            if !alve.is_computed() && alve.is_full() {
                 return Ok(false);
             }
         }
         Ok(true)
+    }
+
+    pub fn propagate_edge(&mut self, ind_edge: usize) -> Result<()> {
+        let del_tri = self.edge_tri[ind_edge];
+        let del_tets = self.get_tetrahedra_from_triangle(del_tri)?;
+        for del_tet in del_tets {
+            self.add_node(&del_tet)?;
+        }
+        Ok(())
+    }
+
+    pub fn compute_alveola(&mut self, ind_alveola: usize) -> Result<()> {
+        let ind_pedge_first =
+            self.get_alveola(ind_alveola)?.partial_alveolae()[0].partial_edges()[0].ind();
+        let mut ind_pedge_cur = ind_pedge_first;
+        loop {
+            self.propagate_edge(self.get_partial_edge_uncheck(ind_pedge_cur).edge().ind())?;
+            ind_pedge_cur = self
+                .get_partial_edge_uncheck(ind_pedge_cur)
+                .partial_edge_next()
+                .ok_or(anyhow::Error::msg("Non complete partial edge"))?
+                .ind();
+            if ind_pedge_cur == ind_pedge_first {
+                break;
+            }
+        }
+        Ok(())
     }
 }
 
@@ -945,7 +984,7 @@ impl<'a, 'b, 'c> IterEdge<'a, 'b, 'c> {
         nods[0].is_some() && nods[1].is_some()
     }
 
-    pub fn is_in(&self) -> bool {
+    pub fn is_full(&self) -> bool {
         let tri = self.delaunay_triangle();
         self.voronoi
             .mesh
@@ -956,7 +995,11 @@ impl<'a, 'b, 'c> IterEdge<'a, 'b, 'c> {
     pub fn degree(&self) -> usize {
         self.alveolae()
             .iter()
-            .fold(3, |d, alv| if !alv.is_in() { d - 1 } else { d })
+            .fold(3, |d, alv| if !alv.is_full() { d - 1 } else { d })
+    }
+
+    pub fn is_singular(&self) -> bool {
+        self.degree() >= 3
     }
 
     pub fn alveolae(&self) -> [IterAlveola<'a, 'b, 'c>; 3] {
@@ -1011,6 +1054,10 @@ impl<'a, 'b, 'c> IterAlveola<'a, 'b, 'c> {
         self.ind_alveola
     }
 
+    pub fn label(&self) -> Option<usize> {
+        self.voronoi.alve_label[self.ind_alveola]
+    }
+
     pub fn delaunay_segment(&self) -> [usize; 2] {
         self.voronoi.alve_seg[self.ind_alveola]
     }
@@ -1035,7 +1082,7 @@ impl<'a, 'b, 'c> IterAlveola<'a, 'b, 'c> {
             .fold(true, |b, ed| b && ed.is_computed())
     }
 
-    pub fn is_in(&self) -> bool {
+    pub fn is_full(&self) -> bool {
         let seg = self.delaunay_segment();
         self.voronoi.mesh.is_edge_in(seg[0], seg[1]).is_none()
     }
@@ -1185,6 +1232,24 @@ impl<'a, 'b, 'c> IterPartialEdge<'a, 'b, 'c> {
         IterPartialAlveola {
             voronoi: self.voronoi,
             ind_palveola: self.voronoi.pedge_palve[self.ind_pedge],
+        }
+    }
+
+    pub fn is_boundary(&self) -> bool {
+        self.edge().degree() == 1
+    }
+
+    pub fn is_singular(&self) -> bool {
+        let label = self.partial_alveolae().alveola().label();
+        if label.is_some() {
+            label
+                != self
+                    .partial_edge_neighbor()
+                    .partial_alveolae()
+                    .alveola()
+                    .label()
+        } else {
+            self.edge().is_singular()
         }
     }
 }

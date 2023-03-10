@@ -2,7 +2,6 @@ use crate::algorithm::skeleton_interface::{skeleton_operations, SkeletonInterfac
 use crate::mesh3d::Mesh3D;
 use crate::skeleton3d::Skeleton3D;
 use anyhow::Result;
-use std::collections::HashSet;
 
 pub fn full_skeletonization(mesh: &mut Mesh3D, skeleton: &mut Skeleton3D) -> Result<()> {
     println!("Init skeleton interface");
@@ -17,9 +16,9 @@ pub fn full_skeletonization(mesh: &mut Mesh3D, skeleton: &mut Skeleton3D) -> Res
     loop {
         if let Some(ind_alveola) = vec_alveola.pop() {
             let alveola = skeleton_interface.get_alveola(ind_alveola)?;
-            let alveola_in = alveola.is_in();
+            let alveola_in = alveola.is_full();
             if !alveola.is_computed() && alveola_in {
-                skeleton_operations::compute_alveola(&mut skeleton_interface, ind_alveola)?;
+                skeleton_interface.compute_alveola(ind_alveola)?;
                 let mut vec_neigh =
                     skeleton_operations::neighbor_alveolae(&mut skeleton_interface, ind_alveola)?;
                 vec_alveola.append(&mut vec_neigh);
@@ -50,18 +49,19 @@ pub fn sheet_skeletonization(mesh: &mut Mesh3D, skeleton: &mut Skeleton3D) -> Re
     vec_alveola.push(ind_first_alveola);
 
     println!("Propagating sheet");
+    let label = 1;
     loop {
         if let Some(ind_alveola) = vec_alveola.pop() {
             let alveola = skeleton_interface.get_alveola(ind_alveola)?;
-            let alveola_in = alveola.is_in();
+            let alveola_in = alveola.is_full();
             if alveola_in {
-                let mut set_alv = HashSet::new();
-                skeleton_operations::compute_sheet(
+                skeleton_operations::compute_sheet(&mut skeleton_interface, ind_alveola, label)?;
+                let current_sheet = skeleton_interface.get_sheet(label);
+                skeleton_operations::extract_skeleton_paths(
                     &mut skeleton_interface,
-                    ind_alveola,
-                    &mut set_alv,
+                    &current_sheet,
                 )?;
-                for &ind_alve in set_alv.iter() {
+                for &ind_alve in current_sheet.iter() {
                     skeleton_operations::include_alveola_in_skel(
                         &mut skeleton_interface,
                         ind_alve,
