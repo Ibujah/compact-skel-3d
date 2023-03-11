@@ -178,7 +178,11 @@ impl<'a> DelaunayInterface<'a> {
     fn get_opposite_angle(&self, halfedge: mesh3d::IterHalfEdge) -> Result<f32> {
         let vert1 = halfedge.first_vertex().vertex();
         let vert2 = halfedge.last_vertex().vertex();
-        let vert3 = halfedge.next_halfedge()?.last_vertex().vertex();
+        let vert3 = halfedge
+            .next_halfedge()
+            .ok_or(anyhow::Error::msg("get_opposite_angle(): No next halfedge"))?
+            .last_vertex()
+            .vertex();
 
         let vec31 = vert1 - vert3;
         let vec32 = vert2 - vert3;
@@ -199,7 +203,9 @@ impl<'a> DelaunayInterface<'a> {
             let he = self.mesh.get_halfedge(ind_he)?;
             if !self.is_edge_in(&he.halfedge()) {
                 let angle1 = self.get_opposite_angle(he)?;
-                let angle2 = self.get_opposite_angle(he.opposite_halfedge()?)?;
+                let angle2 = self.get_opposite_angle(he.opposite_halfedge().ok_or(
+                    anyhow::Error::msg("get_opposite_angle(): No opposite halfedge"),
+                )?)?;
 
                 if angle1 + angle2 >= std::f32::consts::PI {
                     return Ok(Some(he));
