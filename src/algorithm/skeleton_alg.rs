@@ -24,7 +24,11 @@ pub fn full_skeletonization(mesh: &mut Mesh3D, skeleton: &mut Skeleton3D) -> Res
                 vec_alveola.append(&mut vec_neigh);
             }
             if alveola_in {
-                skeleton_operations::include_alveola_in_skel(&mut skeleton_interface, ind_alveola)?;
+                skeleton_operations::include_alveola_in_skel(
+                    &mut skeleton_interface,
+                    ind_alveola,
+                    None,
+                )?;
             }
             print!("\r{} alveolae remaining     ", vec_alveola.len());
         } else {
@@ -88,6 +92,7 @@ pub fn sheet_skeletonization(mesh: &mut Mesh3D, skeleton: &mut Skeleton3D) -> Re
                     skeleton_operations::include_alveola_in_skel(
                         &mut skeleton_interface,
                         ind_alve,
+                        Some(label),
                     )?;
                 }
                 label = label + 1;

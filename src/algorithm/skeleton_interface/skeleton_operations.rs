@@ -83,6 +83,7 @@ pub fn first_alveola_in<'a, 'b, 'c>(
 pub fn include_alveola_in_skel(
     skeleton_interface: &mut SkeletonInterface3D,
     ind_alveola: usize,
+    opt_label: Option<usize>,
 ) -> Result<()> {
     let vec_pedg = skeleton_interface
         .get_alveola(ind_alveola)?
@@ -129,6 +130,9 @@ pub fn include_alveola_in_skel(
     skeleton_interface
         .skeleton
         .add_alveola(ind_alveola, lis_nods);
+    if let Some(label) = opt_label {
+        skeleton_interface.skeleton.set_label(ind_alveola, label);
+    }
     Ok(())
 }
 
