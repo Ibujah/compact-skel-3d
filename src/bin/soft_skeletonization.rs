@@ -66,7 +66,7 @@ fn main() -> Result<()> {
 
     let now = Instant::now();
     let mut skeleton = Skeleton3D::new();
-    println!("Full skeletonization");
+    println!("Sheet skeletonization");
     skeleton_alg::sheet_skeletonization(&mut mesh, &mut skeleton)?;
     let duration = now.elapsed();
     let sec = duration.as_secs();
