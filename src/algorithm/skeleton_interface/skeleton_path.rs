@@ -168,6 +168,34 @@ impl<'a, 'b> SkeletonPath<'a, 'b> {
             .collect()
     }
 
+    pub fn closable_path(&self) -> Result<bool> {
+        let mut has_deg1 = false;
+        if self.components.len() > 1000 {
+            return Ok(false);
+        }
+        for ind in 0..self.components.len() {
+            let ind_next = (ind + 1) % self.components.len();
+            match (self.components[ind], self.components[ind_next]) {
+                (PathPart::PartialEdge(ind_pedge), PathPart::PartialNode(_)) => {
+                    let pedge = self.skeleton_interface.get_partial_edge_uncheck(ind_pedge);
+                    let deg = pedge
+                        .partial_edge_next()
+                        .ok_or(anyhow::Error::msg("Next edge does not exist"))?
+                        .edge()
+                        .degree();
+                    if deg != 1 && deg != 2 {
+                        return Ok(false);
+                    }
+                    if deg == 1 {
+                        has_deg1 = true;
+                    }
+                }
+                (_, _) => (),
+            };
+        }
+        return Ok(has_deg1);
+    }
+
     pub fn close_path(&mut self) -> Result<()> {
         for ind in 0..self.components.len() {
             let ind_next = (ind + 1) % self.components.len();

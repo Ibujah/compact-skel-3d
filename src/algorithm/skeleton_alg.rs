@@ -75,7 +75,9 @@ pub fn sheet_skeletonization(mesh: &mut ManifoldMesh3D) -> Result<(Skeleton3D, G
                         &mut skeleton_interface,
                         &pedges_set,
                     )? {
-                        skeleton_path.close_path()?;
+                        if skeleton_path.closable_path()? {
+                            skeleton_path.close_path()?;
+                        }
                         for ind_pedge in skeleton_path.ind_partial_edges().iter() {
                             pedges_set.remove(&ind_pedge);
                             vec_alveola.push(
