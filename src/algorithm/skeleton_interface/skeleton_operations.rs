@@ -5,9 +5,7 @@ use std::collections::{HashMap, HashSet};
 
 use crate::algorithm::skeleton_interface::{skeleton_path::SkeletonPath, SkeletonInterface3D};
 
-pub fn first_node_in<'a, 'b, 'c>(
-    skeleton_interface: &'c mut SkeletonInterface3D<'a, 'b>,
-) -> Result<usize> {
+pub fn first_node_in(skeleton_interface: &mut SkeletonInterface3D) -> Result<usize> {
     let mut rng = rand::thread_rng();
     let rand_fac = rng.gen_range(0..skeleton_interface.mesh.get_nb_faces());
 
@@ -47,9 +45,7 @@ pub fn first_node_in<'a, 'b, 'c>(
     Err(anyhow::Error::msg("No first node found"))
 }
 
-pub fn first_alveola_in<'a, 'b, 'c>(
-    skeleton_interface: &'c mut SkeletonInterface3D<'a, 'b>,
-) -> Result<usize> {
+pub fn first_alveola_in(skeleton_interface: &mut SkeletonInterface3D) -> Result<usize> {
     let ind_first_node = first_node_in(skeleton_interface)?;
 
     let cur_node = skeleton_interface.get_node(ind_first_node)?;
@@ -127,12 +123,15 @@ pub fn include_alveola_in_skel(
     for (ind_edge, ind_nodes) in edges_map {
         skeleton_interface.skeleton.add_edge(ind_edge, ind_nodes);
     }
+    print!("alve {}, nb nodes {}", ind_alveola, lis_nods.len());
     skeleton_interface
         .skeleton
         .add_alveola(ind_alveola, lis_nods);
     if let Some(label) = opt_label {
+        print!(" label {}", label);
         skeleton_interface.skeleton.set_label(ind_alveola, label);
     }
+    println!("");
     Ok(())
 }
 
@@ -199,23 +198,11 @@ pub fn compute_sheet(
 
 fn follow_singular_path(skeleton_path: &mut SkeletonPath) -> Result<()> {
     loop {
-        if let Some(ind_pedge) = skeleton_path.ind_last_partial_edge() {
-            // print!("{}: last {} ", cpt, ind_pedge);
-            let pedge = skeleton_path
-                .skeleton_interface()
-                .get_partial_edge_uncheck(ind_pedge);
-            // print!(
-            //     "{} -> {} (deg {}) ",
-            //     pedge.partial_node_first().unwrap().node().ind(),
-            //     pedge.partial_node_last().unwrap().node().ind(),
-            //     pedge.edge().degree()
-            // );
+        if let Some(pedge) = skeleton_path.last_partial_edge() {
             if pedge.is_singular() {
                 skeleton_path.append_last()?;
-                // println!("append ");
             } else {
                 skeleton_path.rotate_last()?;
-                // println!("rotate ");
             }
         } else {
             break;
@@ -245,10 +232,10 @@ pub fn outer_partial_edges(
     pedges_set
 }
 
-pub fn extract_one_skeleton_path<'a, 'b, 'c>(
-    skeleton_interface: &'c mut SkeletonInterface3D<'a, 'b>,
+pub fn extract_one_skeleton_path<'a, 'b>(
+    skeleton_interface: &'b mut SkeletonInterface3D<'a>,
     pedges_set: &HashSet<usize>,
-) -> Result<Option<SkeletonPath<'a, 'b, 'c>>> {
+) -> Result<Option<SkeletonPath<'a, 'b>>> {
     for ind_pedge in pedges_set.iter() {
         let pedge = skeleton_interface.get_partial_edge_uncheck(*ind_pedge);
         if pedge.is_singular() {

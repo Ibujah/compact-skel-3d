@@ -70,7 +70,7 @@ pub fn save_obj(filename: &str, skeleton: &Skeleton3D) -> Result<()> {
         } else {
             lm
         }
-    });
+    }) + 1;
 
     let alv_ind_none: Vec<usize> = skeleton
         .labels

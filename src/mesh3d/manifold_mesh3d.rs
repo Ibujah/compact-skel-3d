@@ -8,6 +8,8 @@ pub type FaceHalfedges = [usize; 3];
 pub type FaceVertices = [usize; 3];
 
 pub struct Mesh3D {
+#[derive(Clone)]
+pub struct ManifoldMesh3D {
     pub(super) vertices: HashMap<usize, Vertex>,
     pub(super) halfedges: HashMap<usize, HalfEdge>,
     pub(super) faces: HashMap<usize, FaceHalfedges>,
@@ -24,25 +26,25 @@ pub struct Mesh3D {
 
 #[derive(Copy, Clone)]
 pub struct IterVertex<'a> {
-    mesh: &'a Mesh3D,
+    mesh: &'a ManifoldMesh3D,
     ind_vertex: usize,
 }
 
 #[derive(Copy, Clone)]
 pub struct IterHalfEdge<'a> {
-    mesh: &'a Mesh3D,
+    mesh: &'a ManifoldMesh3D,
     ind_halfedge: usize,
 }
 
 #[derive(Copy, Clone)]
 pub struct IterFace<'a> {
-    mesh: &'a Mesh3D,
+    mesh: &'a ManifoldMesh3D,
     ind_face: usize,
 }
 
-impl Mesh3D {
-    pub fn new() -> Mesh3D {
-        Mesh3D {
+impl ManifoldMesh3D {
+    pub fn new() -> ManifoldMesh3D {
+        ManifoldMesh3D {
             vertices: HashMap::new(),
             halfedges: HashMap::new(),
             faces: HashMap::new(),

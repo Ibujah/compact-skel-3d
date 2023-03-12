@@ -20,7 +20,7 @@ fn main() -> Result<()> {
     let obj_out_path_str = args.obj_out_path.to_str().unwrap_or("");
 
     println!("Loading topo_mesh");
-    let mut mesh = io::load_obj(obj_in_path_str)?;
+    let mut mesh = io::load_obj_manifold(obj_in_path_str)?;
 
     println!("Checking mesh");
     mesh.check_mesh()?;
@@ -38,7 +38,7 @@ fn main() -> Result<()> {
     mesh.check_mesh()?;
 
     println!("Save mesh");
-    io::save_obj(obj_out_path_str, &mesh)?;
+    io::save_obj_manifold(obj_out_path_str, &mesh)?;
 
     Ok(())
 }

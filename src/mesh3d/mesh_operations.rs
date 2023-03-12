@@ -1,8 +1,8 @@
-use crate::mesh3d::Mesh3D;
+use crate::mesh3d::ManifoldMesh3D;
 use anyhow::Result;
 use nalgebra::base::*;
 
-pub fn can_flip_halfedge(mesh: &Mesh3D, ind_halfedge: usize) -> Result<bool> {
+pub fn can_flip_halfedge(mesh: &ManifoldMesh3D, ind_halfedge: usize) -> Result<bool> {
     let halfedge = mesh.get_halfedge(ind_halfedge)?;
 
     let opp_vert1 = halfedge
@@ -29,7 +29,7 @@ pub fn can_flip_halfedge(mesh: &Mesh3D, ind_halfedge: usize) -> Result<bool> {
     Ok(!edg_found)
 }
 
-pub fn flip_halfedge(mesh: &mut Mesh3D, ind_halfedge: usize) -> Result<bool> {
+pub fn flip_halfedge(mesh: &mut ManifoldMesh3D, ind_halfedge: usize) -> Result<bool> {
     if !mesh.halfedges.contains_key(&ind_halfedge) {
         return Err(anyhow::Error::msg("flip_halfedge(): Index out of bounds"));
     }
@@ -138,7 +138,11 @@ pub fn flip_halfedge(mesh: &mut Mesh3D, ind_halfedge: usize) -> Result<bool> {
     Ok(true)
 }
 
-pub fn split_halfedge(mesh: &mut Mesh3D, vert: &Vector3<f32>, ind_halfedge: usize) -> Result<()> {
+pub fn split_halfedge(
+    mesh: &mut ManifoldMesh3D,
+    vert: &Vector3<f32>,
+    ind_halfedge: usize,
+) -> Result<()> {
     if !mesh.halfedges.contains_key(&ind_halfedge) {
         return Err(anyhow::Error::msg("split_halfedge(): Index out of bounds"));
     }
@@ -300,7 +304,7 @@ pub fn split_halfedge(mesh: &mut Mesh3D, vert: &Vector3<f32>, ind_halfedge: usiz
     Ok(())
 }
 
-pub fn split_face(mesh: &mut Mesh3D, vert: &Vector3<f32>, ind_face: usize) -> Result<()> {
+pub fn split_face(mesh: &mut ManifoldMesh3D, vert: &Vector3<f32>, ind_face: usize) -> Result<()> {
     if !mesh.faces.contains_key(&ind_face) {
         return Err(anyhow::Error::msg("split_face(): Index out of bounds"));
     }

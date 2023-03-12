@@ -1,11 +1,12 @@
 use crate::algorithm::skeleton_interface::{skeleton_operations, SkeletonInterface3D};
-use crate::mesh3d::Mesh3D;
+use crate::mesh3d::GenericMesh3D;
+use crate::mesh3d::ManifoldMesh3D;
 use crate::skeleton3d::Skeleton3D;
 use anyhow::Result;
 
-pub fn full_skeletonization(mesh: &mut Mesh3D, skeleton: &mut Skeleton3D) -> Result<()> {
+pub fn full_skeletonization(mesh: &mut ManifoldMesh3D) -> Result<Skeleton3D> {
     println!("Init skeleton interface");
-    let mut skeleton_interface = SkeletonInterface3D::init(mesh, skeleton)?;
+    let mut skeleton_interface = SkeletonInterface3D::init(mesh)?;
 
     println!("Finding some first alveola");
     let ind_first_alveola = skeleton_operations::first_alveola_in(&mut skeleton_interface)?;
@@ -40,12 +41,12 @@ pub fn full_skeletonization(mesh: &mut Mesh3D, skeleton: &mut Skeleton3D) -> Res
     println!("Checking skeleton");
     skeleton_interface.check()?;
 
-    Ok(())
+    Ok(skeleton_interface.get_skeleton().clone())
 }
 
-pub fn sheet_skeletonization(mesh: &mut Mesh3D, skeleton: &mut Skeleton3D) -> Result<()> {
+pub fn sheet_skeletonization(mesh: &mut ManifoldMesh3D) -> Result<(Skeleton3D, GenericMesh3D)> {
     println!("Init skeleton interface");
-    let mut skeleton_interface = SkeletonInterface3D::init(mesh, skeleton)?;
+    let mut skeleton_interface = SkeletonInterface3D::init(mesh)?;
 
     println!("Finding some first alveola");
     let ind_first_alveola = skeleton_operations::first_alveola_in(&mut skeleton_interface)?;
@@ -69,25 +70,28 @@ pub fn sheet_skeletonization(mesh: &mut Mesh3D, skeleton: &mut Skeleton3D) -> Re
                 let mut pedges_set =
                     skeleton_operations::outer_partial_edges(&skeleton_interface, &current_sheet);
                 loop {
-                    if let Some(skeleton_path) = skeleton_operations::extract_one_skeleton_path(
+                    if let Some(mut skeleton_path) = skeleton_operations::extract_one_skeleton_path(
                         &mut skeleton_interface,
                         &pedges_set,
                     )? {
-                        for ind_pedge in skeleton_path.partial_edges().iter() {
+                        skeleton_path.close_path()?;
+                        for ind_pedge in skeleton_path.ind_partial_edges().iter() {
                             pedges_set.remove(&ind_pedge);
-                            vec_alveola.push(
-                                skeleton_interface
-                                    .get_partial_edge(*ind_pedge)?
-                                    .partial_alveola()
-                                    .alveola()
-                                    .ind(),
-                            );
+                            // vec_alveola.push(
+                            //     skeleton_interface
+                            //         .get_partial_edge(*ind_pedge)?
+                            //         .partial_alveola()
+                            //         .alveola()
+                            //         .ind(),
+                            // );
                         }
                     } else {
                         break;
                     }
+                    break;
                 }
 
+                println!("nb alve {}", current_sheet.len());
                 for &ind_alve in current_sheet.iter() {
                     skeleton_operations::include_alveola_in_skel(
                         &mut skeleton_interface,
@@ -96,6 +100,7 @@ pub fn sheet_skeletonization(mesh: &mut Mesh3D, skeleton: &mut Skeleton3D) -> Re
                     )?;
                 }
                 label = label + 1;
+                break;
             }
         } else {
             break;
@@ -110,5 +115,8 @@ pub fn sheet_skeletonization(mesh: &mut Mesh3D, skeleton: &mut Skeleton3D) -> Re
     println!("Checking skeleton");
     skeleton_interface.check()?;
 
-    Ok(())
+    Ok((
+        skeleton_interface.get_skeleton().clone(),
+        skeleton_interface.get_closing_mesh().clone(),
+    ))
 }

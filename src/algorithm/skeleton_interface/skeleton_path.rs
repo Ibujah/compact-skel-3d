@@ -1,6 +1,8 @@
 use crate::algorithm::skeleton_interface::SkeletonInterface3D;
 use anyhow::Result;
 
+use super::skeleton_interface::IterPartialEdge;
+
 #[derive(Copy, Clone)]
 pub enum PathPart {
     PartialNode(usize),
@@ -12,17 +14,17 @@ pub enum State {
     Closed,
 }
 
-pub struct SkeletonPath<'a, 'b, 'c> {
-    skeleton_interface: &'c mut SkeletonInterface3D<'a, 'b>,
+pub struct SkeletonPath<'a, 'b> {
+    skeleton_interface: &'b mut SkeletonInterface3D<'a>,
     components: Vec<PathPart>,
     opt_ind_pedge_last: Option<usize>,
 }
 
-impl<'a, 'b, 'c> SkeletonPath<'a, 'b, 'c> {
+impl<'a, 'b> SkeletonPath<'a, 'b> {
     pub fn new(
-        skeleton_interface: &'c mut SkeletonInterface3D<'a, 'b>,
+        skeleton_interface: &'b mut SkeletonInterface3D<'a>,
         ind_pedge: usize,
-    ) -> SkeletonPath<'a, 'b, 'c> {
+    ) -> SkeletonPath<'a, 'b> {
         SkeletonPath {
             skeleton_interface,
             components: Vec::new(),
@@ -37,7 +39,16 @@ impl<'a, 'b, 'c> SkeletonPath<'a, 'b, 'c> {
     pub fn mesh_path(&self) -> Vec<usize> {
         self.components
             .iter()
-            .map(|part| part.corner(self.skeleton_interface))
+            .map(|part| match part {
+                &PathPart::PartialNode(pnode) => self
+                    .skeleton_interface
+                    .get_partial_node_uncheck(pnode)
+                    .corner(),
+                &PathPart::PartialEdge(pedge) => self
+                    .skeleton_interface
+                    .get_partial_edge_uncheck(pedge)
+                    .corner(),
+            })
             .collect()
     }
 
@@ -120,7 +131,18 @@ impl<'a, 'b, 'c> SkeletonPath<'a, 'b, 'c> {
         self.opt_ind_pedge_last
     }
 
-    pub fn partial_edges(&self) -> Vec<usize> {
+    pub fn last_partial_edge(&self) -> Option<IterPartialEdge> {
+        if let Some(ind_pedge_last) = self.opt_ind_pedge_last {
+            Some(
+                self.skeleton_interface
+                    .get_partial_edge_uncheck(ind_pedge_last),
+            )
+        } else {
+            None
+        }
+    }
+
+    pub fn ind_partial_edges(&self) -> Vec<usize> {
         self.components
             .iter()
             .filter_map(|pp| match pp {
@@ -130,7 +152,7 @@ impl<'a, 'b, 'c> SkeletonPath<'a, 'b, 'c> {
             .collect()
     }
 
-    pub fn alveolae(&self) -> Vec<usize> {
+    pub fn ind_alveolae(&self) -> Vec<usize> {
         self.components
             .iter()
             .filter_map(|pp| match pp {
@@ -145,17 +167,24 @@ impl<'a, 'b, 'c> SkeletonPath<'a, 'b, 'c> {
             })
             .collect()
     }
-}
 
-impl PathPart {
-    pub fn corner(&self, skeleton_interface: &SkeletonInterface3D) -> usize {
-        match self {
-            &PathPart::PartialNode(pnode) => {
-                skeleton_interface.get_partial_node_uncheck(pnode).corner()
-            }
-            &PathPart::PartialEdge(pedge) => {
-                skeleton_interface.get_partial_edge_uncheck(pedge).corner()
-            }
+    pub fn close_path(&mut self) -> Result<()> {
+        for ind in 0..self.components.len() {
+            let ind_next = (ind + 1) % self.components.len();
+            match (self.components[ind], self.components[ind_next]) {
+                (PathPart::PartialEdge(ind_pedge), PathPart::PartialNode(_)) => {
+                    let pedge = self.skeleton_interface.get_partial_edge_uncheck(ind_pedge);
+                    let [ind_vertex1, ind_vertex2, ind_vertex3] = pedge
+                        .partial_edge_next()
+                        .ok_or(anyhow::Error::msg("Next edge does not exist"))?
+                        .edge()
+                        .delaunay_triangle();
+                    self.skeleton_interface
+                        .close_face(ind_vertex1, ind_vertex2, ind_vertex3)?
+                }
+                (_, _) => (),
+            };
         }
+        Ok(())
     }
 }

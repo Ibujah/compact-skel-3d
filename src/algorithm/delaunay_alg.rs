@@ -2,16 +2,16 @@ use anyhow::Result;
 use std::collections::HashSet;
 
 use crate::algorithm::delaunay_interface::DelaunayInterface;
-use crate::mesh3d::{mesh3d, Mesh3D};
+use crate::mesh3d::{manifold_mesh3d, ManifoldMesh3D};
 
 fn extract_physical_edges(
-    mesh: &Mesh3D,
+    mesh: &ManifoldMesh3D,
     ang_max: Option<f32>,
-) -> Result<HashSet<mesh3d::HalfEdge>> {
+) -> Result<HashSet<manifold_mesh3d::HalfEdge>> {
     let ang_max = ang_max.unwrap_or(std::f32::consts::PI);
     let cos_min = ang_max.cos();
 
-    let mut physical: HashSet<mesh3d::HalfEdge> = HashSet::new();
+    let mut physical: HashSet<manifold_mesh3d::HalfEdge> = HashSet::new();
     // set physical edges
     for (&ind_he, _) in mesh.halfedges().iter() {
         let he = mesh.get_halfedge(ind_he)?;
@@ -69,7 +69,7 @@ fn extract_physical_edges(
 fn compute_halfedge_split_vertex(
     deltet: &DelaunayInterface,
     vertex_inds: [usize; 2],
-) -> Result<mesh3d::Vertex> {
+) -> Result<manifold_mesh3d::Vertex> {
     let (vert1, vert2) = if deltet.is_original_vertex(vertex_inds[0]) {
         (
             deltet.get_mesh().get_vertex(vertex_inds[0])?.vertex(),
@@ -103,13 +103,13 @@ fn compute_halfedge_split_vertex(
     }
 }
 
-fn compute_face_split_vertex(face: mesh3d::IterFace) -> Result<mesh3d::Vertex> {
+fn compute_face_split_vertex(face: manifold_mesh3d::IterFace) -> Result<manifold_mesh3d::Vertex> {
     let [vert1, vert2, vert3] = face.vertices();
 
     Ok((vert1.vertex() + vert2.vertex() + vert3.vertex()) / 3.0)
 }
 
-pub fn to_delaunay(mesh: &mut Mesh3D, ang_max: Option<f32>) -> Result<()> {
+pub fn to_delaunay(mesh: &mut ManifoldMesh3D, ang_max: Option<f32>) -> Result<()> {
     let mut deltet = DelaunayInterface::from_mesh(mesh)?;
 
     let physical = extract_physical_edges(deltet.get_mesh(), ang_max)?;

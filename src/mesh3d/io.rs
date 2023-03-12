@@ -4,10 +4,11 @@ use std::collections::HashMap;
 use std::fs::File;
 use std::io::{self, BufRead, Write};
 
-use crate::mesh3d::Mesh3D;
+use crate::mesh3d::GenericMesh3D;
+use crate::mesh3d::ManifoldMesh3D;
 
-pub fn load_obj(filename: &str) -> Result<Mesh3D> {
-    let mut mesh = Mesh3D::new();
+pub fn load_obj_manifold(filename: &str) -> Result<ManifoldMesh3D> {
+    let mut mesh = ManifoldMesh3D::new();
 
     let file = File::open(filename)?;
     let lines = io::BufReader::new(file).lines();
@@ -51,7 +52,7 @@ pub fn load_obj(filename: &str) -> Result<Mesh3D> {
     Ok(mesh)
 }
 
-pub fn save_obj(filename: &str, mesh: &Mesh3D) -> Result<()> {
+pub fn save_obj_manifold(filename: &str, mesh: &ManifoldMesh3D) -> Result<()> {
     let mut file = File::create(filename)?;
 
     let mut corresp: HashMap<usize, usize> = HashMap::new();
@@ -76,6 +77,28 @@ pub fn save_obj(filename: &str, mesh: &Mesh3D) -> Result<()> {
             "save_obj(): vertex face does not exists",
         ))?;
         writeln!(file, "f {}// {}// {}//", ind0, ind1, ind2)?;
+    }
+
+    Ok(())
+}
+
+pub fn save_obj_generic(filename: &str, mesh: &GenericMesh3D) -> Result<()> {
+    let mut file = File::create(filename)?;
+
+    for v in 0..mesh.get_nb_vertices() {
+        let vert = mesh.get_vertex(v)?;
+        writeln!(file, "v {} {} {}", vert[0], vert[1], vert[2])?;
+    }
+
+    for f in 0..mesh.get_nb_faces() {
+        let face = mesh.get_face(f)?;
+        writeln!(
+            file,
+            "f {}// {}// {}//",
+            face[0] + 1,
+            face[1] + 1,
+            face[2] + 1
+        )?;
     }
 
     Ok(())
