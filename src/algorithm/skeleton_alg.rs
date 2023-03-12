@@ -47,6 +47,7 @@ pub fn full_skeletonization(mesh: &mut ManifoldMesh3D) -> Result<Skeleton3D> {
 pub fn sheet_skeletonization(mesh: &mut ManifoldMesh3D) -> Result<(Skeleton3D, GenericMesh3D)> {
     println!("Init skeleton interface");
     let mut skeleton_interface = SkeletonInterface3D::init(mesh)?;
+    skeleton_interface.check()?;
 
     println!("Finding some first alveola");
     let ind_first_alveola = skeleton_operations::first_alveola_in(&mut skeleton_interface)?;
@@ -77,30 +78,36 @@ pub fn sheet_skeletonization(mesh: &mut ManifoldMesh3D) -> Result<(Skeleton3D, G
                         skeleton_path.close_path()?;
                         for ind_pedge in skeleton_path.ind_partial_edges().iter() {
                             pedges_set.remove(&ind_pedge);
-                            // vec_alveola.push(
-                            //     skeleton_interface
-                            //         .get_partial_edge(*ind_pedge)?
-                            //         .partial_alveola()
-                            //         .alveola()
-                            //         .ind(),
-                            // );
+                            vec_alveola.push(
+                                skeleton_interface
+                                    .get_partial_edge(*ind_pedge)?
+                                    .partial_alveola()
+                                    .alveola()
+                                    .ind(),
+                            );
                         }
+                        pedges_set.retain(|&ind_pedge| {
+                            skeleton_interface
+                                .get_partial_edge(ind_pedge)
+                                .unwrap()
+                                .edge()
+                                .is_singular()
+                        });
                     } else {
                         break;
                     }
-                    break;
                 }
 
-                println!("nb alve {}", current_sheet.len());
-                for &ind_alve in current_sheet.iter() {
-                    skeleton_operations::include_alveola_in_skel(
-                        &mut skeleton_interface,
-                        ind_alve,
-                        Some(label),
-                    )?;
+                for &ind_alveola in current_sheet.iter() {
+                    if skeleton_interface.get_alveola(ind_alveola)?.is_full() {
+                        skeleton_operations::include_alveola_in_skel(
+                            &mut skeleton_interface,
+                            ind_alveola,
+                            Some(label),
+                        )?;
+                    }
                 }
                 label = label + 1;
-                break;
             }
         } else {
             break;

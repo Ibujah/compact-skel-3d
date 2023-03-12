@@ -73,7 +73,7 @@ impl GenericMesh3D {
         match ind_edge {
             Some(ind) => Ok(ind),
             None => {
-                self.edges.push([ind_vertex1, ind_vertex2]);
+                self.edges.push(edge);
                 self.map_edg_face.push(Vec::new());
                 self.map_vert_edg[ind_vertex1].push(self.edges.len() - 1);
                 self.map_vert_edg[ind_vertex2].push(self.edges.len() - 1);
@@ -158,7 +158,7 @@ impl GenericMesh3D {
         } else {
             let opt_ind_edg = self.map_vert_edg[ind_vertex1]
                 .iter()
-                .find(|&&ind_edg| self.map_vert_edg[ind_edg] == edge);
+                .find(|&&ind_edg| self.edges[ind_edg] == edge);
             if let Some(&ind_edg) = opt_ind_edg {
                 return Some(ind_edg);
             }

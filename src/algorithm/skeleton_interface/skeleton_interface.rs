@@ -100,13 +100,10 @@ impl<'a, 'b> SkeletonInterface3D<'a> {
         let nb_non_del_hedges = deltet.count_non_del_halfedges()?;
         let nb_non_del_faces = deltet.count_non_del_faces()?;
 
-        let faces = deltet
+        let faces: HashMap<[usize; 3], Vec<[usize; 4]>> = deltet
             .get_faces()
             .iter()
-            .map(|(&tri, tetras)| {
-                let tetras_cpy = tetras.iter().map(|&tetra| tetra).collect();
-                (tri, tetras_cpy)
-            })
+            .map(|(&tri, tetras)| (tri, tetras.clone()))
             .collect();
 
         if nb_non_del_hedges != 0 || nb_non_del_faces != 0 {
@@ -572,6 +569,7 @@ impl<'a, 'b> SkeletonInterface3D<'a> {
 
     fn check_edge(&self, ind_edge: usize) -> Result<()> {
         let edge = self.get_edge(ind_edge)?;
+        edge.degree();
 
         for pedge in edge.partial_edges() {
             if pedge.edge().ind() != edge.ind() {
@@ -744,6 +742,7 @@ impl<'a, 'b> SkeletonInterface3D<'a> {
 
     fn check_alveola(&self, ind_alve: usize) -> Result<()> {
         let alve = self.get_alveola(ind_alve)?;
+        alve.is_full();
 
         for edge in alve.edges() {
             let is_in = edge
@@ -1319,16 +1318,20 @@ impl<'a, 'b> IterPartialEdge<'a, 'b> {
     }
 
     pub fn is_singular(&self) -> bool {
-        let label = self.partial_alveola().alveola().label();
-        if label.is_some() {
-            label
-                != self
-                    .partial_edge_neighbor()
-                    .partial_alveola()
-                    .alveola()
-                    .label()
+        if self.edge().is_singular() {
+            let label = self.partial_alveola().alveola().label();
+            if label.is_some() {
+                label
+                    != self
+                        .partial_edge_neighbor()
+                        .partial_alveola()
+                        .alveola()
+                        .label()
+            } else {
+                true
+            }
         } else {
-            self.edge().is_singular()
+            false
         }
     }
 }

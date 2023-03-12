@@ -123,15 +123,12 @@ pub fn include_alveola_in_skel(
     for (ind_edge, ind_nodes) in edges_map {
         skeleton_interface.skeleton.add_edge(ind_edge, ind_nodes);
     }
-    print!("alve {}, nb nodes {}", ind_alveola, lis_nods.len());
     skeleton_interface
         .skeleton
         .add_alveola(ind_alveola, lis_nods);
     if let Some(label) = opt_label {
-        print!(" label {}", label);
         skeleton_interface.skeleton.set_label(ind_alveola, label);
     }
-    println!("");
     Ok(())
 }
 
@@ -236,10 +233,10 @@ pub fn extract_one_skeleton_path<'a, 'b>(
     skeleton_interface: &'b mut SkeletonInterface3D<'a>,
     pedges_set: &HashSet<usize>,
 ) -> Result<Option<SkeletonPath<'a, 'b>>> {
-    for ind_pedge in pedges_set.iter() {
-        let pedge = skeleton_interface.get_partial_edge_uncheck(*ind_pedge);
+    for &ind_pedge in pedges_set.iter() {
+        let pedge = skeleton_interface.get_partial_edge_uncheck(ind_pedge);
         if pedge.is_singular() {
-            let mut skeleton_path = SkeletonPath::new(skeleton_interface, *ind_pedge);
+            let mut skeleton_path = SkeletonPath::new(skeleton_interface, ind_pedge);
             follow_singular_path(&mut skeleton_path)?;
             return Ok(Some(skeleton_path));
         }
