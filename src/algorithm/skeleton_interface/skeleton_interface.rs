@@ -10,6 +10,7 @@ pub struct SkeletonInterface3D<'a> {
     pub(super) mesh: &'a mut ManifoldMesh3D,
     pub(super) skeleton: Skeleton3D,
     pub(super) closing_mesh: GenericMesh3D,
+    pub(super) debug_mesh: GenericMesh3D,
 
     // existing delaunay: neighbor information
     pub(super) faces: HashMap<[usize; 3], Vec<[usize; 4]>>,
@@ -116,8 +117,9 @@ impl<'a, 'b> SkeletonInterface3D<'a> {
             }
             Ok(SkeletonInterface3D {
                 mesh,
-                closing_mesh,
                 skeleton: Skeleton3D::new(),
+                closing_mesh,
+                debug_mesh: GenericMesh3D::new(),
                 faces,
                 del_tet: HashMap::new(),
                 del_tri: HashMap::new(),
@@ -295,7 +297,37 @@ impl<'a, 'b> SkeletonInterface3D<'a> {
 
     fn link_node_edges(&mut self, ind_node: usize, ind_edges: [usize; 4]) -> Result<()> {
         self.node_edge.push(ind_edges);
+
         let side = if self.edge_node[ind_edges[0]][0] == None
+            && self.edge_node[ind_edges[0]][1] == None
+            && self.edge_node[ind_edges[1]][0] == None
+            && self.edge_node[ind_edges[1]][1] == None
+            && self.edge_node[ind_edges[2]][0] == None
+            && self.edge_node[ind_edges[2]][1] == None
+            && self.edge_node[ind_edges[3]][0] == None
+            && self.edge_node[ind_edges[3]][1] == None
+        {
+            let [ind_tet1, ind_tet2, ind_tet3, ind_tet4] = self.node_tet[ind_node];
+            let tet1 = self.mesh.get_vertex(ind_tet1).unwrap().vertex();
+            let tet2 = self.mesh.get_vertex(ind_tet2).unwrap().vertex();
+            let tet3 = self.mesh.get_vertex(ind_tet3).unwrap().vertex();
+            let tet4 = self.mesh.get_vertex(ind_tet4).unwrap().vertex();
+            let tet_mid = (tet1 + tet2 + tet3 + tet4) * 0.25;
+
+            let [ind_tri1, ind_tri2, ind_tri3] = self.edge_tri[ind_edges[0]];
+            let tri1 = self.mesh.get_vertex(ind_tri1).unwrap().vertex();
+            let tri2 = self.mesh.get_vertex(ind_tri2).unwrap().vertex();
+            let tri3 = self.mesh.get_vertex(ind_tri3).unwrap().vertex();
+
+            let nor = (tri2 - tri1).cross(&(tri3 - tri2));
+            let tri_mid = (tri1 + tri2 + tri3) / 3.0;
+
+            if (tri_mid - tet_mid).dot(&nor) > 0.0 {
+                Ok([1, 0, 1, 0])
+            } else {
+                Ok([0, 1, 0, 1])
+            }
+        } else if self.edge_node[ind_edges[0]][0] == None
             && self.edge_node[ind_edges[1]][1] == None
             && self.edge_node[ind_edges[2]][0] == None
             && self.edge_node[ind_edges[3]][1] == None
@@ -471,6 +503,10 @@ impl<'a, 'b> SkeletonInterface3D<'a> {
 
     pub fn get_closing_mesh(&self) -> &GenericMesh3D {
         &self.closing_mesh
+    }
+
+    pub fn get_debug_mesh(&self) -> &GenericMesh3D {
+        &self.debug_mesh
     }
 
     // pub(super) fn close_edge(&mut self, ind_vertex1: usize, ind_vertex2: usize) -> Result<()> {

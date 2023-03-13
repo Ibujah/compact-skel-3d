@@ -8,6 +8,7 @@ use crate::algorithm::skeleton_interface::{skeleton_path::SkeletonPath, Skeleton
 pub fn first_node_in(skeleton_interface: &mut SkeletonInterface3D) -> Result<usize> {
     let mut rng = rand::thread_rng();
     let rand_fac = rng.gen_range(0..skeleton_interface.mesh.get_nb_faces());
+    println!("First face: {}", rand_fac);
 
     let face = skeleton_interface.get_mesh().get_face(rand_fac)?;
 
@@ -38,6 +39,13 @@ pub fn first_node_in(skeleton_interface: &mut SkeletonInterface3D) -> Result<usi
 
         if inside {
             let node = skeleton_interface.add_node(&tet)?;
+            println!(
+                "First node : ({}, {}, {}, {})",
+                node.delaunay_tetrahedron()[0],
+                node.delaunay_tetrahedron()[1],
+                node.delaunay_tetrahedron()[2],
+                node.delaunay_tetrahedron()[3]
+            );
             return Ok(node.ind());
         }
     }

@@ -56,6 +56,7 @@ pub fn sheet_skeletonization(mesh: &mut ManifoldMesh3D) -> Result<(Skeleton3D, G
 
     println!("Propagating sheet");
     let mut label = 1;
+    let mut stop_comp = false;
     loop {
         if let Some(ind_alveola) = vec_alveola.pop() {
             print!(
@@ -75,18 +76,37 @@ pub fn sheet_skeletonization(mesh: &mut ManifoldMesh3D) -> Result<(Skeleton3D, G
                         &mut skeleton_interface,
                         &pedges_set,
                     )? {
-                        if skeleton_path.closable_path()? {
-                            skeleton_path.close_path()?;
-                        }
-                        for ind_pedge in skeleton_path.ind_partial_edges().iter() {
-                            pedges_set.remove(&ind_pedge);
-                            vec_alveola.push(
-                                skeleton_interface
-                                    .get_partial_edge(*ind_pedge)?
-                                    .partial_alveola()
-                                    .alveola()
-                                    .ind(),
-                            );
+                        if skeleton_path.closable_path()? && label > 4 && !stop_comp {
+                            //skeleton_path.collect_faces()?;
+                            // skeleton_path.close_path()?;
+                            skeleton_path.compute_debug_mesh()?;
+
+                            vec_alveola.clear();
+
+                            for ind_pedge in skeleton_path.ind_partial_edges().iter() {
+                                pedges_set.remove(&ind_pedge);
+                                vec_alveola.push(
+                                    skeleton_interface
+                                        .get_partial_edge(*ind_pedge)?
+                                        .partial_alveola()
+                                        .alveola()
+                                        .ind(),
+                                );
+                            }
+                            stop_comp = true;
+                        } else {
+                            for ind_pedge in skeleton_path.ind_partial_edges().iter() {
+                                pedges_set.remove(&ind_pedge);
+                                if !stop_comp {
+                                    vec_alveola.push(
+                                        skeleton_interface
+                                            .get_partial_edge(*ind_pedge)?
+                                            .partial_alveola()
+                                            .alveola()
+                                            .ind(),
+                                    );
+                                }
+                            }
                         }
                         pedges_set.retain(|&ind_pedge| {
                             skeleton_interface
@@ -126,6 +146,6 @@ pub fn sheet_skeletonization(mesh: &mut ManifoldMesh3D) -> Result<(Skeleton3D, G
 
     Ok((
         skeleton_interface.get_skeleton().clone(),
-        skeleton_interface.get_closing_mesh().clone(),
+        skeleton_interface.get_debug_mesh().clone(),
     ))
 }
