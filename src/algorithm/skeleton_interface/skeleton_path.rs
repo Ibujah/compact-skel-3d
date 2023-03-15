@@ -39,19 +39,24 @@ impl<'a, 'b> SkeletonPath<'a, 'b> {
     }
 
     pub fn mesh_path(&self) -> Vec<usize> {
-        self.components
-            .iter()
-            .map(|part| match part {
-                &PathPart::PartialNode(pnode) => self
-                    .skeleton_interface
-                    .get_partial_node_uncheck(pnode)
-                    .corner(),
-                &PathPart::PartialEdge(pedge) => self
-                    .skeleton_interface
-                    .get_partial_edge_uncheck(pedge)
-                    .corner(),
-            })
-            .collect()
+        println!("mesh path");
+        let mut path = Vec::new();
+        for ind1 in 0..self.components.len() {
+            let ind2 = (ind1 + 1) % self.components.len();
+            match (self.components[ind1], self.components[ind2]) {
+                (PathPart::PartialNode(ind_pnode), PathPart::PartialNode(_)) => {
+                    let pnode = self.skeleton_interface.get_partial_node_uncheck(ind_pnode);
+                    println!("node {}, corner {}", pnode.node().ind(), pnode.corner(),);
+                    path.push(
+                        self.skeleton_interface
+                            .get_partial_node_uncheck(ind_pnode)
+                            .corner(),
+                    );
+                }
+                (_, _) => (),
+            }
+        }
+        path
     }
 
     pub fn append_last(&mut self) -> Result<State> {
@@ -120,8 +125,18 @@ impl<'a, 'b> SkeletonPath<'a, 'b> {
                 .partial_node_first()
                 .ok_or(anyhow::Error::msg("No first node"))?
                 .ind();
+            if let Some(&plast) = self.components.last() {
+                if let PathPart::PartialNode(nod) = plast {
+                    if nod != ind_pnode {
+                        self.components.push(PathPart::PartialNode(ind_pnode));
+                    }
+                } else {
+                    self.components.push(PathPart::PartialNode(ind_pnode));
+                }
+            } else {
+                self.components.push(PathPart::PartialNode(ind_pnode));
+            }
             let ind_pedge_new = pedge_next.ind();
-            self.components.push(PathPart::PartialNode(ind_pnode));
             self.opt_ind_pedge_last = Some(ind_pedge_new);
             self.check_loop()
         } else {
@@ -175,6 +190,9 @@ impl<'a, 'b> SkeletonPath<'a, 'b> {
         if self.components.len() > 500 {
             return Ok(false);
         }
+        if self.components.len() < 10 {
+            return Ok(false);
+        }
         for ind in 0..self.components.len() {
             let ind_next = (ind + 1) % self.components.len();
             match (self.components[ind], self.components[ind_next]) {
@@ -196,6 +214,239 @@ impl<'a, 'b> SkeletonPath<'a, 'b> {
             };
         }
         return Ok(has_deg1);
+    }
+
+    pub fn collect_mesh_faces_index(&self) -> Result<Option<Vec<usize>>> {
+        let vec_bnd_path_vert = self.mesh_path();
+        let mut mesh_path_hedge = Vec::new();
+        for ind1 in 0..vec_bnd_path_vert.len() {
+            let ind2 = (ind1 + 1) % vec_bnd_path_vert.len();
+            let ind_vertex1 = vec_bnd_path_vert[ind1];
+            let ind_vertex2 = vec_bnd_path_vert[ind2];
+
+            let hedge = self
+                .skeleton_interface
+                .get_mesh()
+                .is_edge_in(ind_vertex1, ind_vertex2)
+                .ok_or(anyhow::Error::msg("Part of the path not on the boundary"))?;
+            mesh_path_hedge.push(hedge.ind());
+        }
+
+        let mut mesh_paths_hedge = vec![mesh_path_hedge];
+        let mut faces = Vec::new();
+        loop {
+            // println!("new iter");
+            // for path in mesh_paths_hedge.iter() {
+            //     for &ind_he in path.iter() {
+            //         let hedge = self.skeleton_interface.get_mesh().get_halfedge(ind_he)?;
+            //         print!(
+            //             "({} -> {}), ",
+            //             hedge.first_vertex().ind(),
+            //             hedge.last_vertex().ind()
+            //         );
+            //     }
+            //     println!("");
+            // }
+            // println!("");
+
+            if let Some(mut mesh_path_edge) = mesh_paths_hedge.pop() {
+                if let Some(ind_hedge) = mesh_path_edge.pop() {
+                    let hedge = self.skeleton_interface.get_mesh().get_halfedge(ind_hedge)?;
+                    let ind_hedge_opp = hedge.opposite_halfedge().unwrap().ind();
+                    let opt_position = mesh_path_edge.iter().position(|&ind| ind == ind_hedge_opp);
+                    if let Some(position) = opt_position {
+                        if position != 0 {
+                            let mut path1 = vec![0 as usize; position];
+                            path1.copy_from_slice(&mesh_path_edge[..position]);
+                            mesh_paths_hedge.push(path1);
+                        }
+                        if position != mesh_path_edge.len() - 1 {
+                            let mut path2 = vec![0 as usize; mesh_path_edge.len() - 1 - position];
+                            path2.copy_from_slice(&mesh_path_edge[position + 1..]);
+                            mesh_paths_hedge.push(path2);
+                        }
+                    } else {
+                        let face = hedge.face().unwrap();
+                        faces.push(face.ind());
+                        let hedge_rep1 =
+                            hedge.prev_halfedge().unwrap().opposite_halfedge().unwrap();
+                        let hedge_rep2 =
+                            hedge.next_halfedge().unwrap().opposite_halfedge().unwrap();
+                        mesh_path_edge.push(hedge_rep1.ind());
+                        mesh_path_edge.push(hedge_rep2.ind());
+                        mesh_paths_hedge.push(mesh_path_edge);
+                    }
+                }
+            } else {
+                break;
+            }
+            if faces.len() > self.skeleton_interface.get_mesh().get_nb_faces() {
+                return Err(anyhow::Error::msg("Too nuch faces collected somehow"));
+            }
+        }
+
+        Ok(Some(faces))
+    }
+
+    pub fn collect_closing_faces(&self) -> Result<Option<Vec<[usize; 3]>>> {
+        let mesh_path = self.mesh_path();
+        let mut palve_path = Vec::new();
+        for ind1 in 0..mesh_path.len() {
+            let ind2 = (ind1 + 1) % mesh_path.len();
+            let ind_vertex1 = mesh_path[ind1];
+            let ind_vertex2 = mesh_path[ind2];
+            let seg = if ind_vertex1 < ind_vertex2 {
+                [ind_vertex1, ind_vertex2]
+            } else {
+                [ind_vertex2, ind_vertex1]
+            };
+
+            let &ind_alveola = self
+                .skeleton_interface
+                .del_seg
+                .get(&seg)
+                .ok_or(anyhow::Error::msg("Alveola not in skeleton"))?;
+            let alve = self.skeleton_interface.get_alveola_uncheck(ind_alveola);
+            let ind_palve = if alve.partial_alveolae()[0].corner() == ind_vertex1 {
+                alve.partial_alveolae()[0].ind()
+            } else {
+                alve.partial_alveolae()[1].ind()
+            };
+            palve_path.push(ind_palve);
+        }
+
+        let mut palve_paths = vec![palve_path];
+        let mut faces = Vec::new();
+        loop {
+            // println!("new iter");
+            // for path in palve_paths.iter() {
+            //     for &ind_palve in path.iter() {
+            //         let palve = self
+            //             .skeleton_interface
+            //             .get_partial_alveola_uncheck(ind_palve);
+            //         let seg = palve.alveola().delaunay_segment();
+            //         let seg = if seg[0] == palve.corner() {
+            //             seg
+            //         } else {
+            //             [seg[1], seg[0]]
+            //         };
+            //         print!("({} -> {}), ", seg[0], seg[1]);
+            //     }
+            //     println!("");
+            // }
+            // println!("");
+
+            if let Some(palve_path) = palve_paths.pop() {
+                if palve_path.is_empty() {
+                    continue;
+                }
+                let nb_palve = palve_path.len();
+                let mut operation_done = false;
+                for ind in 0..nb_palve {
+                    let ind_palve = palve_path[ind];
+
+                    let palve = self
+                        .skeleton_interface
+                        .get_partial_alveola_uncheck(ind_palve);
+                    let ind_palve_opp = palve.partial_alveola_opposite().ind();
+                    let opt_position = palve_path.iter().position(|&ind| ind == ind_palve_opp);
+                    if let Some(position) = opt_position {
+                        let mut path1 = Vec::new();
+                        let mut path2 = Vec::new();
+                        for i in 0..nb_palve {
+                            if i < ind || i > position {
+                                path1.push(palve_path[i]);
+                            }
+                            if i > ind && i < position {
+                                path2.push(palve_path[i]);
+                            }
+                        }
+                        palve_paths.push(path1);
+                        palve_paths.push(path2);
+                        operation_done = true;
+                        break;
+                    }
+                }
+                if !operation_done {
+                    for ind in 0..nb_palve {
+                        let ind_palve = palve_path[ind];
+
+                        let palve = self
+                            .skeleton_interface
+                            .get_partial_alveola_uncheck(ind_palve);
+                        let ind_prev = (ind - 1 + nb_palve) % nb_palve;
+                        let ind_palve_prev = palve_path[ind_prev];
+                        let palve_prev = self
+                            .skeleton_interface
+                            .get_partial_alveola_uncheck(ind_palve_prev);
+                        let ind_vertex = palve_prev.corner();
+                        for pedge in palve.partial_edges() {
+                            if !pedge.edge().is_full() {
+                                continue;
+                            }
+                            let tri = pedge.edge().delaunay_triangle();
+                            if tri.contains(&ind_vertex) {
+                                let seg = palve.alveola().delaunay_segment();
+                                let seg = if seg[0] == palve.corner() {
+                                    seg
+                                } else {
+                                    [seg[1], seg[0]]
+                                };
+                                let mut tri = [seg[0], seg[1], ind_vertex];
+                                tri.sort();
+                                faces.push([seg[0], ind_vertex, seg[1]]);
+
+                                let seg2 = if seg[1] < ind_vertex {
+                                    [seg[1], ind_vertex]
+                                } else {
+                                    [ind_vertex, seg[1]]
+                                };
+                                let &ind_alveola2 =
+                                    self.skeleton_interface.del_seg.get(&seg2).ok_or(
+                                        anyhow::Error::msg(
+                                            "Second partial alveola not in skeleton",
+                                        ),
+                                    )?;
+                                let alve2 =
+                                    self.skeleton_interface.get_alveola_uncheck(ind_alveola2);
+                                let ind_palve2 =
+                                    if alve2.partial_alveolae()[0].corner() == ind_vertex {
+                                        alve2.partial_alveolae()[0].ind()
+                                    } else {
+                                        alve2.partial_alveolae()[1].ind()
+                                    };
+                                let mut palve_path_new = Vec::new();
+                                for i in 0..palve_path.len() {
+                                    if i != ind && i != ind_prev {
+                                        palve_path_new.push(palve_path[i]);
+                                    }
+                                    if i == ind {
+                                        palve_path_new.push(ind_palve2);
+                                    }
+                                }
+                                palve_paths.push(palve_path_new);
+
+                                operation_done = true;
+                                break;
+                            }
+                        }
+                        if operation_done {
+                            break;
+                        }
+                    }
+                }
+
+                if !operation_done {
+                    return Ok(None);
+                }
+            } else {
+                break;
+            }
+            if faces.len() > self.skeleton_interface.get_mesh().get_nb_faces() {
+                return Err(anyhow::Error::msg("Too much faces collected somehow"));
+            }
+        }
+        Ok(Some(faces))
     }
 
     pub fn compute_debug_mesh(&mut self) -> Result<()> {
@@ -298,188 +549,35 @@ impl<'a, 'b> SkeletonPath<'a, 'b> {
                 )?;
             }
         }
-        // for ind in 0..self.components.len() {
-        //     let ind_next = (ind + 1) % self.components.len();
-        //     match (self.components[ind], self.components[ind_next]) {
-        //         (PathPart::PartialEdge(ind_pedge), PathPart::PartialNode(_)) => {
-        //             let edge = self
-        //                 .skeleton_interface
-        //                 .get_partial_edge_uncheck(ind_pedge)
-        //                 .partial_edge_next()
-        //                 .ok_or(anyhow::Error::msg("Next edge does not exist"))?
-        //                 .edge();
-        //             if edge.degree() < 3 {
-        //                 let [ind_vertex1, ind_vertex2, ind_vertex3] = edge.delaunay_triangle();
-        //                 let vert1 = self
-        //                     .skeleton_interface
-        //                     .get_mesh()
-        //                     .get_vertex(ind_vertex1)?
-        //                     .vertex();
-        //                 let vert2 = self
-        //                     .skeleton_interface
-        //                     .get_mesh()
-        //                     .get_vertex(ind_vertex2)?
-        //                     .vertex();
-        //                 let vert3 = self
-        //                     .skeleton_interface
-        //                     .get_mesh()
-        //                     .get_vertex(ind_vertex3)?
-        //                     .vertex();
-        //                 let ind_v1 = self.skeleton_interface.debug_mesh.add_vertex(&vert1);
-        //                 let ind_v2 = self.skeleton_interface.debug_mesh.add_vertex(&vert2);
-        //                 let ind_v3 = self.skeleton_interface.debug_mesh.add_vertex(&vert3);
-        //                 self.skeleton_interface
-        //                     .debug_mesh
-        //                     .add_face(ind_v1, ind_v2, ind_v3)?;
-        //             }
-        //         }
-        //         (_, _) => (),
-        //     };
-        // }
 
-        let faces = self.collect_faces()?;
+        let opt_faces = self.collect_closing_faces()?;
 
-        for ind_face in faces {
-            let [ind_vertex1, ind_vertex2, ind_vertex3] = self
-                .skeleton_interface
-                .get_mesh()
-                .get_face(ind_face)?
-                .vertices_inds();
-            let vert1 = self
-                .skeleton_interface
-                .get_mesh()
-                .get_vertex(ind_vertex1)?
-                .vertex();
-            let vert2 = self
-                .skeleton_interface
-                .get_mesh()
-                .get_vertex(ind_vertex2)?
-                .vertex();
-            let vert3 = self
-                .skeleton_interface
-                .get_mesh()
-                .get_vertex(ind_vertex3)?
-                .vertex();
-            let ind_v1 = self.skeleton_interface.debug_mesh.add_vertex(&vert1);
-            let ind_v2 = self.skeleton_interface.debug_mesh.add_vertex(&vert2);
-            let ind_v3 = self.skeleton_interface.debug_mesh.add_vertex(&vert3);
-            self.skeleton_interface
-                .debug_mesh
-                .add_face(ind_v1, ind_v2, ind_v3)?;
-        }
-
-        Ok(())
-    }
-
-    pub fn collect_faces(&self) -> Result<Vec<usize>> {
-        let vec_bnd_path_vert = self.mesh_path();
-        let mut mesh_path_hedge = Vec::new();
-        for ind1 in 0..vec_bnd_path_vert.len() {
-            let ind2 = (ind1 + 1) % vec_bnd_path_vert.len();
-            let ind_vertex1 = vec_bnd_path_vert[ind1];
-            let ind_vertex2 = vec_bnd_path_vert[ind2];
-
-            if ind_vertex1 != ind_vertex2 {
-                let res_ind_edge = self
+        if let Some(faces) = opt_faces {
+            for [ind_vertex1, ind_vertex2, ind_vertex3] in faces {
+                let vert1 = self
                     .skeleton_interface
                     .get_mesh()
-                    .is_edge_in(ind_vertex1, ind_vertex2)
-                    .ok_or(anyhow::Error::msg("Part of the path not on the boundary"));
-                match res_ind_edge {
-                    Err(e) => {
-                        if self
-                            .skeleton_interface
-                            .closing_mesh
-                            .is_edge_in(ind_vertex1, ind_vertex2)
-                            .is_some()
-                        {
-                            println!("In new mesh");
-                        } else {
-                            println!("Not in new mesh");
-                        }
-                        return Err(e);
-                    }
-                    Ok(hedge) => mesh_path_hedge.push(hedge.ind()),
-                }
+                    .get_vertex(ind_vertex1)?
+                    .vertex();
+                let vert2 = self
+                    .skeleton_interface
+                    .get_mesh()
+                    .get_vertex(ind_vertex2)?
+                    .vertex();
+                let vert3 = self
+                    .skeleton_interface
+                    .get_mesh()
+                    .get_vertex(ind_vertex3)?
+                    .vertex();
+                let ind_v1 = self.skeleton_interface.debug_mesh.add_vertex(&vert1);
+                let ind_v2 = self.skeleton_interface.debug_mesh.add_vertex(&vert2);
+                let ind_v3 = self.skeleton_interface.debug_mesh.add_vertex(&vert3);
+                self.skeleton_interface
+                    .debug_mesh
+                    .add_face(ind_v1, ind_v2, ind_v3)?;
             }
         }
 
-        let mut mesh_paths_hedge = vec![mesh_path_hedge];
-        let mut faces = Vec::new();
-        loop {
-            // println!("new iter");
-            // for path in mesh_paths_hedge.iter() {
-            //     for &ind_he in path.iter() {
-            //         let hedge = self.skeleton_interface.get_mesh().get_halfedge(ind_he)?;
-            //         print!(
-            //             "({} -> {}), ",
-            //             hedge.first_vertex().ind(),
-            //             hedge.last_vertex().ind()
-            //         );
-            //     }
-            //     println!("");
-            // }
-            // println!("");
-
-            if let Some(mut mesh_path_edge) = mesh_paths_hedge.pop() {
-                if let Some(ind_hedge) = mesh_path_edge.pop() {
-                    let hedge = self.skeleton_interface.get_mesh().get_halfedge(ind_hedge)?;
-                    let ind_hedge_opp = hedge.opposite_halfedge().unwrap().ind();
-                    let opt_position = mesh_path_edge.iter().position(|&ind| ind == ind_hedge_opp);
-                    if let Some(position) = opt_position {
-                        if position != 0 {
-                            let mut path1 = vec![0 as usize; position];
-                            path1.copy_from_slice(&mesh_path_edge[..position]);
-                            mesh_paths_hedge.push(path1);
-                        }
-                        if position != mesh_path_edge.len() - 1 {
-                            let mut path2 = vec![0 as usize; mesh_path_edge.len() - 1 - position];
-                            path2.copy_from_slice(&mesh_path_edge[position + 1..]);
-                            mesh_paths_hedge.push(path2);
-                        }
-                    } else {
-                        let face = hedge.face().unwrap();
-                        faces.push(face.ind());
-                        let hedge_rep1 =
-                            hedge.prev_halfedge().unwrap().opposite_halfedge().unwrap();
-                        let hedge_rep2 =
-                            hedge.next_halfedge().unwrap().opposite_halfedge().unwrap();
-                        mesh_path_edge.push(hedge_rep1.ind());
-                        mesh_path_edge.push(hedge_rep2.ind());
-                        mesh_paths_hedge.push(mesh_path_edge);
-                    }
-                }
-            } else {
-                break;
-            }
-            if faces.len() > self.skeleton_interface.get_mesh().get_nb_faces() {
-                println!("Too much faces collected somehow");
-                faces.sort();
-                faces.dedup();
-                return Ok(faces);
-            }
-        }
-
-        Ok(faces)
-    }
-
-    pub fn close_path(&mut self) -> Result<()> {
-        for ind in 0..self.components.len() {
-            let ind_next = (ind + 1) % self.components.len();
-            match (self.components[ind], self.components[ind_next]) {
-                (PathPart::PartialEdge(ind_pedge), PathPart::PartialNode(_)) => {
-                    let pedge = self.skeleton_interface.get_partial_edge_uncheck(ind_pedge);
-                    let [ind_vertex1, ind_vertex2, ind_vertex3] = pedge
-                        .partial_edge_next()
-                        .ok_or(anyhow::Error::msg("Next edge does not exist"))?
-                        .edge()
-                        .delaunay_triangle();
-                    self.skeleton_interface
-                        .close_face(ind_vertex1, ind_vertex2, ind_vertex3)?
-                }
-                (_, _) => (),
-            };
-        }
         Ok(())
     }
 }

@@ -56,7 +56,6 @@ pub fn sheet_skeletonization(mesh: &mut ManifoldMesh3D) -> Result<(Skeleton3D, G
 
     println!("Propagating sheet");
     let mut label = 1;
-    let mut stop_comp = false;
     loop {
         if let Some(ind_alveola) = vec_alveola.pop() {
             print!(
@@ -72,49 +71,37 @@ pub fn sheet_skeletonization(mesh: &mut ManifoldMesh3D) -> Result<(Skeleton3D, G
                 let mut pedges_set =
                     skeleton_operations::outer_partial_edges(&skeleton_interface, &current_sheet);
                 loop {
-                    if let Some(mut skeleton_path) = skeleton_operations::extract_one_skeleton_path(
+                    if let Some(skeleton_path) = skeleton_operations::extract_one_skeleton_path(
                         &mut skeleton_interface,
                         &pedges_set,
                     )? {
-                        if skeleton_path.closable_path()? && label > 4 && !stop_comp {
-                            //skeleton_path.collect_faces()?;
-                            // skeleton_path.close_path()?;
-                            skeleton_path.compute_debug_mesh()?;
-
-                            vec_alveola.clear();
-
-                            for ind_pedge in skeleton_path.ind_partial_edges().iter() {
-                                pedges_set.remove(&ind_pedge);
-                                vec_alveola.push(
-                                    skeleton_interface
-                                        .get_partial_edge(*ind_pedge)?
-                                        .partial_alveola()
-                                        .alveola()
-                                        .ind(),
-                                );
-                            }
-                            stop_comp = true;
-                        } else {
-                            for ind_pedge in skeleton_path.ind_partial_edges().iter() {
-                                pedges_set.remove(&ind_pedge);
-                                if !stop_comp {
-                                    vec_alveola.push(
-                                        skeleton_interface
-                                            .get_partial_edge(*ind_pedge)?
-                                            .partial_alveola()
-                                            .alveola()
-                                            .ind(),
-                                    );
-                                }
-                            }
+                        // if skeleton_path.closable_path()? {
+                        //     if let Some(mesh_faces) = skeleton_path.collect_mesh_faces()? {
+                        //         if let Some(closing_faces) =
+                        //             skeleton_path.collect_closing_faces()?
+                        //         {
+                        //             skeleton_path.compute_debug_mesh()?;
+                        //             todo!();
+                        //         }
+                        //     }
+                        // }
+                        for ind_pedge in skeleton_path.ind_partial_edges().iter() {
+                            pedges_set.remove(&ind_pedge);
+                            vec_alveola.push(
+                                skeleton_interface
+                                    .get_partial_edge(*ind_pedge)?
+                                    .partial_alveola()
+                                    .alveola()
+                                    .ind(),
+                            );
                         }
-                        pedges_set.retain(|&ind_pedge| {
-                            skeleton_interface
-                                .get_partial_edge(ind_pedge)
-                                .unwrap()
-                                .edge()
-                                .is_singular()
-                        });
+                        // pedges_set.retain(|&ind_pedge| {
+                        //     skeleton_interface
+                        //         .get_partial_edge(ind_pedge)
+                        //         .unwrap()
+                        //         .edge()
+                        //         .is_singular()
+                        // });
                     } else {
                         break;
                     }
