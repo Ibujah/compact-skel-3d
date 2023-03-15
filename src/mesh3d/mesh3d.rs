@@ -16,10 +16,10 @@ pub struct Mesh3D {
     pub(super) last_ind_face: usize,
 
     pub(super) map_vert_hedg: HashMap<usize, Vec<usize>>,
-    pub(super) map_hedg_face: HashMap<usize, Option<usize>>,
-    pub(super) map_hedg_opp: HashMap<usize, Option<usize>>,
-    pub(super) map_hedg_next: HashMap<usize, Option<usize>>,
-    pub(super) map_hedg_prev: HashMap<usize, Option<usize>>,
+    pub(super) map_hedg_face: HashMap<usize, usize>,
+    pub(super) map_hedg_opp: HashMap<usize, usize>,
+    pub(super) map_hedg_next: HashMap<usize, usize>,
+    pub(super) map_hedg_prev: HashMap<usize, usize>,
 }
 
 #[derive(Copy, Clone)]
@@ -85,35 +85,27 @@ impl Mesh3D {
     }
 
     pub fn add_halfedge(&mut self, ind_vertex1: usize, ind_vertex2: usize) -> Result<usize> {
+        if !self.vertices.contains_key(&ind_vertex2) {
+            return Err(anyhow::Error::msg(
+                "add_halfedge(): Vertex index out of bounds",
+            ));
+        }
         let hedg1 = self
             .map_vert_hedg
             .get(&ind_vertex1)
             .ok_or(anyhow::Error::msg(
-                "add_halfedge(): Vertex 1 index out of bounds",
-            ))?;
-        self.map_vert_hedg
-            .get(&ind_vertex2)
-            .ok_or(anyhow::Error::msg(
-                "add_halfedge(): Vertex 2 index out of bounds",
+                "add_halfedge(): Vertex index out of bounds",
             ))?;
 
-        let ind_halfedge = hedg1.iter().fold(None, |res, &ind_he| {
-            if self.halfedges.get(&ind_he).unwrap()[1] == ind_vertex2 {
-                Some(ind_he)
-            } else {
-                res
-            }
-        });
+        let ind_halfedge = hedg1
+            .iter()
+            .find(|ind_he| self.halfedges.get(ind_he).unwrap()[1] == ind_vertex2);
 
         match ind_halfedge {
-            Some(ind) => Ok(ind),
+            Some(&ind) => Ok(ind),
             None => {
                 self.halfedges
                     .insert(self.last_ind_hedge, [ind_vertex1, ind_vertex2]);
-                self.map_hedg_face.insert(self.last_ind_hedge, None);
-                self.map_hedg_prev.insert(self.last_ind_hedge, None);
-                self.map_hedg_next.insert(self.last_ind_hedge, None);
-                self.map_hedg_opp.insert(self.last_ind_hedge, None);
                 self.map_vert_hedg
                     .get_mut(&ind_vertex1)
                     .unwrap()
@@ -152,37 +144,25 @@ impl Mesh3D {
         ind_halfedge2_opp: usize,
         ind_halfedge3_opp: usize,
     ) -> () {
-        self.map_hedg_face.insert(ind_halfedge1, Some(ind_face));
-        self.map_hedg_face.insert(ind_halfedge2, Some(ind_face));
-        self.map_hedg_face.insert(ind_halfedge3, Some(ind_face));
+        self.map_hedg_face.insert(ind_halfedge1, ind_face);
+        self.map_hedg_face.insert(ind_halfedge2, ind_face);
+        self.map_hedg_face.insert(ind_halfedge3, ind_face);
 
-        self.map_hedg_next
-            .insert(ind_halfedge1, Some(ind_halfedge2));
-        self.map_hedg_next
-            .insert(ind_halfedge2, Some(ind_halfedge3));
-        self.map_hedg_next
-            .insert(ind_halfedge3, Some(ind_halfedge1));
+        self.map_hedg_next.insert(ind_halfedge1, ind_halfedge2);
+        self.map_hedg_next.insert(ind_halfedge2, ind_halfedge3);
+        self.map_hedg_next.insert(ind_halfedge3, ind_halfedge1);
 
-        self.map_hedg_prev
-            .insert(ind_halfedge1, Some(ind_halfedge3));
-        self.map_hedg_prev
-            .insert(ind_halfedge2, Some(ind_halfedge1));
-        self.map_hedg_prev
-            .insert(ind_halfedge3, Some(ind_halfedge2));
+        self.map_hedg_prev.insert(ind_halfedge1, ind_halfedge3);
+        self.map_hedg_prev.insert(ind_halfedge2, ind_halfedge1);
+        self.map_hedg_prev.insert(ind_halfedge3, ind_halfedge2);
 
-        self.map_hedg_opp
-            .insert(ind_halfedge1, Some(ind_halfedge1_opp));
-        self.map_hedg_opp
-            .insert(ind_halfedge2, Some(ind_halfedge2_opp));
-        self.map_hedg_opp
-            .insert(ind_halfedge3, Some(ind_halfedge3_opp));
+        self.map_hedg_opp.insert(ind_halfedge1, ind_halfedge1_opp);
+        self.map_hedg_opp.insert(ind_halfedge2, ind_halfedge2_opp);
+        self.map_hedg_opp.insert(ind_halfedge3, ind_halfedge3_opp);
 
-        self.map_hedg_opp
-            .insert(ind_halfedge1_opp, Some(ind_halfedge1));
-        self.map_hedg_opp
-            .insert(ind_halfedge2_opp, Some(ind_halfedge2));
-        self.map_hedg_opp
-            .insert(ind_halfedge3_opp, Some(ind_halfedge3));
+        self.map_hedg_opp.insert(ind_halfedge1_opp, ind_halfedge1);
+        self.map_hedg_opp.insert(ind_halfedge2_opp, ind_halfedge2);
+        self.map_hedg_opp.insert(ind_halfedge3_opp, ind_halfedge3);
     }
 
     pub fn add_face(
@@ -198,9 +178,9 @@ impl Mesh3D {
         let ind_halfedge2_opp = self.add_halfedge(ind_vertex3, ind_vertex2)?;
         let ind_halfedge3_opp = self.add_halfedge(ind_vertex1, ind_vertex3)?;
 
-        let &ind_f1 = self.map_hedg_face.get(&ind_halfedge1).unwrap();
-        let &ind_f2 = self.map_hedg_face.get(&ind_halfedge2).unwrap();
-        let &ind_f3 = self.map_hedg_face.get(&ind_halfedge3).unwrap();
+        let ind_f1 = self.map_hedg_face.get(&ind_halfedge1);
+        let ind_f2 = self.map_hedg_face.get(&ind_halfedge2);
+        let ind_f3 = self.map_hedg_face.get(&ind_halfedge3);
 
         if ind_f1 != ind_f2 || ind_f1 != ind_f3 {
             return Err(anyhow::Error::msg(
@@ -208,7 +188,7 @@ impl Mesh3D {
             ));
         }
 
-        if let Some(fac) = ind_f1 {
+        if let Some(&fac) = ind_f1 {
             return Ok(fac);
         }
 
@@ -488,7 +468,7 @@ impl<'a> IterHalfEdge<'a> {
     }
 
     pub fn next_halfedge(&self) -> Option<IterHalfEdge<'a>> {
-        if let &Some(ind_next) = self.mesh.map_hedg_next.get(&self.ind_halfedge).unwrap() {
+        if let Some(&ind_next) = self.mesh.map_hedg_next.get(&self.ind_halfedge) {
             Some(IterHalfEdge {
                 mesh: self.mesh,
                 ind_halfedge: ind_next,
@@ -499,7 +479,7 @@ impl<'a> IterHalfEdge<'a> {
     }
 
     pub fn prev_halfedge(&self) -> Option<IterHalfEdge<'a>> {
-        if let &Some(ind_prev) = self.mesh.map_hedg_prev.get(&self.ind_halfedge).unwrap() {
+        if let Some(&ind_prev) = self.mesh.map_hedg_prev.get(&self.ind_halfedge) {
             Some(IterHalfEdge {
                 mesh: self.mesh,
                 ind_halfedge: ind_prev,
@@ -510,7 +490,7 @@ impl<'a> IterHalfEdge<'a> {
     }
 
     pub fn opposite_halfedge(&self) -> Option<IterHalfEdge<'a>> {
-        if let &Some(ind_opp) = self.mesh.map_hedg_opp.get(&self.ind_halfedge).unwrap() {
+        if let Some(&ind_opp) = self.mesh.map_hedg_opp.get(&self.ind_halfedge) {
             Some(IterHalfEdge {
                 mesh: self.mesh,
                 ind_halfedge: ind_opp,
@@ -521,7 +501,7 @@ impl<'a> IterHalfEdge<'a> {
     }
 
     pub fn face(&self) -> Option<IterFace<'a>> {
-        if let &Some(ind_face) = self.mesh.map_hedg_face.get(&self.ind_halfedge).unwrap() {
+        if let Some(&ind_face) = self.mesh.map_hedg_face.get(&self.ind_halfedge) {
             Some(IterFace {
                 mesh: self.mesh,
                 ind_face,

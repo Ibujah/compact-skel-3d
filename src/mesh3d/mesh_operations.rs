@@ -47,41 +47,34 @@ pub fn flip_halfedge(mesh: &mut Mesh3D, ind_halfedge: usize) -> Result<bool> {
     //     2             2
 
     let ind_he_12 = ind_halfedge;
-    let ind_fac_123 = mesh
+    let &ind_fac_123 = mesh
         .map_hedg_face
         .get(&ind_he_12)
-        .unwrap()
         .ok_or(anyhow::Error::msg("flip_halfedge(): Empty face"))?;
-    let ind_he_23 = mesh
+    let &ind_he_23 = mesh
         .map_hedg_next
         .get(&ind_he_12)
-        .unwrap()
         .ok_or(anyhow::Error::msg("flip_halfedge(): Empty halfedge"))?;
-    let ind_he_31 = mesh
+    let &ind_he_31 = mesh
         .map_hedg_prev
         .get(&ind_he_12)
-        .unwrap()
         .ok_or(anyhow::Error::msg("flip_halfedge(): Empty halfedge"))?;
 
-    let ind_he_21 = mesh
+    let &ind_he_21 = mesh
         .map_hedg_opp
         .get(&ind_he_12)
-        .unwrap()
         .ok_or(anyhow::Error::msg("flip_halfedge(): Empty halfedge"))?;
-    let ind_fac_214 = mesh
+    let &ind_fac_214 = mesh
         .map_hedg_face
         .get(&ind_he_21)
-        .unwrap()
         .ok_or(anyhow::Error::msg("flip_halfedge(): Empty face"))?;
-    let ind_he_14 = mesh
+    let &ind_he_14 = mesh
         .map_hedg_next
         .get(&ind_he_21)
-        .unwrap()
         .ok_or(anyhow::Error::msg("flip_halfedge(): Empty halfedge"))?;
-    let ind_he_42 = mesh
+    let &ind_he_42 = mesh
         .map_hedg_prev
         .get(&ind_he_21)
-        .unwrap()
         .ok_or(anyhow::Error::msg("flip_halfedge(): Empty halfedge"))?;
 
     let ind_v1 = mesh.halfedges.get(&ind_he_12).unwrap()[0];
@@ -107,24 +100,24 @@ pub fn flip_halfedge(mesh: &mut Mesh3D, ind_halfedge: usize) -> Result<bool> {
     mesh.halfedges.insert(ind_he_34, [ind_v3, ind_v4]);
 
     // update connectivity
-    mesh.map_hedg_face.insert(ind_he_14, Some(ind_fac_143));
-    mesh.map_hedg_face.insert(ind_he_23, Some(ind_fac_234));
+    mesh.map_hedg_face.insert(ind_he_14, ind_fac_143);
+    mesh.map_hedg_face.insert(ind_he_23, ind_fac_234);
 
-    mesh.map_hedg_next.insert(ind_he_43, Some(ind_he_31));
-    mesh.map_hedg_next.insert(ind_he_31, Some(ind_he_14));
-    mesh.map_hedg_next.insert(ind_he_14, Some(ind_he_43));
+    mesh.map_hedg_next.insert(ind_he_43, ind_he_31);
+    mesh.map_hedg_next.insert(ind_he_31, ind_he_14);
+    mesh.map_hedg_next.insert(ind_he_14, ind_he_43);
 
-    mesh.map_hedg_prev.insert(ind_he_43, Some(ind_he_14));
-    mesh.map_hedg_prev.insert(ind_he_14, Some(ind_he_31));
-    mesh.map_hedg_prev.insert(ind_he_31, Some(ind_he_43));
+    mesh.map_hedg_prev.insert(ind_he_43, ind_he_14);
+    mesh.map_hedg_prev.insert(ind_he_14, ind_he_31);
+    mesh.map_hedg_prev.insert(ind_he_31, ind_he_43);
 
-    mesh.map_hedg_next.insert(ind_he_34, Some(ind_he_42));
-    mesh.map_hedg_next.insert(ind_he_42, Some(ind_he_23));
-    mesh.map_hedg_next.insert(ind_he_23, Some(ind_he_34));
+    mesh.map_hedg_next.insert(ind_he_34, ind_he_42);
+    mesh.map_hedg_next.insert(ind_he_42, ind_he_23);
+    mesh.map_hedg_next.insert(ind_he_23, ind_he_34);
 
-    mesh.map_hedg_prev.insert(ind_he_34, Some(ind_he_23));
-    mesh.map_hedg_prev.insert(ind_he_23, Some(ind_he_42));
-    mesh.map_hedg_prev.insert(ind_he_42, Some(ind_he_34));
+    mesh.map_hedg_prev.insert(ind_he_34, ind_he_23);
+    mesh.map_hedg_prev.insert(ind_he_23, ind_he_42);
+    mesh.map_hedg_prev.insert(ind_he_42, ind_he_34);
 
     mesh.map_vert_hedg
         .get_mut(&ind_v1)
@@ -153,62 +146,51 @@ pub fn split_halfedge(mesh: &mut Mesh3D, vert: &Vector3<f32>, ind_halfedge: usiz
     //     2             2
 
     let ind_he_12 = ind_halfedge;
-    let ind_fac_123 = mesh
+    let &ind_fac_123 = mesh
         .map_hedg_face
         .get(&ind_he_12)
-        .unwrap()
         .ok_or(anyhow::Error::msg("flip_halfedge(): Empty face"))?;
-    let ind_he_23 = mesh
+    let &ind_he_23 = mesh
         .map_hedg_next
         .get(&ind_he_12)
-        .unwrap()
         .ok_or(anyhow::Error::msg("flip_halfedge(): Empty halfedge"))?;
-    let ind_he_31 = mesh
+    let &ind_he_31 = mesh
         .map_hedg_prev
         .get(&ind_he_12)
-        .unwrap()
         .ok_or(anyhow::Error::msg("flip_halfedge(): Empty halfedge"))?;
 
-    let ind_he_21 = mesh
+    let &ind_he_21 = mesh
         .map_hedg_opp
         .get(&ind_he_12)
-        .unwrap()
         .ok_or(anyhow::Error::msg("flip_halfedge(): Empty halfedge"))?;
-    let ind_fac_214 = mesh
+    let &ind_fac_214 = mesh
         .map_hedg_face
         .get(&ind_he_21)
-        .unwrap()
         .ok_or(anyhow::Error::msg("flip_halfedge(): Empty face"))?;
-    let ind_he_14 = mesh
+    let &ind_he_14 = mesh
         .map_hedg_next
         .get(&ind_he_21)
-        .unwrap()
         .ok_or(anyhow::Error::msg("flip_halfedge(): Empty halfedge"))?;
-    let ind_he_42 = mesh
+    let &ind_he_42 = mesh
         .map_hedg_prev
         .get(&ind_he_21)
-        .unwrap()
         .ok_or(anyhow::Error::msg("flip_halfedge(): Empty halfedge"))?;
 
-    let ind_he_13 = mesh
+    let &ind_he_13 = mesh
         .map_hedg_opp
         .get(&ind_he_31)
-        .unwrap()
         .ok_or(anyhow::Error::msg("flip_halfedge(): Empty halfedge"))?;
-    let ind_he_32 = mesh
+    let &ind_he_32 = mesh
         .map_hedg_opp
         .get(&ind_he_23)
-        .unwrap()
         .ok_or(anyhow::Error::msg("flip_halfedge(): Empty halfedge"))?;
-    let ind_he_24 = mesh
+    let &ind_he_24 = mesh
         .map_hedg_opp
         .get(&ind_he_42)
-        .unwrap()
         .ok_or(anyhow::Error::msg("flip_halfedge(): Empty halfedge"))?;
-    let ind_he_41 = mesh
+    let &ind_he_41 = mesh
         .map_hedg_opp
         .get(&ind_he_14)
-        .unwrap()
         .ok_or(anyhow::Error::msg("flip_halfedge(): Empty halfedge"))?;
 
     let ind_v1 = mesh.halfedges.get(&ind_he_12).unwrap()[0];
@@ -233,18 +215,6 @@ pub fn split_halfedge(mesh: &mut Mesh3D, vert: &Vector3<f32>, ind_halfedge: usiz
     // reinit edges
     mesh.halfedges.insert(ind_he_51, [ind_v5, ind_v1]);
     mesh.halfedges.insert(ind_he_52, [ind_v5, ind_v2]);
-
-    mesh.map_hedg_face.insert(ind_he_51, None);
-    mesh.map_hedg_face.insert(ind_he_52, None);
-
-    mesh.map_hedg_prev.insert(ind_he_51, None);
-    mesh.map_hedg_prev.insert(ind_he_52, None);
-
-    mesh.map_hedg_next.insert(ind_he_51, None);
-    mesh.map_hedg_next.insert(ind_he_52, None);
-
-    mesh.map_hedg_opp.insert(ind_he_51, None);
-    mesh.map_hedg_opp.insert(ind_he_52, None);
 
     mesh.map_vert_hedg.get_mut(&ind_v5).unwrap().push(ind_he_51);
     mesh.map_vert_hedg.get_mut(&ind_v5).unwrap().push(ind_he_52);
@@ -332,20 +302,17 @@ pub fn split_face(mesh: &mut Mesh3D, vert: &Vector3<f32>, ind_face: usize) -> Re
 
     let ind_fac_123 = ind_face;
     let [ind_he_12, ind_he_23, ind_he_31] = mesh.get_face(ind_face)?.face_halfedges();
-    let ind_he_21 = mesh
+    let &ind_he_21 = mesh
         .map_hedg_opp
         .get(&ind_he_12)
-        .unwrap()
         .ok_or(anyhow::Error::msg("split_face(): Empty halfedge"))?;
-    let ind_he_32 = mesh
+    let &ind_he_32 = mesh
         .map_hedg_opp
         .get(&ind_he_23)
-        .unwrap()
         .ok_or(anyhow::Error::msg("split_face(): Empty halfedge"))?;
-    let ind_he_13 = mesh
+    let &ind_he_13 = mesh
         .map_hedg_opp
         .get(&ind_he_31)
-        .unwrap()
         .ok_or(anyhow::Error::msg("split_face(): Empty halfedge"))?;
 
     let ind_v1 = mesh.halfedges.get(&ind_he_12).unwrap()[0];
