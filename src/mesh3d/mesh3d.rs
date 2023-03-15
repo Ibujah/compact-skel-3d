@@ -211,6 +211,52 @@ impl Mesh3D {
         Ok(self.last_ind_face - 1)
     }
 
+    pub fn remove_face(&mut self, ind_face: usize) -> Result<()> {
+        let [ind_he1, ind_he2, ind_he3] = self
+            .faces
+            .remove(&ind_face)
+            .ok_or(anyhow::Error::msg("remove_face() face does not exist"))?;
+
+        self.map_hedg_face.remove(&ind_he1);
+        self.map_hedg_face.remove(&ind_he2);
+        self.map_hedg_face.remove(&ind_he3);
+
+        self.map_hedg_next.remove(&ind_he1);
+        self.map_hedg_next.remove(&ind_he2);
+        self.map_hedg_next.remove(&ind_he3);
+
+        self.map_hedg_prev.remove(&ind_he1);
+        self.map_hedg_prev.remove(&ind_he2);
+        self.map_hedg_prev.remove(&ind_he3);
+
+        let ind_he1_opp = self.map_hedg_opp.remove(&ind_he1).unwrap();
+        let ind_he2_opp = self.map_hedg_opp.remove(&ind_he2).unwrap();
+        let ind_he3_opp = self.map_hedg_opp.remove(&ind_he3).unwrap();
+
+        self.map_hedg_opp.remove(&ind_he1_opp).unwrap();
+        self.map_hedg_opp.remove(&ind_he2_opp).unwrap();
+        self.map_hedg_opp.remove(&ind_he3_opp).unwrap();
+
+        let [ind_v1, _] = self.halfedges.remove(&ind_he1).unwrap();
+        let [ind_v2, _] = self.halfedges.remove(&ind_he2).unwrap();
+        let [ind_v3, _] = self.halfedges.remove(&ind_he3).unwrap();
+
+        self.map_vert_hedg
+            .get_mut(&ind_v1)
+            .unwrap()
+            .retain(|&ind| ind != ind_he1);
+        self.map_vert_hedg
+            .get_mut(&ind_v2)
+            .unwrap()
+            .retain(|&ind| ind != ind_he2);
+        self.map_vert_hedg
+            .get_mut(&ind_v3)
+            .unwrap()
+            .retain(|&ind| ind != ind_he3);
+
+        Ok(())
+    }
+
     fn get_face_uncheck(&self, ind_face: usize) -> IterFace {
         IterFace {
             mesh: self,
