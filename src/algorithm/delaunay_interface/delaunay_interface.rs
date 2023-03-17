@@ -3,14 +3,14 @@ use std::collections::{HashMap, HashSet};
 use tritet::{StrError, Tetgen};
 
 use crate::mesh3d::mesh_operations;
-use crate::mesh3d::{mesh3d, Mesh3D};
+use crate::mesh3d::{manifold_mesh3d, ManifoldMesh3D};
 
 pub type Edge = [usize; 2];
 pub type Triangle = [usize; 3];
 pub type Tetrahedron = [usize; 4];
 
 pub struct DelaunayInterface<'a> {
-    mesh: &'a mut Mesh3D,
+    mesh: &'a mut ManifoldMesh3D,
 
     edges: HashSet<Edge>,
     faces: HashMap<Triangle, Vec<Tetrahedron>>,
@@ -101,7 +101,7 @@ impl<'a> DelaunayInterface<'a> {
         self.generate_struct()
     }
 
-    pub fn from_mesh(mesh: &'a mut Mesh3D) -> Result<DelaunayInterface<'a>> {
+    pub fn from_mesh(mesh: &'a mut ManifoldMesh3D) -> Result<DelaunayInterface<'a>> {
         let initial_vertices_number = mesh.get_nb_vertices();
         let mut deltet = DelaunayInterface {
             mesh,
@@ -116,7 +116,7 @@ impl<'a> DelaunayInterface<'a> {
         Ok(deltet)
     }
 
-    pub fn get_mesh(&self) -> &Mesh3D {
+    pub fn get_mesh(&self) -> &ManifoldMesh3D {
         self.mesh
     }
 
@@ -183,7 +183,7 @@ impl<'a> DelaunayInterface<'a> {
         Ok(nb_non_del)
     }
 
-    fn get_opposite_angle(&self, halfedge: mesh3d::IterHalfEdge) -> Result<f32> {
+    fn get_opposite_angle(&self, halfedge: manifold_mesh3d::IterHalfEdge) -> Result<f32> {
         let vert1 = halfedge.first_vertex().vertex();
         let vert2 = halfedge.last_vertex().vertex();
         let vert3 = halfedge
@@ -204,7 +204,7 @@ impl<'a> DelaunayInterface<'a> {
     pub fn get_local_non_del_halfedge(
         &self,
         shift: Option<usize>,
-    ) -> Result<Option<mesh3d::IterHalfEdge>> {
+    ) -> Result<Option<manifold_mesh3d::IterHalfEdge>> {
         let shift = shift.unwrap_or(0) % self.mesh.get_nb_halfedges();
         let mut i = 0;
         for (&ind_he, seg) in self.mesh.halfedges() {
@@ -230,7 +230,7 @@ impl<'a> DelaunayInterface<'a> {
     pub fn get_non_del_halfedge(
         &self,
         shift: Option<usize>,
-    ) -> Result<Option<mesh3d::IterHalfEdge>> {
+    ) -> Result<Option<manifold_mesh3d::IterHalfEdge>> {
         let shift = shift.unwrap_or(0) % self.mesh.get_nb_halfedges();
         let mut i = 0;
         for (&ind_he, seg) in self.mesh.halfedges() {
@@ -246,7 +246,10 @@ impl<'a> DelaunayInterface<'a> {
         Ok(None)
     }
 
-    pub fn get_non_del_face(&self, shift: Option<usize>) -> Result<Option<mesh3d::IterFace>> {
+    pub fn get_non_del_face(
+        &self,
+        shift: Option<usize>,
+    ) -> Result<Option<manifold_mesh3d::IterFace>> {
         let shift = shift.unwrap_or(0) % self.mesh.get_nb_halfedges();
         let mut i = 0;
         for (&ind_face, _) in self.mesh.faces() {
@@ -292,12 +295,16 @@ impl<'a> DelaunayInterface<'a> {
         mesh_operations::flip_halfedge(self.mesh, ind_halfedge)
     }
 
-    pub fn split_halfedge(&mut self, vert: &mesh3d::Vertex, ind_halfedge: usize) -> Result<()> {
+    pub fn split_halfedge(
+        &mut self,
+        vert: &manifold_mesh3d::Vertex,
+        ind_halfedge: usize,
+    ) -> Result<()> {
         mesh_operations::split_halfedge(self.mesh, vert, ind_halfedge)?;
         self.recompute_struct()
     }
 
-    pub fn split_face(&mut self, vert: &mesh3d::Vertex, ind_face: usize) -> Result<()> {
+    pub fn split_face(&mut self, vert: &manifold_mesh3d::Vertex, ind_face: usize) -> Result<()> {
         mesh_operations::split_face(self.mesh, vert, ind_face)?;
         self.recompute_struct()
     }

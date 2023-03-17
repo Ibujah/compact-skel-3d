@@ -7,7 +7,8 @@ pub type HalfEdge = [usize; 2];
 pub type FaceHalfedges = [usize; 3];
 pub type FaceVertices = [usize; 3];
 
-pub struct Mesh3D {
+#[derive(Clone)]
+pub struct ManifoldMesh3D {
     pub(super) vertices: HashMap<usize, Vertex>,
     pub(super) halfedges: HashMap<usize, HalfEdge>,
     pub(super) faces: HashMap<usize, FaceHalfedges>,
@@ -24,25 +25,25 @@ pub struct Mesh3D {
 
 #[derive(Copy, Clone)]
 pub struct IterVertex<'a> {
-    mesh: &'a Mesh3D,
+    mesh: &'a ManifoldMesh3D,
     ind_vertex: usize,
 }
 
 #[derive(Copy, Clone)]
 pub struct IterHalfEdge<'a> {
-    mesh: &'a Mesh3D,
+    mesh: &'a ManifoldMesh3D,
     ind_halfedge: usize,
 }
 
 #[derive(Copy, Clone)]
 pub struct IterFace<'a> {
-    mesh: &'a Mesh3D,
+    mesh: &'a ManifoldMesh3D,
     ind_face: usize,
 }
 
-impl Mesh3D {
-    pub fn new() -> Mesh3D {
-        Mesh3D {
+impl ManifoldMesh3D {
+    pub fn new() -> ManifoldMesh3D {
+        ManifoldMesh3D {
             vertices: HashMap::new(),
             halfedges: HashMap::new(),
             faces: HashMap::new(),
@@ -94,36 +95,27 @@ impl Mesh3D {
         &self.vertices
     }
 
-    pub fn add_halfedge(&mut self, ind_vertex1: usize, ind_vertex2: usize) -> Result<usize> {
-        if !self.vertices.contains_key(&ind_vertex2) {
-            return Err(anyhow::Error::msg(
-                "add_halfedge(): Vertex index out of bounds",
-            ));
-        }
-        let hedg1 = self
+    fn add_halfedge_uncheck(&mut self, ind_vertex1: usize, ind_vertex2: usize) -> usize {
+        self.halfedges
+            .insert(self.last_ind_hedge, [ind_vertex1, ind_vertex2]);
+        self.map_vert_hedg
+            .get_mut(&ind_vertex1)
+            .unwrap()
+            .push(self.last_ind_hedge);
+
+        if let Some(&ind_opp) = self
             .map_vert_hedg
-            .get(&ind_vertex1)
-            .ok_or(anyhow::Error::msg(
-                "add_halfedge(): Vertex index out of bounds",
-            ))?;
-
-        let ind_halfedge = hedg1
+            .get(&ind_vertex2)
+            .unwrap()
             .iter()
-            .find(|ind_he| self.halfedges.get(ind_he).unwrap()[1] == ind_vertex2);
-
-        match ind_halfedge {
-            Some(&ind) => Ok(ind),
-            None => {
-                self.halfedges
-                    .insert(self.last_ind_hedge, [ind_vertex1, ind_vertex2]);
-                self.map_vert_hedg
-                    .get_mut(&ind_vertex1)
-                    .unwrap()
-                    .push(self.last_ind_hedge);
-                self.last_ind_hedge = self.last_ind_hedge + 1;
-                Ok(self.last_ind_hedge - 1)
-            }
+            .find(|ind_he| self.halfedges.get(ind_he).unwrap()[1] == ind_vertex1)
+        {
+            self.map_hedg_opp.insert(ind_opp, self.last_ind_hedge);
+            self.map_hedg_opp.insert(self.last_ind_hedge, ind_opp);
         }
+
+        self.last_ind_hedge = self.last_ind_hedge + 1;
+        self.last_ind_hedge - 1
     }
 
     fn get_halfedge_uncheck(&self, ind_halfedge: usize) -> IterHalfEdge {
@@ -148,19 +140,95 @@ impl Mesh3D {
         &self.halfedges
     }
 
-    pub(super) fn fill_face(
+    // pub(super) fn fill_face(
+    //     &mut self,
+    //     ind_face: usize,
+    //     ind_halfedge1: usize,
+    //     ind_halfedge2: usize,
+    //     ind_halfedge3: usize,
+    //     ind_halfedge1_opp: usize,
+    //     ind_halfedge2_opp: usize,
+    //     ind_halfedge3_opp: usize,
+    // ) -> () {
+    //     self.map_hedg_face.insert(ind_halfedge1, ind_face);
+    //     self.map_hedg_face.insert(ind_halfedge2, ind_face);
+    //     self.map_hedg_face.insert(ind_halfedge3, ind_face);
+
+    //     self.map_hedg_next.insert(ind_halfedge1, ind_halfedge2);
+    //     self.map_hedg_next.insert(ind_halfedge2, ind_halfedge3);
+    //     self.map_hedg_next.insert(ind_halfedge3, ind_halfedge1);
+
+    //     self.map_hedg_prev.insert(ind_halfedge1, ind_halfedge3);
+    //     self.map_hedg_prev.insert(ind_halfedge2, ind_halfedge1);
+    //     self.map_hedg_prev.insert(ind_halfedge3, ind_halfedge2);
+
+    //     self.map_hedg_opp.insert(ind_halfedge1, ind_halfedge1_opp);
+    //     self.map_hedg_opp.insert(ind_halfedge2, ind_halfedge2_opp);
+    //     self.map_hedg_opp.insert(ind_halfedge3, ind_halfedge3_opp);
+
+    //     self.map_hedg_opp.insert(ind_halfedge1_opp, ind_halfedge1);
+    //     self.map_hedg_opp.insert(ind_halfedge2_opp, ind_halfedge2);
+    //     self.map_hedg_opp.insert(ind_halfedge3_opp, ind_halfedge3);
+    // }
+
+    pub fn add_face(
         &mut self,
-        ind_face: usize,
-        ind_halfedge1: usize,
-        ind_halfedge2: usize,
-        ind_halfedge3: usize,
-        ind_halfedge1_opp: usize,
-        ind_halfedge2_opp: usize,
-        ind_halfedge3_opp: usize,
-    ) -> () {
-        self.map_hedg_face.insert(ind_halfedge1, ind_face);
-        self.map_hedg_face.insert(ind_halfedge2, ind_face);
-        self.map_hedg_face.insert(ind_halfedge3, ind_face);
+        ind_vertex1: usize,
+        ind_vertex2: usize,
+        ind_vertex3: usize,
+    ) -> Result<usize> {
+        if !self.vertices.contains_key(&ind_vertex1)
+            || !self.vertices.contains_key(&ind_vertex2)
+            || !self.vertices.contains_key(&ind_vertex3)
+        {
+            return Err(anyhow::Error::msg("add_face(): Index out of bounds"));
+        }
+
+        if self
+            .map_vert_hedg
+            .get(&ind_vertex1)
+            .unwrap()
+            .iter()
+            .find(|ind_he| self.halfedges.get(ind_he).unwrap()[1] == ind_vertex2)
+            .is_some()
+        {
+            return Err(anyhow::Error::msg("add_face(): halfedge already exists"));
+        }
+
+        if self
+            .map_vert_hedg
+            .get(&ind_vertex2)
+            .unwrap()
+            .iter()
+            .find(|ind_he| self.halfedges.get(ind_he).unwrap()[1] == ind_vertex3)
+            .is_some()
+        {
+            return Err(anyhow::Error::msg("add_face(): halfedge already exists"));
+        }
+
+        if self
+            .map_vert_hedg
+            .get(&ind_vertex3)
+            .unwrap()
+            .iter()
+            .find(|ind_he| self.halfedges.get(ind_he).unwrap()[1] == ind_vertex1)
+            .is_some()
+        {
+            return Err(anyhow::Error::msg("add_face(): halfedge already exists"));
+        }
+
+        let ind_halfedge1 = self.add_halfedge_uncheck(ind_vertex1, ind_vertex2);
+        let ind_halfedge2 = self.add_halfedge_uncheck(ind_vertex2, ind_vertex3);
+        let ind_halfedge3 = self.add_halfedge_uncheck(ind_vertex3, ind_vertex1);
+
+        self.faces.insert(
+            self.last_ind_face,
+            [ind_halfedge1, ind_halfedge2, ind_halfedge3],
+        );
+
+        self.map_hedg_face.insert(ind_halfedge1, self.last_ind_face);
+        self.map_hedg_face.insert(ind_halfedge2, self.last_ind_face);
+        self.map_hedg_face.insert(ind_halfedge3, self.last_ind_face);
 
         self.map_hedg_next.insert(ind_halfedge1, ind_halfedge2);
         self.map_hedg_next.insert(ind_halfedge2, ind_halfedge3);
@@ -169,57 +237,6 @@ impl Mesh3D {
         self.map_hedg_prev.insert(ind_halfedge1, ind_halfedge3);
         self.map_hedg_prev.insert(ind_halfedge2, ind_halfedge1);
         self.map_hedg_prev.insert(ind_halfedge3, ind_halfedge2);
-
-        self.map_hedg_opp.insert(ind_halfedge1, ind_halfedge1_opp);
-        self.map_hedg_opp.insert(ind_halfedge2, ind_halfedge2_opp);
-        self.map_hedg_opp.insert(ind_halfedge3, ind_halfedge3_opp);
-
-        self.map_hedg_opp.insert(ind_halfedge1_opp, ind_halfedge1);
-        self.map_hedg_opp.insert(ind_halfedge2_opp, ind_halfedge2);
-        self.map_hedg_opp.insert(ind_halfedge3_opp, ind_halfedge3);
-    }
-
-    pub fn add_face(
-        &mut self,
-        ind_vertex1: usize,
-        ind_vertex2: usize,
-        ind_vertex3: usize,
-    ) -> Result<usize> {
-        let ind_halfedge1 = self.add_halfedge(ind_vertex1, ind_vertex2)?;
-        let ind_halfedge2 = self.add_halfedge(ind_vertex2, ind_vertex3)?;
-        let ind_halfedge3 = self.add_halfedge(ind_vertex3, ind_vertex1)?;
-        let ind_halfedge1_opp = self.add_halfedge(ind_vertex2, ind_vertex1)?;
-        let ind_halfedge2_opp = self.add_halfedge(ind_vertex3, ind_vertex2)?;
-        let ind_halfedge3_opp = self.add_halfedge(ind_vertex1, ind_vertex3)?;
-
-        let ind_f1 = self.map_hedg_face.get(&ind_halfedge1);
-        let ind_f2 = self.map_hedg_face.get(&ind_halfedge2);
-        let ind_f3 = self.map_hedg_face.get(&ind_halfedge3);
-
-        if ind_f1 != ind_f2 || ind_f1 != ind_f3 {
-            return Err(anyhow::Error::msg(
-                "add_face(): Error in faces organisation",
-            ));
-        }
-
-        if let Some(&fac) = ind_f1 {
-            return Ok(fac);
-        }
-
-        self.faces.insert(
-            self.last_ind_face,
-            [ind_halfedge1, ind_halfedge2, ind_halfedge3],
-        );
-
-        self.fill_face(
-            self.last_ind_face,
-            ind_halfedge1,
-            ind_halfedge2,
-            ind_halfedge3,
-            ind_halfedge1_opp,
-            ind_halfedge2_opp,
-            ind_halfedge3_opp,
-        );
 
         self.last_ind_face = self.last_ind_face + 1;
         Ok(self.last_ind_face - 1)

@@ -10,6 +10,7 @@ pub struct Sphere {
     pub radius: f32,
 }
 
+#[derive(Clone)]
 pub struct Skeleton3D {
     pub(super) nodes: HashMap<usize, Sphere>,
     pub(super) edges: HashMap<usize, [usize; 2]>, // connects two nodes
