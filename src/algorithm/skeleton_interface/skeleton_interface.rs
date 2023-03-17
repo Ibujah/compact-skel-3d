@@ -514,16 +514,16 @@ impl<'a, 'b> SkeletonInterface3D<'a> {
     //     Ok(())
     // }
 
-    pub(super) fn close_face(
-        &mut self,
-        ind_vertex1: usize,
-        ind_vertex2: usize,
-        ind_vertex3: usize,
-    ) -> Result<()> {
-        self.closing_mesh
-            .add_face(ind_vertex1, ind_vertex2, ind_vertex3)?;
-        Ok(())
-    }
+    // pub(super) fn close_face(
+    //     &mut self,
+    //     ind_vertex1: usize,
+    //     ind_vertex2: usize,
+    //     ind_vertex3: usize,
+    // ) -> Result<()> {
+    //     self.closing_mesh
+    //         .add_face(ind_vertex1, ind_vertex2, ind_vertex3)?;
+    //     Ok(())
+    // }
 
     pub fn get_tetrahedra_from_triangle(&self, del_tri: [usize; 3]) -> Result<Vec<[usize; 4]>> {
         let vec = self
@@ -811,16 +811,28 @@ impl<'a, 'b> SkeletonInterface3D<'a> {
 
     pub fn check(&self) -> Result<()> {
         for ind_node in 0..self.node_tet.len() {
-            self.check_node(ind_node)?;
+            if let Err(e) = self.check_node(ind_node) {
+                let msg = format!("In check() : {}", e);
+                return Err(anyhow::Error::msg(msg));
+            }
         }
         for ind_edge in 0..self.edge_tri.len() {
-            self.check_edge(ind_edge)?;
+            if let Err(e) = self.check_edge(ind_edge) {
+                let msg = format!("In check() : {}", e);
+                return Err(anyhow::Error::msg(msg));
+            }
         }
         for ind_alve in 0..self.alve_seg.len() {
-            self.check_alveola(ind_alve)?;
+            if let Err(e) = self.check_alveola(ind_alve) {
+                let msg = format!("In check() : {}", e);
+                return Err(anyhow::Error::msg(msg));
+            }
         }
         for ind_pedge in 0..self.pedge_edge.len() {
-            self.check_partial_edge(ind_pedge)?;
+            if let Err(e) = self.check_partial_edge(ind_pedge) {
+                let msg = format!("In check() : {}", e);
+                return Err(anyhow::Error::msg(msg));
+            }
         }
         Ok(())
     }

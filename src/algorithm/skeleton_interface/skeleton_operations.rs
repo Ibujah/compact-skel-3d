@@ -252,3 +252,32 @@ pub fn extract_one_skeleton_path<'a, 'b>(
 
     Ok(None)
 }
+
+pub fn try_remove_and_add<'a, 'b>(
+    skeleton_interface: &'b mut SkeletonInterface3D<'a>,
+    vec_rem_faces: &Vec<usize>,
+    vec_add_faces: &Vec<[usize; 3]>,
+) -> Result<bool> {
+    let mut vec_fac = Vec::new();
+    for &ind_face in vec_rem_faces {
+        vec_fac.push(skeleton_interface.mesh.get_face_vertices(ind_face).unwrap());
+        skeleton_interface.mesh.remove_face(ind_face)?;
+    }
+    let mut vec_added = Vec::new();
+    for &[ind_v1, ind_v2, ind_v3] in vec_add_faces {
+        let res = skeleton_interface.mesh.add_face(ind_v1, ind_v2, ind_v3);
+        match res {
+            Ok(o) => vec_added.push(o),
+            Err(_) => {
+                for &f in vec_added.iter() {
+                    skeleton_interface.mesh.remove_face(f)?;
+                }
+                for &[v1, v2, v3] in vec_fac.iter() {
+                    skeleton_interface.mesh.add_face(v1, v2, v3)?;
+                }
+                return Ok(false);
+            }
+        }
+    }
+    Ok(true)
+}

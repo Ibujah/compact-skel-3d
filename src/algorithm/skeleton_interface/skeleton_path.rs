@@ -1,6 +1,6 @@
 use crate::algorithm::skeleton_interface::SkeletonInterface3D;
 use anyhow::Result;
-use nalgebra::Vector3;
+use nalgebra::{MatrixXx1, MatrixXx3, Vector3};
 
 use super::skeleton_interface::IterPartialEdge;
 use crate::geometry::geometry_operations;
@@ -39,14 +39,11 @@ impl<'a, 'b> SkeletonPath<'a, 'b> {
     }
 
     pub fn mesh_path(&self) -> Vec<usize> {
-        println!("mesh path");
         let mut path = Vec::new();
         for ind1 in 0..self.components.len() {
             let ind2 = (ind1 + 1) % self.components.len();
             match (self.components[ind1], self.components[ind2]) {
                 (PathPart::PartialNode(ind_pnode), PathPart::PartialNode(_)) => {
-                    let pnode = self.skeleton_interface.get_partial_node_uncheck(ind_pnode);
-                    println!("node {}, corner {}", pnode.node().ind(), pnode.corner(),);
                     path.push(
                         self.skeleton_interface
                             .get_partial_node_uncheck(ind_pnode)
@@ -198,6 +195,9 @@ impl<'a, 'b> SkeletonPath<'a, 'b> {
             match (self.components[ind], self.components[ind_next]) {
                 (PathPart::PartialEdge(ind_pedge), PathPart::PartialNode(_)) => {
                     let pedge = self.skeleton_interface.get_partial_edge_uncheck(ind_pedge);
+                    if pedge.partial_alveola().alveola().label().is_some() {
+                        return Ok(false);
+                    }
                     let deg = pedge
                         .partial_edge_next()
                         .ok_or(anyhow::Error::msg("Next edge does not exist"))?
@@ -216,8 +216,61 @@ impl<'a, 'b> SkeletonPath<'a, 'b> {
         return Ok(has_deg1);
     }
 
-    pub fn collect_mesh_faces_index(&self) -> Result<Option<Vec<usize>>> {
+    pub fn nodes(&self) -> Vec<usize> {
+        let mut nodes: Vec<usize> = self
+            .components
+            .iter()
+            .filter_map(|&cmp| match cmp {
+                PathPart::PartialNode(ind_pnode) => Some(
+                    self.skeleton_interface
+                        .get_partial_node_uncheck(ind_pnode)
+                        .node()
+                        .ind(),
+                ),
+                PathPart::PartialEdge(_) => None,
+            })
+            .collect();
+        nodes.sort();
+        nodes
+    }
+
+    pub fn basis_spheres(&self) -> Result<(MatrixXx3<f32>, MatrixXx1<f32>)> {
+        let ind_nodes = self.nodes();
+        let mut center_mat = MatrixXx3::<f32>::zeros(ind_nodes.len());
+        let mut radius_mat = MatrixXx1::<f32>::zeros(ind_nodes.len());
+
+        for i in 0..ind_nodes.len() {
+            let ind_node = ind_nodes[i];
+            let tet_vert: Vec<Vector3<f32>> = self
+                .skeleton_interface
+                .get_node_uncheck(ind_node)
+                .delaunay_tetrahedron()
+                .iter()
+                .map(|&ind| {
+                    self.skeleton_interface
+                        .get_mesh()
+                        .get_vertex(ind)
+                        .unwrap()
+                        .vertex()
+                })
+                .collect();
+            let (center, radius) = geometry_operations::center_and_radius(
+                [tet_vert[0], tet_vert[1], tet_vert[2], tet_vert[3]],
+                None,
+            )
+            .ok_or(anyhow::Error::msg("Could not find sphere center"))?;
+            center_mat[(i, 0)] = center[0];
+            center_mat[(i, 1)] = center[1];
+            center_mat[(i, 2)] = center[2];
+            radius_mat[i] = radius;
+        }
+
+        Ok((center_mat, radius_mat))
+    }
+
+    pub fn collect_mesh_faces_index(&self, epsilon: f32) -> Result<Option<Vec<usize>>> {
         let vec_bnd_path_vert = self.mesh_path();
+        let (center_mat, radius_mat) = self.basis_spheres()?;
         let mut mesh_path_hedge = Vec::new();
         for ind1 in 0..vec_bnd_path_vert.len() {
             let ind2 = (ind1 + 1) % vec_bnd_path_vert.len();
@@ -266,7 +319,28 @@ impl<'a, 'b> SkeletonPath<'a, 'b> {
                             mesh_paths_hedge.push(path2);
                         }
                     } else {
+                        let vert_test = hedge
+                            .next_halfedge()
+                            .unwrap()
+                            .last_vertex()
+                            .vertex()
+                            .transpose();
+
+                        if center_mat
+                            .row_iter()
+                            .zip(radius_mat.iter())
+                            .find(|(row, &rad)| {
+                                let diff = row - vert_test;
+                                diff[0] * diff[0] + diff[1] * diff[1] + diff[2] * diff[2]
+                                    < rad * rad + 2.0 * rad * epsilon + epsilon * epsilon
+                            })
+                            .is_none()
+                        {
+                            return Ok(None);
+                        }
+
                         let face = hedge.face().unwrap();
+
                         faces.push(face.ind());
                         let hedge_rep1 =
                             hedge.prev_halfedge().unwrap().opposite_halfedge().unwrap();
@@ -280,8 +354,8 @@ impl<'a, 'b> SkeletonPath<'a, 'b> {
             } else {
                 break;
             }
-            if faces.len() > self.skeleton_interface.get_mesh().get_nb_faces() {
-                return Err(anyhow::Error::msg("Too nuch faces collected somehow"));
+            if faces.len() > self.skeleton_interface.get_mesh().get_nb_faces() * 2 {
+                return Err(anyhow::Error::msg("Too much faces collected somehow"));
             }
         }
 
@@ -394,7 +468,7 @@ impl<'a, 'b> SkeletonPath<'a, 'b> {
                                 };
                                 let mut tri = [seg[0], seg[1], ind_vertex];
                                 tri.sort();
-                                faces.push([seg[0], ind_vertex, seg[1]]);
+                                faces.push([seg[0], seg[1], ind_vertex]);
 
                                 let seg2 = if seg[1] < ind_vertex {
                                     [seg[1], ind_vertex]
@@ -482,7 +556,7 @@ impl<'a, 'b> SkeletonPath<'a, 'b> {
                         [tet_vert3[0], tet_vert3[1], tet_vert3[2], tet_vert3[3]],
                         None,
                     )
-                    .ok_or(anyhow::Error::msg("Flat tetrahedron"))?;
+                    .ok_or(anyhow::Error::msg("Could not find sphere center"))?;
                     let ind_vertex1 = self.skeleton_interface.debug_mesh.add_vertex(&vert1);
                     let ind_vertex2 = self.skeleton_interface.debug_mesh.add_vertex(&vert2);
                     let ind_vertex3 = self.skeleton_interface.debug_mesh.add_vertex(&vert3);

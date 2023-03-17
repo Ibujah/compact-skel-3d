@@ -31,6 +31,8 @@ fn generate_test_mesh() -> Result<ManifoldMesh3D> {
 struct Cli {
     #[arg(long = "objinfile")]
     obj_in_path: Option<std::path::PathBuf>,
+    #[arg(long = "epsilon")]
+    epsilon: Option<f32>,
     #[arg(default_value = "./ressources/mesh.obj", long = "objoutfile")]
     obj_out_path: std::path::PathBuf,
     #[arg(default_value = "./ressources/skeleton.obj", long = "skeloutfile")]
@@ -46,6 +48,7 @@ fn main() -> Result<()> {
     let args = Cli::parse();
 
     let obj_out_path_str = args.obj_out_path.to_str().unwrap_or("");
+    let epsilon = args.epsilon;
     let skel_out_path_str = args.skel_out_path.to_str().unwrap_or("");
     let closing_out_path_str = args.closing_out_path.to_str().unwrap_or("");
 
@@ -72,7 +75,7 @@ fn main() -> Result<()> {
 
     let now = Instant::now();
     println!("Sheet skeletonization");
-    let (skeleton, closing_mesh) = skeleton_alg::sheet_skeletonization(&mut mesh)?;
+    let (skeleton, closing_mesh) = skeleton_alg::sheet_skeletonization(&mut mesh, epsilon)?;
     let duration = now.elapsed();
     let sec = duration.as_secs();
     let min = sec / 60;
