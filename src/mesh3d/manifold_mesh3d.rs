@@ -7,7 +7,6 @@ pub type HalfEdge = [usize; 2];
 pub type FaceHalfedges = [usize; 3];
 pub type FaceVertices = [usize; 3];
 
-pub struct Mesh3D {
 #[derive(Clone)]
 pub struct ManifoldMesh3D {
     pub(super) vertices: HashMap<usize, Vertex>,
