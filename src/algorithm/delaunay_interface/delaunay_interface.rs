@@ -63,9 +63,17 @@ impl<'a> DelaunayInterface<'a> {
         )
         .map_err(to_anyhow)?;
 
-        for v in 0..self.mesh.get_nb_vertices() {
+        for v in self.mesh.vertex_indices() {
+            // let mut i = 0;
+            // for (&v, vert) in self.mesh.vertices() {
+            //     println!("{}:{} ({}, {}, {})", i, v, vert[0], vert[1], vert[2]);
+            //     i = i + 1;
             let vert = self.mesh.get_vertex(v)?.vertex();
-
+            if v >= self.mesh.get_nb_vertices() {
+                return Err(anyhow::Error::msg(
+                    "generate_struct(): Vertex index over vertex number, not currently handled",
+                ));
+            }
             tetgen
                 .set_point(v, vert[0] as f64, vert[1] as f64, vert[2] as f64)
                 .map_err(to_anyhow)?;
@@ -159,8 +167,8 @@ impl<'a> DelaunayInterface<'a> {
 
     pub fn count_non_del_halfedges(&self) -> Result<usize> {
         let mut nb_non_del = 0;
-        for i in 0..self.mesh.get_nb_halfedges() {
-            let he = self.mesh.get_halfedge(i)?.halfedge();
+        for (_, &he) in self.mesh.halfedges() {
+            // let he = self.mesh.get_halfedge(i)?.halfedge();
             nb_non_del = nb_non_del + if self.is_edge_in(&he) { 0 } else { 1 };
         }
         Ok(nb_non_del)
@@ -168,7 +176,7 @@ impl<'a> DelaunayInterface<'a> {
 
     pub fn count_non_del_faces(&self) -> Result<usize> {
         let mut nb_non_del = 0;
-        for i in 0..self.mesh.get_nb_faces() {
+        for (&i, _) in self.mesh.faces() {
             let face = self.mesh.get_face_vertices(i)?;
             nb_non_del = nb_non_del + if self.is_face_in(&face) { 0 } else { 1 };
         }
@@ -197,11 +205,15 @@ impl<'a> DelaunayInterface<'a> {
         &self,
         shift: Option<usize>,
     ) -> Result<Option<mesh3d::IterHalfEdge>> {
-        let shift = shift.unwrap_or(0);
-        for i in 0..self.mesh.get_nb_halfedges() {
-            let ind_he = (i + shift) % self.mesh.get_nb_halfedges();
-            let he = self.mesh.get_halfedge(ind_he)?;
-            if !self.is_edge_in(&he.halfedge()) {
+        let shift = shift.unwrap_or(0) % self.mesh.get_nb_halfedges();
+        let mut i = 0;
+        for (&ind_he, seg) in self.mesh.halfedges() {
+            if i <= shift {
+                i = i + 1;
+                continue;
+            }
+            if !self.is_edge_in(&seg) {
+                let he = self.mesh.get_halfedge(ind_he)?;
                 let angle1 = self.get_opposite_angle(he)?;
                 let angle2 = self.get_opposite_angle(he.opposite_halfedge().ok_or(
                     anyhow::Error::msg("get_opposite_angle(): No opposite halfedge"),
@@ -219,11 +231,15 @@ impl<'a> DelaunayInterface<'a> {
         &self,
         shift: Option<usize>,
     ) -> Result<Option<mesh3d::IterHalfEdge>> {
-        let shift = shift.unwrap_or(0);
-        for i in 0..self.mesh.get_nb_halfedges() {
-            let ind_he = (i + shift) % self.mesh.get_nb_halfedges();
-            let he = self.mesh.get_halfedge(ind_he)?;
-            if !self.is_edge_in(&he.halfedge()) {
+        let shift = shift.unwrap_or(0) % self.mesh.get_nb_halfedges();
+        let mut i = 0;
+        for (&ind_he, seg) in self.mesh.halfedges() {
+            if i <= shift {
+                i = i + 1;
+                continue;
+            }
+            if !self.is_edge_in(&seg) {
+                let he = self.mesh.get_halfedge(ind_he)?;
                 return Ok(Some(he));
             };
         }
@@ -231,9 +247,13 @@ impl<'a> DelaunayInterface<'a> {
     }
 
     pub fn get_non_del_face(&self, shift: Option<usize>) -> Result<Option<mesh3d::IterFace>> {
-        let shift = shift.unwrap_or(0);
-        for i in 0..self.mesh.get_nb_faces() {
-            let ind_face = (i + shift) % self.mesh.get_nb_faces();
+        let shift = shift.unwrap_or(0) % self.mesh.get_nb_halfedges();
+        let mut i = 0;
+        for (&ind_face, _) in self.mesh.faces() {
+            if i <= shift {
+                i = i + 1;
+                continue;
+            }
             let face = self.mesh.get_face(ind_face)?;
             let face_ind = face.vertices_inds();
             if !self.is_face_in(&face_ind) {
@@ -246,10 +266,9 @@ impl<'a> DelaunayInterface<'a> {
     pub fn get_all_non_del_halfedge(&self) -> Result<Vec<usize>> {
         let mut non_del = Vec::new();
 
-        for i in 0..self.mesh.get_nb_halfedges() {
-            let he = self.mesh.get_halfedge(i)?;
-            if !self.is_edge_in(&he.halfedge()) {
-                non_del.push(i);
+        for (&ind_he, seg) in self.mesh.halfedges() {
+            if !self.is_edge_in(&seg) {
+                non_del.push(ind_he);
             };
         }
 
@@ -259,10 +278,10 @@ impl<'a> DelaunayInterface<'a> {
     pub fn get_all_non_del_face(&self) -> Result<Vec<usize>> {
         let mut non_del = Vec::new();
 
-        for i in 0..self.mesh.get_nb_faces() {
-            let face = self.mesh.get_face_vertices(i)?;
+        for (&ind_fac, _) in self.mesh.faces() {
+            let face = self.mesh.get_face_vertices(ind_fac)?;
             if !self.is_face_in(&face) {
-                non_del.push(i);
+                non_del.push(ind_fac);
             };
         }
 

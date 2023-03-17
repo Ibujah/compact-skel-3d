@@ -13,8 +13,8 @@ fn extract_physical_edges(
 
     let mut physical: HashSet<mesh3d::HalfEdge> = HashSet::new();
     // set physical edges
-    for e in 0..mesh.get_nb_halfedges() {
-        let he = mesh.get_halfedge(e)?;
+    for (&ind_he, _) in mesh.halfedges().iter() {
+        let he = mesh.get_halfedge(ind_he)?;
         if he.halfedge()[0] > he.halfedge()[1] {
             continue;
         }
