@@ -219,8 +219,8 @@ fn follow_singular_path(skeleton_path: &mut SkeletonPath) -> Result<()> {
 pub fn outer_partial_edges(
     skeleton_interface: &SkeletonInterface3D,
     current_sheet: &Vec<usize>,
-) -> HashSet<usize> {
-    let mut pedges_set = HashSet::new();
+) -> Vec<usize> {
+    let mut vec_pedges = Vec::new();
     for &ind_alveola in current_sheet.iter() {
         for palve in skeleton_interface
             .get_alveola_uncheck(ind_alveola)
@@ -228,26 +228,24 @@ pub fn outer_partial_edges(
         {
             for pedge in palve.partial_edges().iter() {
                 let pedge_neigh = pedge.partial_edge_neighbor();
-                if pedge_neigh.is_singular() {
-                    pedges_set.insert(pedge_neigh.ind());
+                if pedge_neigh.edge().is_singular() {
+                    vec_pedges.push(pedge_neigh.ind());
                 }
             }
         }
     }
-    pedges_set
+    vec_pedges
 }
 
-pub fn extract_one_skeleton_path<'a, 'b>(
+pub fn extract_skeleton_path<'a, 'b>(
     skeleton_interface: &'b mut SkeletonInterface3D<'a>,
-    pedges_set: &HashSet<usize>,
+    ind_pedge: usize,
 ) -> Result<Option<SkeletonPath<'a, 'b>>> {
-    for &ind_pedge in pedges_set.iter() {
-        let pedge = skeleton_interface.get_partial_edge_uncheck(ind_pedge);
-        if pedge.is_singular() {
-            let mut skeleton_path = SkeletonPath::new(skeleton_interface, ind_pedge);
-            follow_singular_path(&mut skeleton_path)?;
-            return Ok(Some(skeleton_path));
-        }
+    let pedge = skeleton_interface.get_partial_edge_uncheck(ind_pedge);
+    if pedge.is_singular() {
+        let mut skeleton_path = SkeletonPath::new(skeleton_interface, ind_pedge);
+        follow_singular_path(&mut skeleton_path)?;
+        return Ok(Some(skeleton_path));
     }
 
     Ok(None)
