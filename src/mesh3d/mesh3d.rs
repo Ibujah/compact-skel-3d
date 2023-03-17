@@ -84,6 +84,16 @@ impl Mesh3D {
         self.vertices.len()
     }
 
+    pub fn vertex_indices(&self) -> Vec<usize> {
+        let mut inds: Vec<usize> = self.vertices.iter().map(|(&ind, _)| ind).collect();
+        inds.sort();
+        inds
+    }
+
+    pub fn vertices(&self) -> &HashMap<usize, Vertex> {
+        &self.vertices
+    }
+
     pub fn add_halfedge(&mut self, ind_vertex1: usize, ind_vertex2: usize) -> Result<usize> {
         if !self.vertices.contains_key(&ind_vertex2) {
             return Err(anyhow::Error::msg(
@@ -132,6 +142,10 @@ impl Mesh3D {
 
     pub fn get_nb_halfedges(&self) -> usize {
         self.halfedges.len()
+    }
+
+    pub fn halfedges(&self) -> &HashMap<usize, HalfEdge> {
+        &self.halfedges
     }
 
     pub(super) fn fill_face(
@@ -229,13 +243,15 @@ impl Mesh3D {
         self.map_hedg_prev.remove(&ind_he2);
         self.map_hedg_prev.remove(&ind_he3);
 
-        let ind_he1_opp = self.map_hedg_opp.remove(&ind_he1).unwrap();
-        let ind_he2_opp = self.map_hedg_opp.remove(&ind_he2).unwrap();
-        let ind_he3_opp = self.map_hedg_opp.remove(&ind_he3).unwrap();
-
-        self.map_hedg_opp.remove(&ind_he1_opp).unwrap();
-        self.map_hedg_opp.remove(&ind_he2_opp).unwrap();
-        self.map_hedg_opp.remove(&ind_he3_opp).unwrap();
+        if let Some(ind_he1_opp) = self.map_hedg_opp.remove(&ind_he1) {
+            self.map_hedg_opp.remove(&ind_he1_opp).unwrap();
+        }
+        if let Some(ind_he2_opp) = self.map_hedg_opp.remove(&ind_he2) {
+            self.map_hedg_opp.remove(&ind_he2_opp).unwrap();
+        }
+        if let Some(ind_he3_opp) = self.map_hedg_opp.remove(&ind_he3) {
+            self.map_hedg_opp.remove(&ind_he3_opp).unwrap();
+        }
 
         let [ind_v1, _] = self.halfedges.remove(&ind_he1).unwrap();
         let [ind_v2, _] = self.halfedges.remove(&ind_he2).unwrap();
@@ -273,6 +289,10 @@ impl Mesh3D {
 
     pub fn get_nb_faces(&self) -> usize {
         self.faces.len()
+    }
+
+    pub fn faces(&self) -> &HashMap<usize, FaceHalfedges> {
+        &self.faces
     }
 
     pub fn get_face_vertices(&self, ind_face: usize) -> Result<FaceVertices> {
@@ -447,15 +467,15 @@ impl Mesh3D {
     }
 
     pub fn check_mesh(&self) -> Result<()> {
-        for f in 0..self.faces.len() {
+        for (&f, _) in self.faces.iter() {
             self.check_face(f)?;
         }
 
-        for e in 0..self.halfedges.len() {
+        for (&e, _) in self.halfedges.iter() {
             self.check_halfedge(e)?;
         }
 
-        for v in 0..self.vertices.len() {
+        for (&v, _) in self.vertices.iter() {
             self.check_vertex(v)?;
         }
 

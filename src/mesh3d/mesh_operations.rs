@@ -55,10 +55,10 @@ pub fn flip_halfedge(mesh: &mut Mesh3D, ind_halfedge: usize) -> Result<bool> {
         .map_hedg_next
         .get(&ind_he_12)
         .ok_or(anyhow::Error::msg("flip_halfedge(): Empty halfedge"))?;
-    let &ind_he_31 = mesh
-        .map_hedg_prev
-        .get(&ind_he_12)
-        .ok_or(anyhow::Error::msg("flip_halfedge(): Empty halfedge"))?;
+    // let &ind_he_31 = mesh
+    //     .map_hedg_prev
+    //     .get(&ind_he_12)
+    //     .ok_or(anyhow::Error::msg("flip_halfedge(): Empty halfedge"))?;
 
     let &ind_he_21 = mesh
         .map_hedg_opp
@@ -72,69 +72,74 @@ pub fn flip_halfedge(mesh: &mut Mesh3D, ind_halfedge: usize) -> Result<bool> {
         .map_hedg_next
         .get(&ind_he_21)
         .ok_or(anyhow::Error::msg("flip_halfedge(): Empty halfedge"))?;
-    let &ind_he_42 = mesh
-        .map_hedg_prev
-        .get(&ind_he_21)
-        .ok_or(anyhow::Error::msg("flip_halfedge(): Empty halfedge"))?;
+    // let &ind_he_42 = mesh
+    //     .map_hedg_prev
+    //     .get(&ind_he_21)
+    //     .ok_or(anyhow::Error::msg("flip_halfedge(): Empty halfedge"))?;
 
     let ind_v1 = mesh.halfedges.get(&ind_he_12).unwrap()[0];
     let ind_v2 = mesh.halfedges.get(&ind_he_12).unwrap()[1];
     let ind_v3 = mesh.halfedges.get(&ind_he_23).unwrap()[1];
     let ind_v4 = mesh.halfedges.get(&ind_he_14).unwrap()[1];
 
-    // rename edges and faces
-    let ind_fac_143 = ind_fac_123;
-    let ind_fac_234 = ind_fac_214;
+    mesh.remove_face(ind_fac_214)?;
+    mesh.remove_face(ind_fac_123)?;
+    mesh.add_face(ind_v1, ind_v4, ind_v3)?;
+    mesh.add_face(ind_v2, ind_v3, ind_v4)?;
 
-    let ind_he_43 = ind_he_12;
-    let ind_he_34 = ind_he_21;
+    // // rename edges and faces
+    // let ind_fac_143 = ind_fac_123;
+    // let ind_fac_234 = ind_fac_214;
 
-    // update faces
-    mesh.faces
-        .insert(ind_fac_143, [ind_he_14, ind_he_43, ind_he_31]);
-    mesh.faces
-        .insert(ind_fac_234, [ind_he_23, ind_he_34, ind_he_42]);
+    // let ind_he_43 = ind_he_12;
+    // let ind_he_34 = ind_he_21;
 
-    // update edges
-    mesh.halfedges.insert(ind_he_43, [ind_v4, ind_v3]);
-    mesh.halfedges.insert(ind_he_34, [ind_v3, ind_v4]);
+    // // update faces
+    // mesh.faces
+    //     .insert(ind_fac_143, [ind_he_14, ind_he_43, ind_he_31]);
+    // mesh.faces
+    //     .insert(ind_fac_234, [ind_he_23, ind_he_34, ind_he_42]);
 
-    // update connectivity
-    mesh.map_hedg_face.insert(ind_he_14, ind_fac_143);
-    mesh.map_hedg_face.insert(ind_he_23, ind_fac_234);
+    // // update edges
+    // mesh.halfedges.insert(ind_he_43, [ind_v4, ind_v3]);
+    // mesh.halfedges.insert(ind_he_34, [ind_v3, ind_v4]);
 
-    mesh.map_hedg_next.insert(ind_he_43, ind_he_31);
-    mesh.map_hedg_next.insert(ind_he_31, ind_he_14);
-    mesh.map_hedg_next.insert(ind_he_14, ind_he_43);
+    // // update connectivity
+    // mesh.map_hedg_face.insert(ind_he_14, ind_fac_143);
+    // mesh.map_hedg_face.insert(ind_he_23, ind_fac_234);
 
-    mesh.map_hedg_prev.insert(ind_he_43, ind_he_14);
-    mesh.map_hedg_prev.insert(ind_he_14, ind_he_31);
-    mesh.map_hedg_prev.insert(ind_he_31, ind_he_43);
+    // mesh.map_hedg_next.insert(ind_he_43, ind_he_31);
+    // mesh.map_hedg_next.insert(ind_he_31, ind_he_14);
+    // mesh.map_hedg_next.insert(ind_he_14, ind_he_43);
 
-    mesh.map_hedg_next.insert(ind_he_34, ind_he_42);
-    mesh.map_hedg_next.insert(ind_he_42, ind_he_23);
-    mesh.map_hedg_next.insert(ind_he_23, ind_he_34);
+    // mesh.map_hedg_prev.insert(ind_he_43, ind_he_14);
+    // mesh.map_hedg_prev.insert(ind_he_14, ind_he_31);
+    // mesh.map_hedg_prev.insert(ind_he_31, ind_he_43);
 
-    mesh.map_hedg_prev.insert(ind_he_34, ind_he_23);
-    mesh.map_hedg_prev.insert(ind_he_23, ind_he_42);
-    mesh.map_hedg_prev.insert(ind_he_42, ind_he_34);
+    // mesh.map_hedg_next.insert(ind_he_34, ind_he_42);
+    // mesh.map_hedg_next.insert(ind_he_42, ind_he_23);
+    // mesh.map_hedg_next.insert(ind_he_23, ind_he_34);
 
-    mesh.map_vert_hedg
-        .get_mut(&ind_v1)
-        .unwrap()
-        .retain(|&ind| ind != ind_he_12);
-    mesh.map_vert_hedg
-        .get_mut(&ind_v2)
-        .unwrap()
-        .retain(|&ind| ind != ind_he_21);
-    mesh.map_vert_hedg.get_mut(&ind_v3).unwrap().push(ind_he_34);
-    mesh.map_vert_hedg.get_mut(&ind_v4).unwrap().push(ind_he_43);
+    // mesh.map_hedg_prev.insert(ind_he_34, ind_he_23);
+    // mesh.map_hedg_prev.insert(ind_he_23, ind_he_42);
+    // mesh.map_hedg_prev.insert(ind_he_42, ind_he_34);
+
+    // mesh.map_vert_hedg
+    //     .get_mut(&ind_v1)
+    //     .unwrap()
+    //     .retain(|&ind| ind != ind_he_12);
+    // mesh.map_vert_hedg
+    //     .get_mut(&ind_v2)
+    //     .unwrap()
+    //     .retain(|&ind| ind != ind_he_21);
+    // mesh.map_vert_hedg.get_mut(&ind_v3).unwrap().push(ind_he_34);
+    // mesh.map_vert_hedg.get_mut(&ind_v4).unwrap().push(ind_he_43);
 
     Ok(true)
 }
 
 pub fn split_halfedge(mesh: &mut Mesh3D, vert: &Vector3<f32>, ind_halfedge: usize) -> Result<()> {
-    if ind_halfedge >= mesh.halfedges.len() {
+    if !mesh.halfedges.contains_key(&ind_halfedge) {
         return Err(anyhow::Error::msg("split_halfedge(): Index out of bounds"));
     }
 
@@ -154,10 +159,10 @@ pub fn split_halfedge(mesh: &mut Mesh3D, vert: &Vector3<f32>, ind_halfedge: usiz
         .map_hedg_next
         .get(&ind_he_12)
         .ok_or(anyhow::Error::msg("flip_halfedge(): Empty halfedge"))?;
-    let &ind_he_31 = mesh
-        .map_hedg_prev
-        .get(&ind_he_12)
-        .ok_or(anyhow::Error::msg("flip_halfedge(): Empty halfedge"))?;
+    // let &ind_he_31 = mesh
+    //     .map_hedg_prev
+    //     .get(&ind_he_12)
+    //     .ok_or(anyhow::Error::msg("flip_halfedge(): Empty halfedge"))?;
 
     let &ind_he_21 = mesh
         .map_hedg_opp
@@ -171,27 +176,27 @@ pub fn split_halfedge(mesh: &mut Mesh3D, vert: &Vector3<f32>, ind_halfedge: usiz
         .map_hedg_next
         .get(&ind_he_21)
         .ok_or(anyhow::Error::msg("flip_halfedge(): Empty halfedge"))?;
-    let &ind_he_42 = mesh
-        .map_hedg_prev
-        .get(&ind_he_21)
-        .ok_or(anyhow::Error::msg("flip_halfedge(): Empty halfedge"))?;
+    // let &ind_he_42 = mesh
+    //     .map_hedg_prev
+    //     .get(&ind_he_21)
+    //     .ok_or(anyhow::Error::msg("flip_halfedge(): Empty halfedge"))?;
 
-    let &ind_he_13 = mesh
-        .map_hedg_opp
-        .get(&ind_he_31)
-        .ok_or(anyhow::Error::msg("flip_halfedge(): Empty halfedge"))?;
-    let &ind_he_32 = mesh
-        .map_hedg_opp
-        .get(&ind_he_23)
-        .ok_or(anyhow::Error::msg("flip_halfedge(): Empty halfedge"))?;
-    let &ind_he_24 = mesh
-        .map_hedg_opp
-        .get(&ind_he_42)
-        .ok_or(anyhow::Error::msg("flip_halfedge(): Empty halfedge"))?;
-    let &ind_he_41 = mesh
-        .map_hedg_opp
-        .get(&ind_he_14)
-        .ok_or(anyhow::Error::msg("flip_halfedge(): Empty halfedge"))?;
+    // let &ind_he_13 = mesh
+    //     .map_hedg_opp
+    //     .get(&ind_he_31)
+    //     .ok_or(anyhow::Error::msg("flip_halfedge(): Empty halfedge"))?;
+    // let &ind_he_32 = mesh
+    //     .map_hedg_opp
+    //     .get(&ind_he_23)
+    //     .ok_or(anyhow::Error::msg("flip_halfedge(): Empty halfedge"))?;
+    // let &ind_he_24 = mesh
+    //     .map_hedg_opp
+    //     .get(&ind_he_42)
+    //     .ok_or(anyhow::Error::msg("flip_halfedge(): Empty halfedge"))?;
+    // let &ind_he_41 = mesh
+    //     .map_hedg_opp
+    //     .get(&ind_he_14)
+    //     .ok_or(anyhow::Error::msg("flip_halfedge(): Empty halfedge"))?;
 
     let ind_v1 = mesh.halfedges.get(&ind_he_12).unwrap()[0];
     let ind_v2 = mesh.halfedges.get(&ind_he_12).unwrap()[1];
@@ -199,97 +204,104 @@ pub fn split_halfedge(mesh: &mut Mesh3D, vert: &Vector3<f32>, ind_halfedge: usiz
     let ind_v4 = mesh.halfedges.get(&ind_he_14).unwrap()[1];
     let ind_v5 = mesh.add_vertex(vert);
 
-    mesh.map_vert_hedg
-        .get_mut(&ind_v1)
-        .unwrap()
-        .retain(|&ind| ind != ind_he_12);
-    mesh.map_vert_hedg
-        .get_mut(&ind_v2)
-        .unwrap()
-        .retain(|&ind| ind != ind_he_21);
+    mesh.remove_face(ind_fac_123)?;
+    mesh.remove_face(ind_fac_214)?;
+    mesh.add_face(ind_v1, ind_v5, ind_v3)?;
+    mesh.add_face(ind_v2, ind_v3, ind_v5)?;
+    mesh.add_face(ind_v2, ind_v5, ind_v4)?;
+    mesh.add_face(ind_v1, ind_v4, ind_v5)?;
 
-    // rename edges
-    let ind_he_52 = ind_he_12;
-    let ind_he_51 = ind_he_21;
+    // mesh.map_vert_hedg
+    //     .get_mut(&ind_v1)
+    //     .unwrap()
+    //     .retain(|&ind| ind != ind_he_12);
+    // mesh.map_vert_hedg
+    //     .get_mut(&ind_v2)
+    //     .unwrap()
+    //     .retain(|&ind| ind != ind_he_21);
 
-    // reinit edges
-    mesh.halfedges.insert(ind_he_51, [ind_v5, ind_v1]);
-    mesh.halfedges.insert(ind_he_52, [ind_v5, ind_v2]);
+    // // rename edges
+    // let ind_he_52 = ind_he_12;
+    // let ind_he_51 = ind_he_21;
 
-    mesh.map_vert_hedg.get_mut(&ind_v5).unwrap().push(ind_he_51);
-    mesh.map_vert_hedg.get_mut(&ind_v5).unwrap().push(ind_he_52);
+    // // reinit edges
+    // mesh.halfedges.insert(ind_he_51, [ind_v5, ind_v1]);
+    // mesh.halfedges.insert(ind_he_52, [ind_v5, ind_v2]);
 
-    // add new halfedges
-    let ind_he_53 = mesh.add_halfedge(ind_v5, ind_v3)?;
-    let ind_he_54 = mesh.add_halfedge(ind_v5, ind_v4)?;
-    let ind_he_15 = mesh.add_halfedge(ind_v1, ind_v5)?;
-    let ind_he_25 = mesh.add_halfedge(ind_v2, ind_v5)?;
-    let ind_he_35 = mesh.add_halfedge(ind_v3, ind_v5)?;
-    let ind_he_45 = mesh.add_halfedge(ind_v4, ind_v5)?;
+    // mesh.map_vert_hedg.get_mut(&ind_v5).unwrap().push(ind_he_51);
+    // mesh.map_vert_hedg.get_mut(&ind_v5).unwrap().push(ind_he_52);
 
-    // rename faces
-    let ind_fac_235 = ind_fac_123;
-    let ind_fac_145 = ind_fac_214;
+    // // add new halfedges
+    // let ind_he_53 = mesh.add_halfedge(ind_v5, ind_v3)?;
+    // let ind_he_54 = mesh.add_halfedge(ind_v5, ind_v4)?;
+    // let ind_he_15 = mesh.add_halfedge(ind_v1, ind_v5)?;
+    // let ind_he_25 = mesh.add_halfedge(ind_v2, ind_v5)?;
+    // let ind_he_35 = mesh.add_halfedge(ind_v3, ind_v5)?;
+    // let ind_he_45 = mesh.add_halfedge(ind_v4, ind_v5)?;
 
-    // reinit faces
-    mesh.faces
-        .insert(ind_fac_235, [ind_he_23, ind_he_35, ind_he_52]);
-    mesh.faces
-        .insert(ind_fac_145, [ind_he_14, ind_he_45, ind_he_51]);
+    // // rename faces
+    // let ind_fac_235 = ind_fac_123;
+    // let ind_fac_145 = ind_fac_214;
 
-    // add new faces
-    let ind_fac_153 = mesh.last_ind_face;
-    mesh.faces
-        .insert(ind_fac_153, [ind_he_15, ind_he_53, ind_he_31]);
-    mesh.last_ind_face = mesh.last_ind_face + 1;
+    // // reinit faces
+    // mesh.faces
+    //     .insert(ind_fac_235, [ind_he_23, ind_he_35, ind_he_52]);
+    // mesh.faces
+    //     .insert(ind_fac_145, [ind_he_14, ind_he_45, ind_he_51]);
 
-    let ind_fac_254 = mesh.last_ind_face;
-    mesh.faces
-        .insert(ind_fac_254, [ind_he_25, ind_he_54, ind_he_42]);
-    mesh.last_ind_face = mesh.last_ind_face + 1;
+    // // add new faces
+    // let ind_fac_153 = mesh.last_ind_face;
+    // mesh.faces
+    //     .insert(ind_fac_153, [ind_he_15, ind_he_53, ind_he_31]);
+    // mesh.last_ind_face = mesh.last_ind_face + 1;
 
-    mesh.fill_face(
-        ind_fac_235,
-        ind_he_23,
-        ind_he_35,
-        ind_he_52,
-        ind_he_32,
-        ind_he_53,
-        ind_he_25,
-    );
-    mesh.fill_face(
-        ind_fac_145,
-        ind_he_14,
-        ind_he_45,
-        ind_he_51,
-        ind_he_41,
-        ind_he_54,
-        ind_he_15,
-    );
-    mesh.fill_face(
-        ind_fac_153,
-        ind_he_15,
-        ind_he_53,
-        ind_he_31,
-        ind_he_51,
-        ind_he_35,
-        ind_he_13,
-    );
-    mesh.fill_face(
-        ind_fac_254,
-        ind_he_25,
-        ind_he_54,
-        ind_he_42,
-        ind_he_52,
-        ind_he_45,
-        ind_he_24,
-    );
+    // let ind_fac_254 = mesh.last_ind_face;
+    // mesh.faces
+    //     .insert(ind_fac_254, [ind_he_25, ind_he_54, ind_he_42]);
+    // mesh.last_ind_face = mesh.last_ind_face + 1;
+
+    // mesh.fill_face(
+    //     ind_fac_235,
+    //     ind_he_23,
+    //     ind_he_35,
+    //     ind_he_52,
+    //     ind_he_32,
+    //     ind_he_53,
+    //     ind_he_25,
+    // );
+    // mesh.fill_face(
+    //     ind_fac_145,
+    //     ind_he_14,
+    //     ind_he_45,
+    //     ind_he_51,
+    //     ind_he_41,
+    //     ind_he_54,
+    //     ind_he_15,
+    // );
+    // mesh.fill_face(
+    //     ind_fac_153,
+    //     ind_he_15,
+    //     ind_he_53,
+    //     ind_he_31,
+    //     ind_he_51,
+    //     ind_he_35,
+    //     ind_he_13,
+    // );
+    // mesh.fill_face(
+    //     ind_fac_254,
+    //     ind_he_25,
+    //     ind_he_54,
+    //     ind_he_42,
+    //     ind_he_52,
+    //     ind_he_45,
+    //     ind_he_24,
+    // );
 
     Ok(())
 }
 
 pub fn split_face(mesh: &mut Mesh3D, vert: &Vector3<f32>, ind_face: usize) -> Result<()> {
-    if ind_face >= mesh.faces.len() {
+    if !mesh.faces.contains_key(&ind_face) {
         return Err(anyhow::Error::msg("split_face(): Index out of bounds"));
     }
 
@@ -302,80 +314,85 @@ pub fn split_face(mesh: &mut Mesh3D, vert: &Vector3<f32>, ind_face: usize) -> Re
 
     let ind_fac_123 = ind_face;
     let [ind_he_12, ind_he_23, ind_he_31] = mesh.get_face(ind_face)?.face_halfedges();
-    let &ind_he_21 = mesh
-        .map_hedg_opp
-        .get(&ind_he_12)
-        .ok_or(anyhow::Error::msg("split_face(): Empty halfedge"))?;
-    let &ind_he_32 = mesh
-        .map_hedg_opp
-        .get(&ind_he_23)
-        .ok_or(anyhow::Error::msg("split_face(): Empty halfedge"))?;
-    let &ind_he_13 = mesh
-        .map_hedg_opp
-        .get(&ind_he_31)
-        .ok_or(anyhow::Error::msg("split_face(): Empty halfedge"))?;
+    // let &ind_he_21 = mesh
+    //     .map_hedg_opp
+    //     .get(&ind_he_12)
+    //     .ok_or(anyhow::Error::msg("split_face(): Empty halfedge"))?;
+    // let &ind_he_32 = mesh
+    //     .map_hedg_opp
+    //     .get(&ind_he_23)
+    //     .ok_or(anyhow::Error::msg("split_face(): Empty halfedge"))?;
+    // let &ind_he_13 = mesh
+    //     .map_hedg_opp
+    //     .get(&ind_he_31)
+    //     .ok_or(anyhow::Error::msg("split_face(): Empty halfedge"))?;
 
     let ind_v1 = mesh.halfedges.get(&ind_he_12).unwrap()[0];
     let ind_v2 = mesh.halfedges.get(&ind_he_23).unwrap()[0];
     let ind_v3 = mesh.halfedges.get(&ind_he_31).unwrap()[0];
     let ind_v4 = mesh.add_vertex(vert);
 
-    // rename face
-    let ind_fac_124 = ind_fac_123;
+    mesh.remove_face(ind_fac_123)?;
+    mesh.add_face(ind_v1, ind_v2, ind_v4)?;
+    mesh.add_face(ind_v2, ind_v3, ind_v4)?;
+    mesh.add_face(ind_v1, ind_v4, ind_v3)?;
 
-    // add halfedges
-    let ind_he_14 = mesh.add_halfedge(ind_v1, ind_v4)?;
-    let ind_he_41 = mesh.add_halfedge(ind_v4, ind_v1)?;
-    let ind_he_24 = mesh.add_halfedge(ind_v2, ind_v4)?;
-    let ind_he_42 = mesh.add_halfedge(ind_v4, ind_v2)?;
-    let ind_he_34 = mesh.add_halfedge(ind_v3, ind_v4)?;
-    let ind_he_43 = mesh.add_halfedge(ind_v4, ind_v3)?;
+    // // rename face
+    // let ind_fac_124 = ind_fac_123;
 
-    // reinit faces
-    mesh.faces
-        .insert(ind_fac_124, [ind_he_12, ind_he_24, ind_he_41]);
+    // // add halfedges
+    // let ind_he_14 = mesh.add_halfedge(ind_v1, ind_v4)?;
+    // let ind_he_41 = mesh.add_halfedge(ind_v4, ind_v1)?;
+    // let ind_he_24 = mesh.add_halfedge(ind_v2, ind_v4)?;
+    // let ind_he_42 = mesh.add_halfedge(ind_v4, ind_v2)?;
+    // let ind_he_34 = mesh.add_halfedge(ind_v3, ind_v4)?;
+    // let ind_he_43 = mesh.add_halfedge(ind_v4, ind_v3)?;
 
-    // add faces
-    let ind_fac_234 = mesh.last_ind_face;
-    mesh.faces
-        .insert(ind_fac_234, [ind_he_23, ind_he_34, ind_he_42]);
-    mesh.last_ind_face = mesh.last_ind_face + 1;
+    // // reinit faces
+    // mesh.faces
+    //     .insert(ind_fac_124, [ind_he_12, ind_he_24, ind_he_41]);
 
-    let ind_fac_143 = mesh.last_ind_face;
-    mesh.faces
-        .insert(ind_fac_143, [ind_he_14, ind_he_43, ind_he_31]);
-    mesh.last_ind_face = mesh.last_ind_face + 1;
+    // // add faces
+    // let ind_fac_234 = mesh.last_ind_face;
+    // mesh.faces
+    //     .insert(ind_fac_234, [ind_he_23, ind_he_34, ind_he_42]);
+    // mesh.last_ind_face = mesh.last_ind_face + 1;
 
-    // fill faces
-    mesh.fill_face(
-        ind_fac_124,
-        ind_he_12,
-        ind_he_24,
-        ind_he_41,
-        ind_he_21,
-        ind_he_42,
-        ind_he_14,
-    );
+    // let ind_fac_143 = mesh.last_ind_face;
+    // mesh.faces
+    //     .insert(ind_fac_143, [ind_he_14, ind_he_43, ind_he_31]);
+    // mesh.last_ind_face = mesh.last_ind_face + 1;
 
-    mesh.fill_face(
-        ind_fac_234,
-        ind_he_23,
-        ind_he_34,
-        ind_he_42,
-        ind_he_32,
-        ind_he_43,
-        ind_he_24,
-    );
+    // // fill faces
+    // mesh.fill_face(
+    //     ind_fac_124,
+    //     ind_he_12,
+    //     ind_he_24,
+    //     ind_he_41,
+    //     ind_he_21,
+    //     ind_he_42,
+    //     ind_he_14,
+    // );
 
-    mesh.fill_face(
-        ind_fac_143,
-        ind_he_14,
-        ind_he_43,
-        ind_he_31,
-        ind_he_41,
-        ind_he_34,
-        ind_he_13,
-    );
+    // mesh.fill_face(
+    //     ind_fac_234,
+    //     ind_he_23,
+    //     ind_he_34,
+    //     ind_he_42,
+    //     ind_he_32,
+    //     ind_he_43,
+    //     ind_he_24,
+    // );
+
+    // mesh.fill_face(
+    //     ind_fac_143,
+    //     ind_he_14,
+    //     ind_he_43,
+    //     ind_he_31,
+    //     ind_he_41,
+    //     ind_he_34,
+    //     ind_he_13,
+    // );
 
     Ok(())
 }
