@@ -184,12 +184,6 @@ impl<'a, 'b> SkeletonPath<'a, 'b> {
 
     pub fn closable_path(&self) -> Result<bool> {
         let mut has_deg1 = false;
-        if self.components.len() > 500 {
-            return Ok(false);
-        }
-        if self.components.len() < 10 {
-            return Ok(false);
-        }
         for ind in 0..self.components.len() {
             let ind_next = (ind + 1) % self.components.len();
             match (self.components[ind], self.components[ind_next]) {

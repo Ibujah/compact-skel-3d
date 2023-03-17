@@ -81,11 +81,9 @@ fn loop_skeletonization(
                 skeleton_operations::extract_skeleton_path(skeleton_interface, ind_pedge)?
             {
                 let mut removed = false;
-                let mut should_remove = false;
                 if let Some(epsilon) = opt_epsilon {
                     if skeleton_path.closable_path()? {
                         if let Some(mesh_faces) = skeleton_path.collect_mesh_faces_index(epsilon)? {
-                            should_remove = true;
                             if let Some(closing_faces) = skeleton_path.collect_closing_faces()? {
                                 skeleton_operations::try_remove_and_add(
                                     skeleton_interface,
@@ -132,7 +130,7 @@ fn loop_skeletonization(
         }
     }
     println!(
-        "\r{} Sheets,  {} alveolae remaining     ",
+        "\r{} Sheets,  {} pedges remaining                                   ",
         label - 1,
         vec_pedges.len()
     );

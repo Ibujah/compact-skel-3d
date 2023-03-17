@@ -1,7 +1,7 @@
 use anyhow::Result;
 use nalgebra::base::*;
 use rand::Rng;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 use crate::algorithm::skeleton_interface::{skeleton_path::SkeletonPath, SkeletonInterface3D};
 
