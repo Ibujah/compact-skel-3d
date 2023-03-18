@@ -87,7 +87,15 @@ impl SkeletonPath {
             };
 
             if looped {
-                self.opt_ind_pedge_last = None
+                let part_last = self.components.first().unwrap();
+                if let (&PathPart::PartialNode(ind_pnode1), &PathPart::PartialNode(ind_pnode2)) =
+                    (part_first, part_last)
+                {
+                    if ind_pnode1 == ind_pnode2 {
+                        self.components.pop();
+                    }
+                }
+                self.opt_ind_pedge_last = None;
             }
         }
 
@@ -286,7 +294,10 @@ impl SkeletonPath {
             let hedge = skeleton_interface
                 .get_mesh()
                 .is_edge_in(ind_vertex1, ind_vertex2)
-                .ok_or(anyhow::Error::msg("Part of the path not on the boundary"))?;
+                .ok_or(anyhow::Error::msg(format!(
+                    "Halfedge ({}, {}) is not on the boundary",
+                    ind_vertex1, ind_vertex2
+                )))?;
             mesh_path_hedge.push(hedge.ind());
         }
         Ok(mesh_path_hedge)

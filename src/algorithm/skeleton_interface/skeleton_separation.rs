@@ -6,7 +6,7 @@ use super::skeleton_path::SkeletonPath;
 pub struct SkeletonSeparation<'a, 'b> {
     skeleton_interface: &'b mut SkeletonInterface3D<'a>,
     external_path: SkeletonPath,
-    internal_path: Vec<SkeletonPath>,
+    internal_paths: Vec<SkeletonPath>,
 }
 
 impl<'a, 'b> SkeletonSeparation<'a, 'b> {
@@ -17,7 +17,7 @@ impl<'a, 'b> SkeletonSeparation<'a, 'b> {
         SkeletonSeparation {
             skeleton_interface,
             external_path: SkeletonPath::new(ind_pedge),
-            internal_path: Vec::new(),
+            internal_paths: Vec::new(),
         }
     }
 
@@ -66,7 +66,7 @@ impl<'a, 'b> SkeletonSeparation<'a, 'b> {
                         vec_internal_pedges.remove(pos);
                     }
                 }
-                self.internal_path.push(skeleton_path_int);
+                self.internal_paths.push(skeleton_path_int);
             } else {
                 break;
             }
@@ -82,17 +82,24 @@ impl<'a, 'b> SkeletonSeparation<'a, 'b> {
 
     pub fn closable_path(&self) -> Result<bool> {
         self.external_path.closable_path(&self.skeleton_interface)
+        //Ok(true)
     }
 
     pub fn collect_mesh_faces_index(&self, epsilon: f32) -> Result<Option<Vec<usize>>> {
         let (center_mat, radius_mat) =
             self.external_path.basis_spheres(&self.skeleton_interface)?;
+        let mut mesh_paths_hedge = {
+            let mesh_path_hedge = self
+                .external_path
+                .halfedges_path(&self.skeleton_interface)?;
+            vec![mesh_path_hedge]
+        };
+        let has_internal = !self.internal_paths.is_empty();
+        for internal_path in self.internal_paths.iter() {
+            let mesh_path_internal = internal_path.halfedges_path(&self.skeleton_interface)?;
+            mesh_paths_hedge.push(mesh_path_internal);
+        }
 
-        let mesh_path_hedge = self
-            .external_path
-            .halfedges_path(&self.skeleton_interface)?;
-
-        let mut mesh_paths_hedge = vec![mesh_path_hedge];
         let mut faces = Vec::new();
         loop {
             // println!("new iter");
@@ -109,53 +116,77 @@ impl<'a, 'b> SkeletonSeparation<'a, 'b> {
             // }
             // println!("");
 
-            if let Some(mut mesh_path_edge) = mesh_paths_hedge.pop() {
-                if let Some(ind_hedge) = mesh_path_edge.pop() {
+            if let Some(mut mesh_path_hedge) = mesh_paths_hedge.pop() {
+                if let Some(ind_hedge) = mesh_path_hedge.pop() {
                     let hedge = self.skeleton_interface.get_mesh().get_halfedge(ind_hedge)?;
                     let ind_hedge_opp = hedge.opposite_halfedge().unwrap().ind();
-                    let opt_position = mesh_path_edge.iter().position(|&ind| ind == ind_hedge_opp);
+                    let opt_position = mesh_path_hedge.iter().position(|&ind| ind == ind_hedge_opp);
+                    // first possible action: hedges suppression inside the path
                     if let Some(position) = opt_position {
                         if position != 0 {
                             let mut path1 = vec![0 as usize; position];
-                            path1.copy_from_slice(&mesh_path_edge[..position]);
+                            path1.copy_from_slice(&mesh_path_hedge[..position]);
                             mesh_paths_hedge.push(path1);
                         }
-                        if position != mesh_path_edge.len() - 1 {
-                            let mut path2 = vec![0 as usize; mesh_path_edge.len() - 1 - position];
-                            path2.copy_from_slice(&mesh_path_edge[position + 1..]);
+                        if position != mesh_path_hedge.len() - 1 {
+                            let mut path2 = vec![0 as usize; mesh_path_hedge.len() - 1 - position];
+                            path2.copy_from_slice(&mesh_path_hedge[position + 1..]);
                             mesh_paths_hedge.push(path2);
                         }
                     } else {
-                        let vert_test = hedge
-                            .next_halfedge()
-                            .unwrap()
-                            .last_vertex()
-                            .vertex()
-                            .transpose();
-
-                        if center_mat
-                            .row_iter()
-                            .zip(radius_mat.iter())
-                            .find(|(row, &rad)| {
-                                let diff = row - vert_test;
-                                diff[0] * diff[0] + diff[1] * diff[1] + diff[2] * diff[2]
-                                    < rad * rad + 2.0 * rad * epsilon + epsilon * epsilon
-                            })
-                            .is_none()
-                        {
-                            return Ok(None);
+                        // second possible action: paths fusion
+                        let mut ind_pa_he = None;
+                        if has_internal {
+                            for ind_pa in 0..mesh_paths_hedge.len() {
+                                for ind_he in 0..mesh_paths_hedge[ind_pa].len() {
+                                    if mesh_paths_hedge[ind_pa][ind_he] == ind_hedge_opp {
+                                        ind_pa_he = Some((ind_pa, ind_he));
+                                    }
+                                }
+                            }
                         }
+                        if let Some((ind_pa, ind_he)) = ind_pa_he {
+                            let mesh_path = mesh_paths_hedge.remove(ind_pa);
+                            for i in (ind_he + 1)..mesh_path.len() {
+                                mesh_path_hedge.push(mesh_path[i]);
+                            }
+                            for i in 0..ind_he {
+                                mesh_path_hedge.push(mesh_path[i]);
+                            }
+                            mesh_paths_hedge.push(mesh_path_hedge);
+                        } else {
+                            // third possible action: expand face
+                            let vert_test = hedge
+                                .next_halfedge()
+                                .unwrap()
+                                .last_vertex()
+                                .vertex()
+                                .transpose();
 
-                        let face = hedge.face().unwrap();
+                            if center_mat
+                                .row_iter()
+                                .zip(radius_mat.iter())
+                                .find(|(row, &rad)| {
+                                    let diff = row - vert_test;
+                                    diff[0] * diff[0] + diff[1] * diff[1] + diff[2] * diff[2]
+                                        < rad * rad + 2.0 * rad * epsilon + epsilon * epsilon
+                                })
+                                .is_none()
+                            {
+                                return Ok(None);
+                            }
 
-                        faces.push(face.ind());
-                        let hedge_rep1 =
-                            hedge.prev_halfedge().unwrap().opposite_halfedge().unwrap();
-                        let hedge_rep2 =
-                            hedge.next_halfedge().unwrap().opposite_halfedge().unwrap();
-                        mesh_path_edge.push(hedge_rep1.ind());
-                        mesh_path_edge.push(hedge_rep2.ind());
-                        mesh_paths_hedge.push(mesh_path_edge);
+                            let face = hedge.face().unwrap();
+
+                            faces.push(face.ind());
+                            let hedge_rep1 =
+                                hedge.prev_halfedge().unwrap().opposite_halfedge().unwrap();
+                            let hedge_rep2 =
+                                hedge.next_halfedge().unwrap().opposite_halfedge().unwrap();
+                            mesh_path_hedge.push(hedge_rep1.ind());
+                            mesh_path_hedge.push(hedge_rep2.ind());
+                            mesh_paths_hedge.push(mesh_path_hedge);
+                        }
                     }
                 }
             } else {
