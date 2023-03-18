@@ -65,17 +65,24 @@ impl SkeletonPath {
 
             self.opt_ind_pedge_last = Some(ind_pedge_next);
 
-            self.check_loop()
+            self.check_loop(&skeleton_interface)
         } else {
             Ok(State::Closed)
         }
     }
 
-    fn check_loop(&mut self) -> Result<State> {
+    fn check_loop(&mut self, skeleton_interface: &SkeletonInterface3D) -> Result<State> {
         if let Some(ind_pedge_last) = self.opt_ind_pedge_last {
             let part_first = self.components.first().unwrap();
             let looped = match part_first {
-                &PathPart::PartialNode(_) => todo!(),
+                &PathPart::PartialNode(ind_pnode) => {
+                    ind_pnode
+                        == skeleton_interface
+                            .get_partial_edge_uncheck(ind_pedge_last)
+                            .partial_node_first()
+                            .unwrap()
+                            .ind()
+                }
                 &PathPart::PartialEdge(ind_pedge) => ind_pedge == ind_pedge_last,
             };
 
@@ -121,7 +128,7 @@ impl SkeletonPath {
             }
             let ind_pedge_new = pedge_next.ind();
             self.opt_ind_pedge_last = Some(ind_pedge_new);
-            self.check_loop()
+            self.check_loop(skeleton_interface)
         } else {
             Ok(State::Closed)
         }
@@ -266,5 +273,51 @@ impl SkeletonPath {
             }
         }
         Ok(())
+    }
+
+    pub fn halfedges_path(&self, skeleton_interface: &SkeletonInterface3D) -> Result<Vec<usize>> {
+        let vec_bnd_path_vert = self.mesh_path(skeleton_interface);
+        let mut mesh_path_hedge = Vec::new();
+        for ind1 in 0..vec_bnd_path_vert.len() {
+            let ind2 = (ind1 + 1) % vec_bnd_path_vert.len();
+            let ind_vertex1 = vec_bnd_path_vert[ind1];
+            let ind_vertex2 = vec_bnd_path_vert[ind2];
+
+            let hedge = skeleton_interface
+                .get_mesh()
+                .is_edge_in(ind_vertex1, ind_vertex2)
+                .ok_or(anyhow::Error::msg("Part of the path not on the boundary"))?;
+            mesh_path_hedge.push(hedge.ind());
+        }
+        Ok(mesh_path_hedge)
+    }
+
+    pub fn alveolae_path(&self, skeleton_interface: &SkeletonInterface3D) -> Result<Vec<usize>> {
+        let mesh_path = self.mesh_path(skeleton_interface);
+        let mut palve_path = Vec::new();
+        for ind1 in 0..mesh_path.len() {
+            let ind2 = (ind1 + 1) % mesh_path.len();
+            let ind_vertex1 = mesh_path[ind1];
+            let ind_vertex2 = mesh_path[ind2];
+            let seg = if ind_vertex1 < ind_vertex2 {
+                [ind_vertex1, ind_vertex2]
+            } else {
+                [ind_vertex2, ind_vertex1]
+            };
+
+            let &ind_alveola = skeleton_interface
+                .del_seg
+                .get(&seg)
+                .ok_or(anyhow::Error::msg("Alveola not in skeleton"))?;
+            let alve = skeleton_interface.get_alveola_uncheck(ind_alveola);
+            let ind_palve = if alve.partial_alveolae()[0].corner() == ind_vertex1 {
+                alve.partial_alveolae()[0].ind()
+            } else {
+                alve.partial_alveolae()[1].ind()
+            };
+            palve_path.push(ind_palve);
+        }
+
+        Ok(palve_path)
     }
 }

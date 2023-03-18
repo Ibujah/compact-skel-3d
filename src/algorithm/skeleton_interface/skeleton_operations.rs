@@ -231,7 +231,7 @@ pub fn extract_skeleton_path<'a, 'b>(
     let pedge = skeleton_interface.get_partial_edge_uncheck(ind_pedge);
     if pedge.is_singular() {
         let mut skeleton_separation = SkeletonSeparation::new(skeleton_interface, ind_pedge);
-        skeleton_separation.follow_external_path()?;
+        skeleton_separation.follow_separation()?;
         return Ok(Some(skeleton_separation));
     }
 

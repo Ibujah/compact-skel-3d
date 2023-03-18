@@ -6,6 +6,7 @@ use super::skeleton_path::SkeletonPath;
 pub struct SkeletonSeparation<'a, 'b> {
     skeleton_interface: &'b mut SkeletonInterface3D<'a>,
     external_path: SkeletonPath,
+    internal_path: Vec<SkeletonPath>,
 }
 
 impl<'a, 'b> SkeletonSeparation<'a, 'b> {
@@ -16,6 +17,7 @@ impl<'a, 'b> SkeletonSeparation<'a, 'b> {
         SkeletonSeparation {
             skeleton_interface,
             external_path: SkeletonPath::new(ind_pedge),
+            internal_path: Vec::new(),
         }
     }
 
@@ -23,9 +25,59 @@ impl<'a, 'b> SkeletonSeparation<'a, 'b> {
         self.skeleton_interface
     }
 
-    pub fn follow_external_path(&mut self) -> Result<()> {
+    fn follow_external_path(&mut self) -> Result<()> {
         self.external_path
             .follow_singular_path(&mut self.skeleton_interface)
+    }
+
+    fn internal_partial_edges(&self) -> Vec<usize> {
+        let vec_pedges_ext = self.external_path.ind_partial_edges();
+        let mut vec_pedges_int = Vec::new();
+        for &ind_pedge in vec_pedges_ext.iter() {
+            let ind_pedge_opp = self
+                .skeleton_interface
+                .get_partial_edge_uncheck(ind_pedge)
+                .partial_edge_opposite()
+                .ind();
+            if vec_pedges_ext
+                .iter()
+                .find(|&&ind| ind == ind_pedge_opp)
+                .is_none()
+            {
+                vec_pedges_int.push(ind_pedge_opp);
+            }
+        }
+        vec_pedges_int.sort();
+        vec_pedges_int.dedup();
+        vec_pedges_int
+    }
+
+    fn follow_internal_paths(&mut self) -> Result<()> {
+        let mut vec_internal_pedges = self.internal_partial_edges();
+        loop {
+            if let Some(ind_pedge) = vec_internal_pedges.pop() {
+                let mut skeleton_path_int = SkeletonPath::new(ind_pedge);
+                skeleton_path_int.follow_singular_path(&mut self.skeleton_interface)?;
+                for &ind_pedge_new in skeleton_path_int.ind_partial_edges().iter() {
+                    if let Some(pos) = vec_internal_pedges
+                        .iter()
+                        .position(|&ind| ind == ind_pedge_new)
+                    {
+                        vec_internal_pedges.remove(pos);
+                    }
+                }
+                self.internal_path.push(skeleton_path_int);
+            } else {
+                break;
+            }
+        }
+        Ok(())
+    }
+
+    pub fn follow_separation(&mut self) -> Result<()> {
+        self.follow_external_path()?;
+        self.follow_internal_paths()?;
+        Ok(())
     }
 
     pub fn closable_path(&self) -> Result<bool> {
@@ -33,22 +85,12 @@ impl<'a, 'b> SkeletonSeparation<'a, 'b> {
     }
 
     pub fn collect_mesh_faces_index(&self, epsilon: f32) -> Result<Option<Vec<usize>>> {
-        let vec_bnd_path_vert = self.external_path.mesh_path(&self.skeleton_interface);
         let (center_mat, radius_mat) =
             self.external_path.basis_spheres(&self.skeleton_interface)?;
-        let mut mesh_path_hedge = Vec::new();
-        for ind1 in 0..vec_bnd_path_vert.len() {
-            let ind2 = (ind1 + 1) % vec_bnd_path_vert.len();
-            let ind_vertex1 = vec_bnd_path_vert[ind1];
-            let ind_vertex2 = vec_bnd_path_vert[ind2];
 
-            let hedge = self
-                .skeleton_interface
-                .get_mesh()
-                .is_edge_in(ind_vertex1, ind_vertex2)
-                .ok_or(anyhow::Error::msg("Part of the path not on the boundary"))?;
-            mesh_path_hedge.push(hedge.ind());
-        }
+        let mesh_path_hedge = self
+            .external_path
+            .halfedges_path(&self.skeleton_interface)?;
 
         let mut mesh_paths_hedge = vec![mesh_path_hedge];
         let mut faces = Vec::new();
@@ -128,31 +170,7 @@ impl<'a, 'b> SkeletonSeparation<'a, 'b> {
     }
 
     pub fn collect_closing_faces(&self) -> Result<Option<Vec<[usize; 3]>>> {
-        let mesh_path = self.external_path.mesh_path(&self.skeleton_interface);
-        let mut palve_path = Vec::new();
-        for ind1 in 0..mesh_path.len() {
-            let ind2 = (ind1 + 1) % mesh_path.len();
-            let ind_vertex1 = mesh_path[ind1];
-            let ind_vertex2 = mesh_path[ind2];
-            let seg = if ind_vertex1 < ind_vertex2 {
-                [ind_vertex1, ind_vertex2]
-            } else {
-                [ind_vertex2, ind_vertex1]
-            };
-
-            let &ind_alveola = self
-                .skeleton_interface
-                .del_seg
-                .get(&seg)
-                .ok_or(anyhow::Error::msg("Alveola not in skeleton"))?;
-            let alve = self.skeleton_interface.get_alveola_uncheck(ind_alveola);
-            let ind_palve = if alve.partial_alveolae()[0].corner() == ind_vertex1 {
-                alve.partial_alveolae()[0].ind()
-            } else {
-                alve.partial_alveolae()[1].ind()
-            };
-            palve_path.push(ind_palve);
-        }
+        let palve_path = self.external_path.alveolae_path(&self.skeleton_interface)?;
 
         let mut palve_paths = vec![palve_path];
         let mut faces = Vec::new();
