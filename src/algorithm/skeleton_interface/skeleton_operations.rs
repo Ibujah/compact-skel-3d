@@ -3,7 +3,9 @@ use nalgebra::base::*;
 use rand::Rng;
 use std::collections::HashMap;
 
-use crate::algorithm::skeleton_interface::{skeleton_path::SkeletonPath, SkeletonInterface3D};
+use crate::algorithm::skeleton_interface::{
+    skeleton_separation::SkeletonSeparation, SkeletonInterface3D,
+};
 
 pub fn first_node_in(skeleton_interface: &mut SkeletonInterface3D) -> Result<usize> {
     let mut rng = rand::thread_rng();
@@ -201,21 +203,6 @@ pub fn compute_sheet(
     Ok(())
 }
 
-fn follow_singular_path(skeleton_path: &mut SkeletonPath) -> Result<()> {
-    loop {
-        if let Some(pedge) = skeleton_path.last_partial_edge() {
-            if pedge.is_singular() {
-                skeleton_path.append_last()?;
-            } else {
-                skeleton_path.rotate_last()?;
-            }
-        } else {
-            break;
-        }
-    }
-    Ok(())
-}
-
 pub fn outer_partial_edges(
     skeleton_interface: &SkeletonInterface3D,
     current_sheet: &Vec<usize>,
@@ -240,12 +227,12 @@ pub fn outer_partial_edges(
 pub fn extract_skeleton_path<'a, 'b>(
     skeleton_interface: &'b mut SkeletonInterface3D<'a>,
     ind_pedge: usize,
-) -> Result<Option<SkeletonPath<'a, 'b>>> {
+) -> Result<Option<SkeletonSeparation<'a, 'b>>> {
     let pedge = skeleton_interface.get_partial_edge_uncheck(ind_pedge);
     if pedge.is_singular() {
-        let mut skeleton_path = SkeletonPath::new(skeleton_interface, ind_pedge);
-        follow_singular_path(&mut skeleton_path)?;
-        return Ok(Some(skeleton_path));
+        let mut skeleton_separation = SkeletonSeparation::new(skeleton_interface, ind_pedge);
+        skeleton_separation.follow_external_path()?;
+        return Ok(Some(skeleton_separation));
     }
 
     Ok(None)
