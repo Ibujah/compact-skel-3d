@@ -55,6 +55,15 @@ fn loop_skeletonization(
     println!("Propagating first sheet");
     skeleton_operations::compute_sheet(skeleton_interface, ind_first_alveola, label)?;
     let current_sheet = skeleton_interface.get_sheet(label);
+    for &ind_alveola in current_sheet.iter() {
+        if skeleton_interface.get_alveola(ind_alveola)?.is_full() {
+            skeleton_operations::include_alveola_in_skel(
+                skeleton_interface,
+                ind_alveola,
+                Some(label),
+            )?;
+        }
+    }
     let mut vec_pedges =
         skeleton_operations::outer_partial_edges(&skeleton_interface, &current_sheet);
     vec_pedges.sort();
