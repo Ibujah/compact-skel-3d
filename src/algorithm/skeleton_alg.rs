@@ -141,6 +141,17 @@ fn loop_skeletonization(
                                         // }
                                     }
                                 }
+                                // else {
+                                //     let debug_meshes = skeleton_operations::create_debug_meshes(
+                                //         &skeleton_separation,
+                                //         &mesh_faces,
+                                //         &Vec::new(),
+                                //     )?;
+                                //     for mesh in debug_meshes {
+                                //         skeleton_interface.add_debug_mesh(&mesh);
+                                //     }
+                                //     return Err(anyhow::Error::msg("Could not find closing faces"));
+                                // }
                             }
                         }
                     }

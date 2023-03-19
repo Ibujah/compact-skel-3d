@@ -202,7 +202,8 @@ impl<'a, 'b> SkeletonSeparation<'a, 'b> {
                 break;
             }
             if faces.len() > self.skeleton_interface.get_mesh().get_nb_faces() * 2 {
-                return Err(anyhow::Error::msg("Too much faces collected somehow"));
+                return Ok(None);
+                // return Err(anyhow::Error::msg("Too much faces collected somehow"));
             }
         }
 
