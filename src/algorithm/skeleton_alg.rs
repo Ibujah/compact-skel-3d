@@ -151,7 +151,7 @@ fn loop_skeletonization(
 pub fn sheet_skeletonization(
     mesh: &mut ManifoldMesh3D,
     opt_epsilon: Option<f32>,
-) -> Result<(Skeleton3D, GenericMesh3D)> {
+) -> Result<(Skeleton3D, Vec<GenericMesh3D>)> {
     println!("Init skeleton interface");
     let mut skeleton_interface = SkeletonInterface3D::init(mesh)?;
     skeleton_interface.check()?;
@@ -162,6 +162,6 @@ pub fn sheet_skeletonization(
 
     Ok((
         skeleton_interface.get_skeleton().clone(),
-        skeleton_interface.get_debug_mesh().clone(),
+        skeleton_interface.get_debug_meshes().clone(),
     ))
 }

@@ -9,8 +9,7 @@ use crate::skeleton3d::Skeleton3D;
 pub struct SkeletonInterface3D<'a> {
     pub(super) mesh: &'a mut ManifoldMesh3D,
     pub(super) skeleton: Skeleton3D,
-    pub(super) closing_mesh: GenericMesh3D,
-    pub(super) debug_mesh: GenericMesh3D,
+    pub(super) debug_meshes: Vec<GenericMesh3D>,
 
     // existing delaunay: neighbor information
     pub(super) faces: HashMap<[usize; 3], Vec<[usize; 4]>>,
@@ -118,8 +117,7 @@ impl<'a, 'b> SkeletonInterface3D<'a> {
             Ok(SkeletonInterface3D {
                 mesh,
                 skeleton: Skeleton3D::new(),
-                closing_mesh,
-                debug_mesh: GenericMesh3D::new(),
+                debug_meshes: Vec::new(),
                 faces,
                 del_tet: HashMap::new(),
                 del_tri: HashMap::new(),
@@ -501,12 +499,8 @@ impl<'a, 'b> SkeletonInterface3D<'a> {
         self.mesh
     }
 
-    pub fn get_closing_mesh(&self) -> &GenericMesh3D {
-        &self.closing_mesh
-    }
-
-    pub fn get_debug_mesh(&self) -> &GenericMesh3D {
-        &self.debug_mesh
+    pub fn get_debug_meshes(&self) -> &Vec<GenericMesh3D> {
+        &self.debug_meshes
     }
 
     // pub(super) fn close_edge(&mut self, ind_vertex1: usize, ind_vertex2: usize) -> Result<()> {
@@ -1099,11 +1093,6 @@ impl<'a, 'b> IterEdge<'a, 'b> {
             .mesh
             .is_face_in(tri[0], tri[1], tri[2])
             .is_none()
-            && self
-                .skeleton_interface
-                .closing_mesh
-                .is_face_in(tri[0], tri[1], tri[2])
-                .is_none()
     }
 
     pub fn degree(&self) -> usize {
@@ -1202,11 +1191,6 @@ impl<'a, 'b> IterAlveola<'a, 'b> {
             .mesh
             .is_edge_in(seg[0], seg[1])
             .is_none()
-            && self
-                .skeleton_interface
-                .closing_mesh
-                .is_edge_in(seg[0], seg[1])
-                .is_none()
     }
 
     pub fn partial_alveolae(&self) -> [IterPartialAlveola<'a, 'b>; 2] {

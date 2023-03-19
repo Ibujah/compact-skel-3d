@@ -1,5 +1,6 @@
 use crate::algorithm::skeleton_interface::SkeletonInterface3D;
 use anyhow::Result;
+use std::collections::HashSet;
 
 use super::skeleton_path::SkeletonPath;
 
@@ -81,8 +82,8 @@ impl<'a, 'b> SkeletonSeparation<'a, 'b> {
     }
 
     pub fn closable_path(&self) -> Result<bool> {
-        self.external_path.closable_path(&self.skeleton_interface)
-        //Ok(true)
+        // self.external_path.closable_path(&self.skeleton_interface)
+        Ok(true)
     }
 
     pub fn collect_mesh_faces_index(&self, epsilon: f32) -> Result<Option<Vec<usize>>> {
@@ -201,9 +202,18 @@ impl<'a, 'b> SkeletonSeparation<'a, 'b> {
     }
 
     pub fn collect_closing_faces(&self) -> Result<Option<Vec<[usize; 3]>>> {
-        let palve_path = self.external_path.alveolae_path(&self.skeleton_interface)?;
+        let mut palve_paths = {
+            let palve_path = self.external_path.alveolae_path(&self.skeleton_interface)?;
+            vec![palve_path]
+        };
+        let mut fixed_internal = HashSet::new();
+        for internal_path in self.internal_paths.iter() {
+            let palve_internal = internal_path.alveolae_path(&self.skeleton_interface)?;
+            for ind_palve in palve_internal {
+                fixed_internal.insert(ind_palve);
+            }
+        }
 
-        let mut palve_paths = vec![palve_path];
         let mut faces = Vec::new();
         loop {
             // println!("new iter");
@@ -230,8 +240,13 @@ impl<'a, 'b> SkeletonSeparation<'a, 'b> {
                 }
                 let nb_palve = palve_path.len();
                 let mut operation_done = false;
+                let mut all_fixed = true;
                 for ind in 0..nb_palve {
                     let ind_palve = palve_path[ind];
+                    if fixed_internal.contains(&ind) {
+                        continue;
+                    }
+                    all_fixed = false;
 
                     let palve = self
                         .skeleton_interface
@@ -254,6 +269,9 @@ impl<'a, 'b> SkeletonSeparation<'a, 'b> {
                         operation_done = true;
                         break;
                     }
+                }
+                if all_fixed {
+                    operation_done = true
                 }
                 if !operation_done {
                     for ind in 0..nb_palve {
