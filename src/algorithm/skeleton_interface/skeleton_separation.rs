@@ -26,6 +26,14 @@ impl<'a, 'b> SkeletonSeparation<'a, 'b> {
         self.skeleton_interface
     }
 
+    pub fn external_path(&self) -> &SkeletonPath {
+        &self.external_path
+    }
+
+    pub fn internal_paths(&self) -> &Vec<SkeletonPath> {
+        &self.internal_paths
+    }
+
     fn follow_external_path(&mut self) -> Result<()> {
         self.external_path
             .follow_singular_path(&mut self.skeleton_interface)
@@ -82,8 +90,8 @@ impl<'a, 'b> SkeletonSeparation<'a, 'b> {
     }
 
     pub fn closable_path(&self) -> Result<bool> {
-        // self.external_path.closable_path(&self.skeleton_interface)
-        Ok(true)
+        self.external_path.closable_path(&self.skeleton_interface)
+        // Ok(true)
     }
 
     pub fn collect_mesh_faces_index(&self, epsilon: f32) -> Result<Option<Vec<usize>>> {

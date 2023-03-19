@@ -46,6 +46,10 @@ impl SkeletonPath {
         path
     }
 
+    pub fn components(&self) -> &Vec<PathPart> {
+        &self.components
+    }
+
     pub fn append_last(&mut self, skeleton_interface: &mut SkeletonInterface3D) -> Result<State> {
         if let Some(ind_pedge_last) = self.opt_ind_pedge_last {
             let edge = skeleton_interface
