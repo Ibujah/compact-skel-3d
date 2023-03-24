@@ -2,8 +2,9 @@ use anyhow::Result;
 use nalgebra::base::*;
 use std::collections::HashSet;
 
+use super::movable_delaunay_path::MovableDelaunayPath;
+use super::skeleton_interface::SkeletonInterface3D;
 use super::skeleton_path::SkeletonPath;
-use crate::algorithm::skeleton_interface::SkeletonInterface3D;
 
 pub struct SkeletonSeparation<'a, 'b> {
     skeleton_interface: &'b mut SkeletonInterface3D<'a>,
@@ -668,18 +669,6 @@ pub fn collect_closing_faces(
     skeleton_separation: &SkeletonSeparation,
     removed_faces: &Vec<usize>,
 ) -> Result<Option<Vec<[usize; 3]>>> {
-    let mut palve_paths_external = {
-        let palve_path_external = skeleton_separation
-            .external_path
-            .alveolae_path(&skeleton_separation.skeleton_interface)?;
-        vec![palve_path_external]
-    };
-    let mut palve_paths_internal = Vec::new();
-    for internal_path in skeleton_separation.internal_paths.iter() {
-        let palve_path_internal =
-            internal_path.alveolae_path(&skeleton_separation.skeleton_interface)?;
-        palve_paths_internal.push(palve_path_internal);
-    }
     let mut unfaced_hedges = HashSet::new();
     for &ind_fac in removed_faces {
         let fac = skeleton_separation
@@ -691,7 +680,28 @@ pub fn collect_closing_faces(
         unfaced_hedges.insert(hedg1.halfedge());
         unfaced_hedges.insert(hedg2.halfedge());
     }
-    let mut faces = Vec::new();
+
+    let mut palve_paths_external = {
+        let ind_palves = skeleton_separation
+            .external_path
+            .alveolae_path(&skeleton_separation.skeleton_interface)?;
+        vec![MovableDelaunayPath::create(
+            skeleton_separation.skeleton_interface(),
+            ind_palves,
+            &unfaced_hedges,
+        )?]
+    };
+    let mut palve_paths_internal = Vec::new();
+    for internal_path in skeleton_separation.internal_paths.iter() {
+        let ind_palves = internal_path.alveolae_path(&skeleton_separation.skeleton_interface)?;
+        palve_paths_internal.push(MovableDelaunayPath::create(
+            skeleton_separation.skeleton_interface(),
+            ind_palves,
+            &unfaced_hedges,
+        )?);
+    }
+
+    let mut closing_faces = Vec::new();
     loop {
         // println!("new iter");
         // for path in palve_paths.iter() {
@@ -711,150 +721,111 @@ pub fn collect_closing_faces(
         // }
         // println!("");
 
-        if let Some(palve_path) = palve_paths_external.pop() {
-            if palve_path.is_empty() {
+        if let Some(mut palve_path) = palve_paths_external.pop() {
+            if palve_path.closed() {
                 continue;
             }
-            let nb_palve = palve_path.len();
-            let mut operation_done = false;
-            let mut all_fixed = true;
-            for ind in 0..nb_palve {
-                let ind_palve = palve_path[ind];
-                if palve_paths_internal.contains(&ind) {
-                    continue;
-                }
-                all_fixed = false;
-
-                let palve = skeleton_separation
+            if closing_faces.len()
+                > skeleton_separation
                     .skeleton_interface
-                    .get_partial_alveola_uncheck(ind_palve);
-                let seg = palve.alveola().delaunay_segment();
-                let seg = if seg[0] == palve.corner() {
-                    seg
-                } else {
-                    [seg[1], seg[0]]
-                };
-                if unfaced_hedges.contains(&seg) {
-                    continue;
-                }
-
-                let ind_palve_opp = palve.partial_alveola_opposite().ind();
-                let opt_position = palve_path
-                    .iter()
-                    .position(|&ind_alve| ind_alve == ind_palve_opp);
-                if let Some(position) = opt_position {
-                    let mut path1 = Vec::new();
-                    let mut path2 = Vec::new();
-                    let (ind_min, ind_max) = if ind < position {
-                        (ind, position)
-                    } else {
-                        (position, ind)
-                    };
-                    for i in 0..nb_palve {
-                        if i < ind_min || i > ind_max {
-                            path1.push(palve_path[i]);
-                        }
-                        if i > ind_min && i < ind_max {
-                            path2.push(palve_path[i]);
-                        }
-                    }
-                    palve_paths_external.push(path1);
-                    palve_paths_external.push(path2);
-                    operation_done = true;
-                    break;
-                }
-            }
-            if all_fixed {
-                operation_done = true
-            }
-            if !operation_done {
-                for ind in 0..nb_palve {
-                    let ind_palve = palve_path[ind];
-
-                    let palve = skeleton_separation
-                        .skeleton_interface
-                        .get_partial_alveola_uncheck(ind_palve);
-                    let ind_prev = (ind - 1 + nb_palve) % nb_palve;
-                    let ind_palve_prev = palve_path[ind_prev];
-                    let palve_prev = skeleton_separation
-                        .skeleton_interface
-                        .get_partial_alveola_uncheck(ind_palve_prev);
-                    let ind_vertex = palve_prev.corner();
-                    for pedge in palve.partial_edges() {
-                        if !pedge.edge().is_full() {
-                            continue;
-                        }
-                        let tri = pedge.edge().delaunay_triangle();
-                        if tri.contains(&ind_vertex) {
-                            let seg = palve.alveola().delaunay_segment();
-                            if ind_vertex == seg[0] || ind_vertex == seg[1] {
-                                continue;
-                            }
-                            let seg = if seg[0] == palve.corner() {
-                                seg
-                            } else {
-                                [seg[1], seg[0]]
-                            };
-                            let mut tri = [seg[0], seg[1], ind_vertex];
-                            tri.sort();
-                            faces.push([seg[0], seg[1], ind_vertex]);
-
-                            let seg2 = if seg[1] < ind_vertex {
-                                [seg[1], ind_vertex]
-                            } else {
-                                [ind_vertex, seg[1]]
-                            };
-                            let &ind_alveola2 = skeleton_separation
-                                .skeleton_interface
-                                .del_seg
-                                .get(&seg2)
-                                .ok_or(anyhow::Error::msg(format!(
-                                    "Partial alveola ({}, {}) not in skeleton",
-                                    seg2[0], seg2[1]
-                                )))?;
-                            let alve2 = skeleton_separation
-                                .skeleton_interface
-                                .get_alveola_uncheck(ind_alveola2);
-                            let ind_palve2 = if alve2.partial_alveolae()[0].corner() == ind_vertex {
-                                alve2.partial_alveolae()[0].ind()
-                            } else {
-                                alve2.partial_alveolae()[1].ind()
-                            };
-                            let mut palve_path_new = Vec::new();
-                            for i in 0..palve_path.len() {
-                                if i != ind && i != ind_prev {
-                                    palve_path_new.push(palve_path[i]);
-                                }
-                                if i == ind {
-                                    palve_path_new.push(ind_palve2);
-                                }
-                            }
-                            palve_paths_external.push(palve_path_new);
-
-                            operation_done = true;
-                            break;
-                        }
-                    }
-                    if operation_done {
-                        break;
-                    }
-                }
+                    .get_mesh()
+                    .get_nb_faces()
+            {
+                return Err(anyhow::Error::msg("Too much faces collected somehow"));
             }
 
-            if !operation_done {
+            if let Some(couple) = palve_path.get_couple_to_fusion() {
+                let mut paths_res = palve_path.fusion_couple(couple)?;
+                palve_paths_external.append(&mut paths_res);
+                continue;
+            } else if let Some(ind_exp) = palve_path.get_ind_to_expand() {
+                palve_path.expand_ind(ind_exp, &mut closing_faces)?;
+                palve_paths_external.push(palve_path);
+                continue;
+            } else {
                 return Ok(None);
             }
         } else {
             break;
         }
-        if faces.len()
-            > skeleton_separation
-                .skeleton_interface
-                .get_mesh()
-                .get_nb_faces()
-        {
-            return Err(anyhow::Error::msg("Too much faces collected somehow"));
+    }
+    Ok(Some(closing_faces))
+}
+
+pub fn collectable_closing_faces(
+    skeleton_separation: &SkeletonSeparation,
+    removed_faces: &Vec<usize>,
+) -> Result<Vec<[usize; 3]>> {
+    let mut unfaced_hedges = HashSet::new();
+    for &ind_fac in removed_faces {
+        let fac = skeleton_separation
+            .skeleton_interface
+            .get_mesh()
+            .get_face(ind_fac)?;
+        let [hedg0, hedg1, hedg2] = fac.halfedges();
+        unfaced_hedges.insert(hedg0.halfedge());
+        unfaced_hedges.insert(hedg1.halfedge());
+        unfaced_hedges.insert(hedg2.halfedge());
+    }
+
+    let mut palve_paths_external = {
+        let ind_palves = skeleton_separation
+            .external_path
+            .alveolae_path(&skeleton_separation.skeleton_interface)?;
+        vec![MovableDelaunayPath::create(
+            skeleton_separation.skeleton_interface(),
+            ind_palves,
+            &unfaced_hedges,
+        )?]
+    };
+    let mut palve_paths_internal = Vec::new();
+    for internal_path in skeleton_separation.internal_paths.iter() {
+        let ind_palves = internal_path.alveolae_path(&skeleton_separation.skeleton_interface)?;
+        palve_paths_internal.push(MovableDelaunayPath::create(
+            skeleton_separation.skeleton_interface(),
+            ind_palves,
+            &unfaced_hedges,
+        )?);
+    }
+
+    let mut closing_faces = Vec::new();
+    loop {
+        println!("new iter");
+        for path in palve_paths_external.iter() {
+            path.print();
+            println!("");
+        }
+        println!("");
+
+        if let Some(mut palve_path) = palve_paths_external.pop() {
+            if palve_path.closed() {
+                continue;
+            }
+            if closing_faces.len()
+                > skeleton_separation
+                    .skeleton_interface
+                    .get_mesh()
+                    .get_nb_faces()
+            {
+                return Ok(closing_faces);
+            }
+
+            if let Some(couple) = palve_path.get_couple_to_fusion() {
+                println!("fusion");
+                let mut paths_res = palve_path.fusion_couple(couple)?;
+                palve_paths_external.append(&mut paths_res);
+                continue;
+            } else if let Some(ind_exp) = palve_path.get_ind_to_expand() {
+                println!("expand");
+                palve_path.expand_ind(ind_exp, &mut closing_faces)?;
+                palve_paths_external.push(palve_path);
+                continue;
+            } else {
+                return Ok(closing_faces);
+            }
+        } else {
+            break;
         }
     }
-    Ok(Some(faces))
+    Ok(closing_faces)
 }

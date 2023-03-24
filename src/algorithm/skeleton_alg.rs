@@ -107,7 +107,10 @@ fn loop_skeletonization(
                                 epsilon,
                             )? {
                                 if let Some(closing_faces) =
-                                    skeleton_separation.collect_closing_faces(&mesh_faces)?
+                                    skeleton_separation::collect_closing_faces(
+                                        &skeleton_separation,
+                                        &mesh_faces,
+                                    )?
                                 {
                                     if !mesh_faces.is_empty() && !closing_faces.is_empty() {
                                         // let debug_meshes = skeleton_operations::create_debug_meshes(
@@ -143,40 +146,45 @@ fn loop_skeletonization(
                                         //     return Err(anyhow::Error::msg(err_msg));
                                         // }
                                     }
-                                } else if cpt_loop > 3 {
-                                    let closing_faces = skeleton_separation
-                                        .collectable_closing_faces(&mesh_faces)?;
-                                    let debug_meshes = skeleton_operations::create_debug_meshes(
-                                        &skeleton_separation,
-                                        &mesh_faces,
-                                        &closing_faces,
-                                    )?;
-                                    for mesh in debug_meshes {
-                                        skeleton_interface.add_debug_mesh(&mesh);
-                                    }
-                                    let ind_alveola = skeleton_interface
-                                        .get_partial_edge(ind_pedge)?
-                                        .partial_alveola()
-                                        .alveola()
-                                        .ind();
-                                    skeleton_operations::compute_sheet(
-                                        skeleton_interface,
-                                        ind_alveola,
-                                        label,
-                                    )?;
-                                    let current_sheet = skeleton_interface.get_sheet(label);
-
-                                    for &ind_alveola in current_sheet.iter() {
-                                        if skeleton_interface.get_alveola(ind_alveola)?.is_full() {
-                                            skeleton_operations::include_alveola_in_skel(
-                                                skeleton_interface,
-                                                ind_alveola,
-                                                Some(label),
-                                            )?;
-                                        }
-                                    }
-                                    return Err(anyhow::Error::msg("Could not find closing faces"));
                                 }
+                                // else if skeleton_separation.internal_paths().len() == 0 {
+                                //     //  if cpt_loop > 3
+                                //     let closing_faces =
+                                //         skeleton_separation::collectable_closing_faces(
+                                //             &skeleton_separation,
+                                //             &mesh_faces,
+                                //         )?;
+                                //     let debug_meshes = skeleton_operations::create_debug_meshes(
+                                //         &skeleton_separation,
+                                //         &mesh_faces,
+                                //         &closing_faces,
+                                //     )?;
+                                //     for mesh in debug_meshes {
+                                //         skeleton_interface.add_debug_mesh(&mesh);
+                                //     }
+                                //     let ind_alveola = skeleton_interface
+                                //         .get_partial_edge(ind_pedge)?
+                                //         .partial_alveola()
+                                //         .alveola()
+                                //         .ind();
+                                //     skeleton_operations::compute_sheet(
+                                //         skeleton_interface,
+                                //         ind_alveola,
+                                //         label,
+                                //     )?;
+                                //     let current_sheet = skeleton_interface.get_sheet(label);
+
+                                //     for &ind_alveola in current_sheet.iter() {
+                                //         if skeleton_interface.get_alveola(ind_alveola)?.is_full() {
+                                //             skeleton_operations::include_alveola_in_skel(
+                                //                 skeleton_interface,
+                                //                 ind_alveola,
+                                //                 Some(label),
+                                //             )?;
+                                //         }
+                                //     }
+                                //     return Err(anyhow::Error::msg("Could not find closing faces"));
+                                // }
                             }
                         }
                     }
