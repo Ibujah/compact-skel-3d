@@ -3,7 +3,10 @@ use nalgebra::base::*;
 use rand::Rng;
 use std::collections::HashMap;
 
-use crate::algorithm::skeleton_interface::{skeleton_path::SkeletonPath, SkeletonInterface3D};
+use crate::algorithm::skeleton_interface::{
+    skeleton_path::PathPart, skeleton_separation::SkeletonSeparation, SkeletonInterface3D,
+};
+use crate::mesh3d::GenericMesh3D;
 
 pub fn first_node_in(skeleton_interface: &mut SkeletonInterface3D) -> Result<usize> {
     let mut rng = rand::thread_rng();
@@ -201,21 +204,6 @@ pub fn compute_sheet(
     Ok(())
 }
 
-fn follow_singular_path(skeleton_path: &mut SkeletonPath) -> Result<()> {
-    loop {
-        if let Some(pedge) = skeleton_path.last_partial_edge() {
-            if pedge.is_singular() {
-                skeleton_path.append_last()?;
-            } else {
-                skeleton_path.rotate_last()?;
-            }
-        } else {
-            break;
-        }
-    }
-    Ok(())
-}
-
 pub fn outer_partial_edges(
     skeleton_interface: &SkeletonInterface3D,
     current_sheet: &Vec<usize>,
@@ -240,12 +228,12 @@ pub fn outer_partial_edges(
 pub fn extract_skeleton_path<'a, 'b>(
     skeleton_interface: &'b mut SkeletonInterface3D<'a>,
     ind_pedge: usize,
-) -> Result<Option<SkeletonPath<'a, 'b>>> {
+) -> Result<Option<SkeletonSeparation<'a, 'b>>> {
     let pedge = skeleton_interface.get_partial_edge_uncheck(ind_pedge);
     if pedge.is_singular() {
-        let mut skeleton_path = SkeletonPath::new(skeleton_interface, ind_pedge);
-        follow_singular_path(&mut skeleton_path)?;
-        return Ok(Some(skeleton_path));
+        let mut skeleton_separation = SkeletonSeparation::new(skeleton_interface, ind_pedge);
+        skeleton_separation.follow_separation()?;
+        return Ok(Some(skeleton_separation));
     }
 
     Ok(None)
@@ -278,4 +266,198 @@ pub fn try_remove_and_add<'a, 'b>(
         }
     }
     Ok(true)
+}
+
+pub fn create_debug_meshes<'a, 'b>(
+    skeleton_separation: &SkeletonSeparation<'a, 'b>,
+    vec_rem_faces: &Vec<usize>,
+    vec_add_faces: &Vec<[usize; 3]>,
+) -> Result<Vec<GenericMesh3D>> {
+    let mut debug_meshes = Vec::new();
+    let mut debug_rem = GenericMesh3D::new();
+    for &ind_face in vec_rem_faces {
+        let [ind_v1, ind_v2, ind_v3] = skeleton_separation
+            .skeleton_interface()
+            .get_mesh()
+            .get_face_vertices(ind_face)
+            .unwrap();
+        let pt1 = skeleton_separation
+            .skeleton_interface()
+            .get_mesh()
+            .get_vertex(ind_v1)?
+            .vertex();
+        let pt2 = skeleton_separation
+            .skeleton_interface()
+            .get_mesh()
+            .get_vertex(ind_v2)?
+            .vertex();
+        let pt3 = skeleton_separation
+            .skeleton_interface()
+            .get_mesh()
+            .get_vertex(ind_v3)?
+            .vertex();
+        let i1 = debug_rem.add_vertex(&pt1);
+        let i2 = debug_rem.add_vertex(&pt2);
+        let i3 = debug_rem.add_vertex(&pt3);
+        debug_rem.add_face(i1, i2, i3)?;
+    }
+    debug_meshes.push(debug_rem);
+    let mut debug_add = GenericMesh3D::new();
+    for &[ind_v1, ind_v2, ind_v3] in vec_add_faces {
+        let pt1 = skeleton_separation
+            .skeleton_interface()
+            .get_mesh()
+            .get_vertex(ind_v1)?
+            .vertex();
+        let pt2 = skeleton_separation
+            .skeleton_interface()
+            .get_mesh()
+            .get_vertex(ind_v2)?
+            .vertex();
+        let pt3 = skeleton_separation
+            .skeleton_interface()
+            .get_mesh()
+            .get_vertex(ind_v3)?
+            .vertex();
+        let i1 = debug_add.add_vertex(&pt1);
+        let i2 = debug_add.add_vertex(&pt2);
+        let i3 = debug_add.add_vertex(&pt3);
+        debug_add.add_face(i1, i2, i3)?;
+    }
+    debug_meshes.push(debug_add);
+
+    let mut debug_path_ext = GenericMesh3D::new();
+    for ind1 in 0..skeleton_separation.external_path().components().len() {
+        let ind2 = (ind1 + 1) % skeleton_separation.external_path().components().len();
+        match (
+            skeleton_separation.external_path().components()[ind1],
+            skeleton_separation.external_path().components()[ind2],
+        ) {
+            (PathPart::PartialNode(ind_pnode1), PathPart::PartialNode(ind_pnode2)) => {
+                let corner1 = skeleton_separation
+                    .skeleton_interface()
+                    .get_partial_node_uncheck(ind_pnode1)
+                    .corner();
+                let corner2 = skeleton_separation
+                    .skeleton_interface()
+                    .get_partial_node_uncheck(ind_pnode2)
+                    .corner();
+                if corner1 != corner2 {
+                    let (center, _) = skeleton_separation
+                        .skeleton_interface()
+                        .get_partial_node_uncheck(ind_pnode1)
+                        .node()
+                        .center_and_radius()?;
+                    let pt1 = skeleton_separation
+                        .skeleton_interface()
+                        .get_mesh()
+                        .get_vertex(corner1)?
+                        .vertex();
+                    let pt2 = skeleton_separation
+                        .skeleton_interface()
+                        .get_mesh()
+                        .get_vertex(corner2)?
+                        .vertex();
+                    let i1 = debug_path_ext.add_vertex(&pt1);
+                    let i2 = debug_path_ext.add_vertex(&pt2);
+                    let i3 = debug_path_ext.add_vertex(&center);
+                    debug_path_ext.add_face(i1, i2, i3)?;
+                }
+            }
+            (PathPart::PartialEdge(ind_pedge), _) => {
+                let pedge = skeleton_separation
+                    .skeleton_interface()
+                    .get_partial_edge_uncheck(ind_pedge);
+                let corner = skeleton_separation
+                    .skeleton_interface()
+                    .get_mesh()
+                    .get_vertex(pedge.corner())?
+                    .vertex();
+                let (ctr1, _) = pedge
+                    .partial_node_first()
+                    .unwrap()
+                    .node()
+                    .center_and_radius()?;
+                let (ctr2, _) = pedge
+                    .partial_node_last()
+                    .unwrap()
+                    .node()
+                    .center_and_radius()?;
+                let i1 = debug_path_ext.add_vertex(&ctr1);
+                let i2 = debug_path_ext.add_vertex(&ctr2);
+                let i3 = debug_path_ext.add_vertex(&corner);
+                debug_path_ext.add_face(i1, i2, i3)?;
+            }
+            (_, _) => (),
+        }
+    }
+    debug_meshes.push(debug_path_ext);
+
+    for path_int in skeleton_separation.internal_paths() {
+        let mut debug_path_int = GenericMesh3D::new();
+        for ind1 in 0..path_int.components().len() {
+            let ind2 = (ind1 + 1) % path_int.components().len();
+            match (path_int.components()[ind1], path_int.components()[ind2]) {
+                (PathPart::PartialNode(ind_pnode1), PathPart::PartialNode(ind_pnode2)) => {
+                    let corner1 = skeleton_separation
+                        .skeleton_interface()
+                        .get_partial_node_uncheck(ind_pnode1)
+                        .corner();
+                    let corner2 = skeleton_separation
+                        .skeleton_interface()
+                        .get_partial_node_uncheck(ind_pnode2)
+                        .corner();
+                    if corner1 != corner2 {
+                        let (center, _) = skeleton_separation
+                            .skeleton_interface()
+                            .get_partial_node_uncheck(ind_pnode1)
+                            .node()
+                            .center_and_radius()?;
+                        let pt1 = skeleton_separation
+                            .skeleton_interface()
+                            .get_mesh()
+                            .get_vertex(corner1)?
+                            .vertex();
+                        let pt2 = skeleton_separation
+                            .skeleton_interface()
+                            .get_mesh()
+                            .get_vertex(corner2)?
+                            .vertex();
+                        let i1 = debug_path_int.add_vertex(&pt1);
+                        let i2 = debug_path_int.add_vertex(&pt2);
+                        let i3 = debug_path_int.add_vertex(&center);
+                        debug_path_int.add_face(i1, i2, i3)?;
+                    }
+                }
+                (PathPart::PartialEdge(ind_pedge), _) => {
+                    let pedge = skeleton_separation
+                        .skeleton_interface()
+                        .get_partial_edge_uncheck(ind_pedge);
+                    let corner = skeleton_separation
+                        .skeleton_interface()
+                        .get_mesh()
+                        .get_vertex(pedge.corner())?
+                        .vertex();
+                    let (ctr1, _) = pedge
+                        .partial_node_first()
+                        .unwrap()
+                        .node()
+                        .center_and_radius()?;
+                    let (ctr2, _) = pedge
+                        .partial_node_last()
+                        .unwrap()
+                        .node()
+                        .center_and_radius()?;
+                    let i1 = debug_path_int.add_vertex(&ctr1);
+                    let i2 = debug_path_int.add_vertex(&ctr2);
+                    let i3 = debug_path_int.add_vertex(&corner);
+                    debug_path_int.add_face(i1, i2, i3)?;
+                }
+                (_, _) => (),
+            }
+        }
+        debug_meshes.push(debug_path_int);
+    }
+
+    Ok(debug_meshes)
 }

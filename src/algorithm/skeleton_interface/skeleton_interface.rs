@@ -1,7 +1,9 @@
 use anyhow::Result;
+use nalgebra::base::*;
 use std::collections::HashMap;
 
 use crate::algorithm::delaunay_interface::DelaunayInterface;
+use crate::geometry::geometry_operations;
 use crate::mesh3d::GenericMesh3D;
 use crate::mesh3d::ManifoldMesh3D;
 use crate::skeleton3d::Skeleton3D;
@@ -9,8 +11,7 @@ use crate::skeleton3d::Skeleton3D;
 pub struct SkeletonInterface3D<'a> {
     pub(super) mesh: &'a mut ManifoldMesh3D,
     pub(super) skeleton: Skeleton3D,
-    pub(super) closing_mesh: GenericMesh3D,
-    pub(super) debug_mesh: GenericMesh3D,
+    pub(super) debug_meshes: Vec<GenericMesh3D>,
 
     // existing delaunay: neighbor information
     pub(super) faces: HashMap<[usize; 3], Vec<[usize; 4]>>,
@@ -118,8 +119,7 @@ impl<'a, 'b> SkeletonInterface3D<'a> {
             Ok(SkeletonInterface3D {
                 mesh,
                 skeleton: Skeleton3D::new(),
-                closing_mesh,
-                debug_mesh: GenericMesh3D::new(),
+                debug_meshes: Vec::new(),
                 faces,
                 del_tet: HashMap::new(),
                 del_tri: HashMap::new(),
@@ -151,6 +151,13 @@ impl<'a, 'b> SkeletonInterface3D<'a> {
                 palve_pedge: Vec::new(),
                 palve_opp: Vec::new(),
             })
+        }
+    }
+
+    pub fn reinit_skeleton(&mut self) -> () {
+        self.skeleton = Skeleton3D::new();
+        for lab in self.alve_label.iter_mut() {
+            *lab = None;
         }
     }
 
@@ -501,12 +508,12 @@ impl<'a, 'b> SkeletonInterface3D<'a> {
         self.mesh
     }
 
-    pub fn get_closing_mesh(&self) -> &GenericMesh3D {
-        &self.closing_mesh
+    pub fn get_debug_meshes(&self) -> &Vec<GenericMesh3D> {
+        &self.debug_meshes
     }
 
-    pub fn get_debug_mesh(&self) -> &GenericMesh3D {
-        &self.debug_mesh
+    pub fn add_debug_mesh(&mut self, mesh: &GenericMesh3D) -> () {
+        self.debug_meshes.push(mesh.clone());
     }
 
     // pub(super) fn close_edge(&mut self, ind_vertex1: usize, ind_vertex2: usize) -> Result<()> {
@@ -1020,6 +1027,25 @@ impl<'a, 'b> IterNode<'a, 'b> {
         self.skeleton_interface.node_tet[self.ind_node]
     }
 
+    pub fn center_and_radius(&self) -> Result<(Vector3<f32>, f32)> {
+        let tet_vert: Vec<Vector3<f32>> = self
+            .delaunay_tetrahedron()
+            .iter()
+            .map(|&ind| {
+                self.skeleton_interface
+                    .get_mesh()
+                    .get_vertex(ind)
+                    .unwrap()
+                    .vertex()
+            })
+            .collect();
+        geometry_operations::center_and_radius(
+            [tet_vert[0], tet_vert[1], tet_vert[2], tet_vert[3]],
+            None,
+        )
+        .ok_or(anyhow::Error::msg("No center and radius found"))
+    }
+
     pub fn partial_nodes(&self) -> [IterPartialNode<'a, 'b>; 4] {
         [
             IterPartialNode {
@@ -1099,11 +1125,6 @@ impl<'a, 'b> IterEdge<'a, 'b> {
             .mesh
             .is_face_in(tri[0], tri[1], tri[2])
             .is_none()
-            && self
-                .skeleton_interface
-                .closing_mesh
-                .is_face_in(tri[0], tri[1], tri[2])
-                .is_none()
     }
 
     pub fn degree(&self) -> usize {
@@ -1202,11 +1223,6 @@ impl<'a, 'b> IterAlveola<'a, 'b> {
             .mesh
             .is_edge_in(seg[0], seg[1])
             .is_none()
-            && self
-                .skeleton_interface
-                .closing_mesh
-                .is_edge_in(seg[0], seg[1])
-                .is_none()
     }
 
     pub fn partial_alveolae(&self) -> [IterPartialAlveola<'a, 'b>; 2] {
