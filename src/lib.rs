@@ -1,5 +1,3 @@
-#![warn(missing_docs)]
-
 /// Skeleton and Mesh algorithms
 pub mod algorithm;
 /// Geometric operations
