@@ -14,14 +14,14 @@ pub enum State {
     Closed,
 }
 
-pub struct SkeletonPath {
+pub struct SkeletonSingularPath {
     components: Vec<PathPart>,
     opt_ind_pedge_last: Option<usize>,
 }
 
-impl SkeletonPath {
-    pub fn new(ind_pedge: usize) -> SkeletonPath {
-        SkeletonPath {
+impl SkeletonSingularPath {
+    pub fn new(ind_pedge: usize) -> SkeletonSingularPath {
+        SkeletonSingularPath {
             components: Vec::new(),
             opt_ind_pedge_last: Some(ind_pedge),
         }

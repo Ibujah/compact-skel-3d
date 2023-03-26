@@ -5,7 +5,7 @@ use std::collections::{HashMap, HashSet};
 
 use crate::mesh3d::GenericMesh3D;
 
-use super::skeleton_path::PathPart;
+use super::skeleton_singular_path::PathPart;
 use super::MovableDelaunayPath;
 use super::SkeletonInterface3D;
 use super::SkeletonSeparation;
