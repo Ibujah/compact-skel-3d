@@ -1,4 +1,6 @@
+/// Delaunay mesh algorihm
 pub mod delaunay_alg;
-pub mod delaunay_interface;
+/// Skeleton algorithm
 pub mod skeleton_alg;
-pub mod skeleton_interface;
+/// Sub operations used in algorithms
+pub mod sub_algorithms;

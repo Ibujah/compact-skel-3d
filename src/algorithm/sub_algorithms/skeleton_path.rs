@@ -1,8 +1,7 @@
 use anyhow::Result;
-use nalgebra::{MatrixXx1, MatrixXx3, Vector3};
+use nalgebra::*;
 
-use super::skeleton_interface::{IterPartialEdge, SkeletonInterface3D};
-use crate::geometry::geometry_operations;
+use super::SkeletonInterface3D;
 
 #[derive(Copy, Clone)]
 pub enum PathPart {
@@ -150,17 +149,6 @@ impl SkeletonPath {
         self.opt_ind_pedge_last
     }
 
-    pub fn last_partial_edge<'a, 'b>(
-        &self,
-        skeleton_interface: &'b SkeletonInterface3D<'a>,
-    ) -> Option<IterPartialEdge<'a, 'b>> {
-        if let Some(ind_pedge_last) = self.opt_ind_pedge_last {
-            Some(skeleton_interface.get_partial_edge_uncheck(ind_pedge_last))
-        } else {
-            None
-        }
-    }
-
     pub fn ind_partial_edges(&self) -> Vec<usize> {
         self.components
             .iter()
@@ -233,7 +221,7 @@ impl SkeletonPath {
         nodes
     }
 
-    pub fn basis_spheres(
+    pub fn basis_spheres_matrices(
         &self,
         skeleton_interface: &SkeletonInterface3D,
     ) -> Result<(MatrixXx3<f32>, MatrixXx1<f32>)> {
@@ -243,23 +231,10 @@ impl SkeletonPath {
 
         for i in 0..ind_nodes.len() {
             let ind_node = ind_nodes[i];
-            let tet_vert: Vec<Vector3<f32>> = skeleton_interface
+            let (center, radius) = skeleton_interface
                 .get_node_uncheck(ind_node)
-                .delaunay_tetrahedron()
-                .iter()
-                .map(|&ind| {
-                    skeleton_interface
-                        .get_mesh()
-                        .get_vertex(ind)
-                        .unwrap()
-                        .vertex()
-                })
-                .collect();
-            let (center, radius) = geometry_operations::center_and_radius(
-                [tet_vert[0], tet_vert[1], tet_vert[2], tet_vert[3]],
-                None,
-            )
-            .ok_or(anyhow::Error::msg("Could not find sphere center"))?;
+                .center_and_radius()?;
+
             center_mat[(i, 0)] = center[0];
             center_mat[(i, 1)] = center[1];
             center_mat[(i, 2)] = center[2];
@@ -274,7 +249,8 @@ impl SkeletonPath {
         skeleton_interface: &mut SkeletonInterface3D,
     ) -> Result<()> {
         loop {
-            if let Some(pedge) = self.last_partial_edge(skeleton_interface) {
+            if let Some(ind_pedge_last) = self.ind_last_partial_edge() {
+                let pedge = skeleton_interface.get_partial_edge_uncheck(ind_pedge_last);
                 if pedge.is_singular() {
                     self.append_last(skeleton_interface)?;
                 } else {

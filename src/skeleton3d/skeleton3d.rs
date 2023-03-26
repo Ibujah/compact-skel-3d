@@ -5,12 +5,16 @@ use std::collections::HashMap;
 use crate::geometry::geometry_operations;
 
 #[derive(Copy, Clone)]
+/// Sphere
 pub struct Sphere {
+    /// Sphere center
     pub center: Vector3<f32>,
+    /// sphere radius
     pub radius: f32,
 }
 
 #[derive(Clone)]
+/// 3D Skeleton structure
 pub struct Skeleton3D {
     pub(super) nodes: HashMap<usize, Sphere>,
     pub(super) edges: HashMap<usize, [usize; 2]>, // connects two nodes
@@ -20,6 +24,7 @@ pub struct Skeleton3D {
 }
 
 impl Skeleton3D {
+    /// Skeleton 3D constructor
     pub fn new() -> Skeleton3D {
         Skeleton3D {
             nodes: HashMap::new(),
@@ -29,6 +34,7 @@ impl Skeleton3D {
         }
     }
 
+    /// Adds a node to the skeleton
     pub fn add_node(&mut self, ind_node: usize, boundary_points: [Vector3<f32>; 4]) -> Result<()> {
         if !self.nodes.contains_key(&ind_node) {
             let (center, radius) = geometry_operations::center_and_radius(boundary_points, None)
@@ -39,12 +45,14 @@ impl Skeleton3D {
         Ok(())
     }
 
+    /// Adds an edge to the skeleton
     pub fn add_edge(&mut self, ind_edge: usize, ind_nodes: [usize; 2]) -> () {
         if !self.edges.contains_key(&ind_edge) {
             self.edges.insert(ind_edge, ind_nodes);
         }
     }
 
+    /// Adds an alveola to the skeleton
     pub fn add_alveola(&mut self, ind_alveola: usize, ind_nodes: Vec<usize>) -> () {
         if !self.alveolae.contains_key(&ind_alveola) {
             self.alveolae.insert(ind_alveola, ind_nodes);
@@ -52,6 +60,7 @@ impl Skeleton3D {
         }
     }
 
+    /// Assignate a label to a given alveola
     pub fn set_label(&mut self, ind_alveola: usize, label: usize) -> Option<usize> {
         if let Some(l) = self.labels.get_mut(&ind_alveola) {
             let prev = *l;

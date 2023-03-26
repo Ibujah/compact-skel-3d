@@ -1,11 +1,15 @@
 use anyhow::Result;
 use nalgebra::base::*;
 
+/// Mesh vertex
 pub type Vertex = Vector3<f32>;
+/// Mesh edge
 pub type Edge = [usize; 2];
+/// Mesh face (array of vertex indices)
 pub type Face = [usize; 3];
 
 #[derive(Clone)]
+/// Generic non manifold Mesh
 pub struct GenericMesh3D {
     pub(super) vertices: Vec<Vertex>,
     pub(super) edges: Vec<Edge>,
@@ -16,6 +20,7 @@ pub struct GenericMesh3D {
 }
 
 impl GenericMesh3D {
+    /// Generic mesh constructor
     pub fn new() -> GenericMesh3D {
         GenericMesh3D {
             vertices: Vec::new(),
@@ -27,6 +32,7 @@ impl GenericMesh3D {
         }
     }
 
+    /// Adds a vertex to the mesh
     pub fn add_vertex(&mut self, point: &Vector3<f32>) -> usize {
         self.vertices.push(*point);
         self.map_vert_edg.push(Vec::new());
@@ -37,6 +43,7 @@ impl GenericMesh3D {
         self.vertices[ind_vertex]
     }
 
+    /// Vertex getter
     pub fn get_vertex(&self, ind_vertex: usize) -> Result<Vertex> {
         if ind_vertex >= self.vertices.len() {
             return Err(anyhow::Error::msg("get_vertex(): Index out of bounds"));
@@ -45,10 +52,12 @@ impl GenericMesh3D {
         Ok(self.get_vertex_uncheck(ind_vertex))
     }
 
+    /// Gets number of vertices
     pub fn get_nb_vertices(&self) -> usize {
         self.vertices.len()
     }
 
+    /// Adds an edge to the mesh
     pub fn add_edge(&mut self, ind_vertex1: usize, ind_vertex2: usize) -> Result<usize> {
         let edge = if ind_vertex1 < ind_vertex2 {
             [ind_vertex1, ind_vertex2]
@@ -86,6 +95,7 @@ impl GenericMesh3D {
         self.edges[ind_edge]
     }
 
+    /// Edge getter
     pub fn get_edge(&self, ind_edge: usize) -> Result<Edge> {
         if ind_edge >= self.edges.len() {
             return Err(anyhow::Error::msg("get_edge(): Index out of bounds"));
@@ -93,10 +103,12 @@ impl GenericMesh3D {
         Ok(self.get_edge_uncheck(ind_edge))
     }
 
+    /// Get number of edges
     pub fn get_nb_edges(&self) -> usize {
         self.edges.len()
     }
 
+    /// Adds a face to the mesh
     pub fn add_face(
         &mut self,
         ind_vertex1: usize,
@@ -135,6 +147,7 @@ impl GenericMesh3D {
         self.faces[ind_face]
     }
 
+    /// Face getter
     pub fn get_face(&self, ind_face: usize) -> Result<Face> {
         if ind_face >= self.faces.len() {
             return Err(anyhow::Error::msg("get_face(): Index out of bounds"));
@@ -142,10 +155,14 @@ impl GenericMesh3D {
         Ok(self.get_face_uncheck(ind_face))
     }
 
+    /// Gets number of faces
     pub fn get_nb_faces(&self) -> usize {
         self.faces.len()
     }
 
+    /// Checks if an edge is in the mesh
+    ///
+    /// Returns edge index if found
     pub fn is_edge_in(&self, ind_vertex1: usize, ind_vertex2: usize) -> Option<usize> {
         let edge = if ind_vertex1 < ind_vertex2 {
             [ind_vertex1, ind_vertex2]
@@ -166,6 +183,9 @@ impl GenericMesh3D {
         None
     }
 
+    /// Checks if a face is in the mesh
+    ///
+    /// Returns face index if found
     pub fn is_face_in(
         &self,
         ind_vertex1: usize,

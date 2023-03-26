@@ -2,11 +2,12 @@ use anyhow::Result;
 use nalgebra::base::*;
 use std::collections::HashMap;
 
-use crate::algorithm::delaunay_interface::DelaunayInterface;
 use crate::geometry::geometry_operations;
 use crate::mesh3d::GenericMesh3D;
 use crate::mesh3d::ManifoldMesh3D;
 use crate::skeleton3d::Skeleton3D;
+
+use super::DelaunayInterface;
 
 pub struct SkeletonInterface3D<'a> {
     pub(super) mesh: &'a mut ManifoldMesh3D,
@@ -515,22 +516,6 @@ impl<'a, 'b> SkeletonInterface3D<'a> {
     pub fn add_debug_mesh(&mut self, mesh: &GenericMesh3D) -> () {
         self.debug_meshes.push(mesh.clone());
     }
-
-    // pub(super) fn close_edge(&mut self, ind_vertex1: usize, ind_vertex2: usize) -> Result<()> {
-    //     self.closing_mesh.add_edge(ind_vertex1, ind_vertex2)?;
-    //     Ok(())
-    // }
-
-    // pub(super) fn close_face(
-    //     &mut self,
-    //     ind_vertex1: usize,
-    //     ind_vertex2: usize,
-    //     ind_vertex3: usize,
-    // ) -> Result<()> {
-    //     self.closing_mesh
-    //         .add_face(ind_vertex1, ind_vertex2, ind_vertex3)?;
-    //     Ok(())
-    // }
 
     pub fn get_tetrahedra_from_triangle(&self, del_tri: [usize; 3]) -> Result<Vec<[usize; 4]>> {
         let vec = self

@@ -1,8 +1,9 @@
 use anyhow::Result;
 use std::collections::HashSet;
 
-use crate::algorithm::delaunay_interface::DelaunayInterface;
 use crate::mesh3d::{manifold_mesh3d, ManifoldMesh3D};
+
+use super::sub_algorithms::DelaunayInterface;
 
 fn extract_physical_edges(
     mesh: &ManifoldMesh3D,
@@ -109,6 +110,7 @@ fn compute_face_split_vertex(face: manifold_mesh3d::IterFace) -> Result<manifold
     Ok((vert1.vertex() + vert2.vertex() + vert3.vertex()) / 3.0)
 }
 
+/// Modifies a manifold mesh to convert it into Delaunay mesh
 pub fn to_delaunay(mesh: &mut ManifoldMesh3D, ang_max: Option<f32>) -> Result<()> {
     let mut deltet = DelaunayInterface::from_mesh(mesh)?;
 
