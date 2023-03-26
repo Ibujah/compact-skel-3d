@@ -1148,6 +1148,22 @@ impl<'a, 'b> IterEdge<'a, 'b> {
         self.degree() >= 3
     }
 
+    pub fn is_non_manifold(&self) -> bool {
+        let [alve1, alve2, alve3] = self.alveolae();
+        let opt_lab1 = alve1.label();
+        let opt_lab2 = alve2.label();
+        let opt_lab3 = alve3.label();
+        if let [Some(lab1), Some(lab2), Some(lab3)] = [opt_lab1, opt_lab2, opt_lab3] {
+            if lab1 == lab2 && lab1 == lab3 {
+                if alve1.is_full() && alve2.is_full() && alve3.is_full() {
+                    return true;
+                }
+            }
+        }
+
+        false
+    }
+
     pub fn alveolae(&self) -> [IterAlveola<'a, 'b>; 3] {
         [
             IterAlveola {
