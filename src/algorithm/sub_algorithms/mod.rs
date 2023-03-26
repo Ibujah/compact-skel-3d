@@ -3,6 +3,8 @@ pub mod skeleton_operations;
 
 mod delaunay_interface;
 mod movable_delaunay_path;
+mod path_part;
+mod skeleton_boundary_path;
 mod skeleton_interface;
 mod skeleton_separation;
 mod skeleton_singular_path;

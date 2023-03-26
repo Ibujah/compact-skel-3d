@@ -1,13 +1,8 @@
 use anyhow::Result;
 use nalgebra::*;
 
+use super::path_part::PathPart;
 use super::SkeletonInterface3D;
-
-#[derive(Copy, Clone)]
-pub enum PathPart {
-    PartialNode(usize),
-    PartialEdge(usize),
-}
 
 pub enum State {
     Computing,
@@ -20,11 +15,30 @@ pub struct SkeletonSingularPath {
 }
 
 impl SkeletonSingularPath {
-    pub fn new(ind_pedge: usize) -> SkeletonSingularPath {
-        SkeletonSingularPath {
-            components: Vec::new(),
-            opt_ind_pedge_last: Some(ind_pedge),
+    pub fn create(
+        ind_pedge: usize,
+        skeleton_interface: &mut SkeletonInterface3D,
+    ) -> Result<SkeletonSingularPath> {
+        let pedge = skeleton_interface.get_partial_edge_uncheck(ind_pedge);
+        if !pedge.is_singular() {
+            return Err(anyhow::Error::msg("Partial edge should be singular"));
         }
+        let edge = pedge.edge();
+        if !edge.is_computed() {
+            let ind_edge = edge.ind();
+            skeleton_interface.propagate_edge(ind_edge)?;
+        }
+
+        let ind_pedge_next = skeleton_interface
+            .get_partial_edge_uncheck(ind_pedge)
+            .partial_edge_next()
+            .unwrap()
+            .ind();
+
+        Ok(SkeletonSingularPath {
+            components: vec![PathPart::PartialEdge(ind_pedge)],
+            opt_ind_pedge_last: Some(ind_pedge_next),
+        })
     }
 
     pub fn mesh_path(&self, skeleton_interface: &SkeletonInterface3D) -> Vec<usize> {

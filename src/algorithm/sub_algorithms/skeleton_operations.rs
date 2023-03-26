@@ -5,7 +5,7 @@ use std::collections::{HashMap, HashSet};
 
 use crate::mesh3d::GenericMesh3D;
 
-use super::skeleton_singular_path::PathPart;
+use super::path_part::PathPart;
 use super::MovableDelaunayPath;
 use super::SkeletonInterface3D;
 use super::SkeletonSeparation;
@@ -240,7 +240,7 @@ pub fn extract_skeleton_separation<'a, 'b>(
 ) -> Result<Option<SkeletonSeparation<'a, 'b>>> {
     let pedge = skeleton_interface.get_partial_edge_uncheck(ind_pedge);
     if pedge.is_singular() {
-        let mut skeleton_separation = SkeletonSeparation::new(skeleton_interface, ind_pedge);
+        let mut skeleton_separation = SkeletonSeparation::create(skeleton_interface, ind_pedge)?;
         skeleton_separation.follow_separation()?;
         return Ok(Some(skeleton_separation));
     }
