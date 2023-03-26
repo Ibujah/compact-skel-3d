@@ -1,11 +1,13 @@
-use crate::algorithm::skeleton_interface::{
-    skeleton_operations, skeleton_separation, SkeletonInterface3D,
-};
+use anyhow::Result;
+
 use crate::mesh3d::GenericMesh3D;
 use crate::mesh3d::ManifoldMesh3D;
 use crate::skeleton3d::Skeleton3D;
-use anyhow::Result;
 
+use super::sub_algorithms::skeleton_operations;
+use super::sub_algorithms::SkeletonInterface3D;
+
+/// Computes the full skeletonization of a delaunay mesh
 pub fn full_skeletonization(mesh: &mut ManifoldMesh3D) -> Result<Skeleton3D> {
     println!("Init skeleton interface");
     let mut skeleton_interface = SkeletonInterface3D::init(mesh)?;
@@ -97,17 +99,17 @@ fn loop_skeletonization(
                     continue;
                 }
                 if let Some(skeleton_separation) =
-                    skeleton_operations::extract_skeleton_path(skeleton_interface, ind_pedge)?
+                    skeleton_operations::extract_skeleton_separation(skeleton_interface, ind_pedge)?
                 {
                     let mut removed = false;
                     if let Some(epsilon) = opt_epsilon {
                         if skeleton_separation.closable_path()? {
-                            if let Some(mesh_faces) = skeleton_separation::collect_mesh_faces_index(
+                            if let Some(mesh_faces) = skeleton_operations::collect_mesh_faces_index(
                                 &skeleton_separation,
                                 epsilon,
                             )? {
                                 if let Some(closing_faces) =
-                                    skeleton_separation::collect_closing_faces(
+                                    skeleton_operations::collect_closing_faces(
                                         &skeleton_separation,
                                         &mesh_faces,
                                     )?
@@ -179,6 +181,7 @@ fn loop_skeletonization(
     Ok(())
 }
 
+/// Computes the sheet based skeletonization of a delaunay mesh
 pub fn sheet_skeletonization(
     mesh: &mut ManifoldMesh3D,
     opt_epsilon: Option<f32>,

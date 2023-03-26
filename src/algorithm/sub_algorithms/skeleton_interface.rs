@@ -2,12 +2,14 @@ use anyhow::Result;
 use nalgebra::base::*;
 use std::collections::HashMap;
 
-use crate::algorithm::delaunay_interface::DelaunayInterface;
 use crate::geometry::geometry_operations;
 use crate::mesh3d::GenericMesh3D;
 use crate::mesh3d::ManifoldMesh3D;
 use crate::skeleton3d::Skeleton3D;
 
+use super::DelaunayInterface;
+
+/// Skeleton interface structure
 pub struct SkeletonInterface3D<'a> {
     pub(super) mesh: &'a mut ManifoldMesh3D,
     pub(super) skeleton: Skeleton3D,
@@ -97,6 +99,7 @@ pub struct IterPartialAlveola<'a, 'b> {
 }
 
 impl<'a, 'b> SkeletonInterface3D<'a> {
+    /// Skeleton interface initialisation from Delaunay mesh
     pub fn init(mesh: &'a mut ManifoldMesh3D) -> Result<SkeletonInterface3D<'a>> {
         let deltet = DelaunayInterface::from_mesh(mesh)?;
         let nb_non_del_hedges = deltet.count_non_del_halfedges()?;
@@ -154,6 +157,7 @@ impl<'a, 'b> SkeletonInterface3D<'a> {
         }
     }
 
+    /// Final skeleton reinitialisation
     pub fn reinit_skeleton(&mut self) -> () {
         self.skeleton = Skeleton3D::new();
         for lab in self.alve_label.iter_mut() {
@@ -161,6 +165,7 @@ impl<'a, 'b> SkeletonInterface3D<'a> {
         }
     }
 
+    /// Adds a skeletal node
     pub fn add_node(&'b mut self, del_tet: &[usize; 4]) -> Result<IterNode<'a, 'b>> {
         if let Some(&ind_node) = self.del_tet.get(del_tet) {
             return Ok(IterNode {
@@ -446,6 +451,7 @@ impl<'a, 'b> SkeletonInterface3D<'a> {
         }
     }
 
+    /// Node getter
     pub fn get_node(&'b self, ind_node: usize) -> Result<IterNode<'a, 'b>> {
         if ind_node >= self.node_tet.len() {
             return Err(anyhow::Error::msg("Node index out of bounds"));
@@ -453,6 +459,7 @@ impl<'a, 'b> SkeletonInterface3D<'a> {
         Ok(self.get_node_uncheck(ind_node))
     }
 
+    /// Partial node getter
     pub fn get_partial_node(&'b self, ind_pnode: usize) -> Result<IterPartialNode<'a, 'b>> {
         if ind_pnode >= self.pnode_node.len() {
             return Err(anyhow::Error::msg("Partial node index out of bounds"));
@@ -460,6 +467,7 @@ impl<'a, 'b> SkeletonInterface3D<'a> {
         Ok(self.get_partial_node_uncheck(ind_pnode))
     }
 
+    /// Edge getter
     pub fn get_edge(&'b self, ind_edge: usize) -> Result<IterEdge<'a, 'b>> {
         if ind_edge >= self.edge_tri.len() {
             return Err(anyhow::Error::msg("Edge index out of bounds"));
@@ -467,6 +475,7 @@ impl<'a, 'b> SkeletonInterface3D<'a> {
         Ok(self.get_edge_uncheck(ind_edge))
     }
 
+    /// Partial edge getter
     pub fn get_partial_edge(&'b self, ind_pedge: usize) -> Result<IterPartialEdge<'a, 'b>> {
         if ind_pedge >= self.pedge_edge.len() {
             return Err(anyhow::Error::msg("Partial edge index out of bounds"));
@@ -474,6 +483,7 @@ impl<'a, 'b> SkeletonInterface3D<'a> {
         Ok(self.get_partial_edge_uncheck(ind_pedge))
     }
 
+    /// Alveola getter
     pub fn get_alveola(&'b self, ind_alveola: usize) -> Result<IterAlveola<'a, 'b>> {
         if ind_alveola >= self.alve_seg.len() {
             return Err(anyhow::Error::msg("Alveola index out of bounds"));
@@ -481,6 +491,7 @@ impl<'a, 'b> SkeletonInterface3D<'a> {
         Ok(self.get_alveola_uncheck(ind_alveola))
     }
 
+    /// Partial alveola getter
     pub fn get_partial_alveola(
         &'b self,
         ind_palveola: usize,
@@ -491,6 +502,7 @@ impl<'a, 'b> SkeletonInterface3D<'a> {
         Ok(self.get_partial_alveola_uncheck(ind_palveola))
     }
 
+    /// Gets list of alveolae associated to a sheet label
     pub fn get_sheet(&self, label: usize) -> Vec<usize> {
         self.alve_label
             .iter()
@@ -500,38 +512,27 @@ impl<'a, 'b> SkeletonInterface3D<'a> {
             .collect()
     }
 
+    /// Skeleton getter
     pub fn get_skeleton(&self) -> &Skeleton3D {
         &self.skeleton
     }
 
+    /// Mesh getter
     pub fn get_mesh(&self) -> &ManifoldMesh3D {
         self.mesh
     }
 
+    /// Debug meshed getter
     pub fn get_debug_meshes(&self) -> &Vec<GenericMesh3D> {
         &self.debug_meshes
     }
 
+    /// Adds a debug mesh
     pub fn add_debug_mesh(&mut self, mesh: &GenericMesh3D) -> () {
         self.debug_meshes.push(mesh.clone());
     }
 
-    // pub(super) fn close_edge(&mut self, ind_vertex1: usize, ind_vertex2: usize) -> Result<()> {
-    //     self.closing_mesh.add_edge(ind_vertex1, ind_vertex2)?;
-    //     Ok(())
-    // }
-
-    // pub(super) fn close_face(
-    //     &mut self,
-    //     ind_vertex1: usize,
-    //     ind_vertex2: usize,
-    //     ind_vertex3: usize,
-    // ) -> Result<()> {
-    //     self.closing_mesh
-    //         .add_face(ind_vertex1, ind_vertex2, ind_vertex3)?;
-    //     Ok(())
-    // }
-
+    /// Gets neighboring tetrahedra of a triangle
     pub fn get_tetrahedra_from_triangle(&self, del_tri: [usize; 3]) -> Result<Vec<[usize; 4]>> {
         let vec = self
             .faces
@@ -816,6 +817,7 @@ impl<'a, 'b> SkeletonInterface3D<'a> {
         Ok(())
     }
 
+    /// Checks skelton interface integrity
     pub fn check(&self) -> Result<()> {
         for ind_node in 0..self.node_tet.len() {
             if let Err(e) = self.check_node(ind_node) {
@@ -844,6 +846,7 @@ impl<'a, 'b> SkeletonInterface3D<'a> {
         Ok(())
     }
 
+    /// Prints node information
     pub fn print_node(&self, ind_node: usize) -> () {
         let tet = self.node_tet[ind_node];
         let pnods = self.node_pnode[ind_node];
@@ -863,6 +866,7 @@ impl<'a, 'b> SkeletonInterface3D<'a> {
         );
     }
 
+    /// Prints edge information
     pub fn print_edge(&self, ind_edge: usize) -> () {
         let tri = self.edge_tri[ind_edge];
         let nods = self.edge_node[ind_edge];
@@ -893,6 +897,7 @@ impl<'a, 'b> SkeletonInterface3D<'a> {
         );
     }
 
+    /// Prints alveola information
     pub fn print_alveola(&self, ind_alve: usize) -> () {
         let seg = self.alve_seg[ind_alve];
         let edgs = self.alve_edge[ind_alve].iter();
@@ -907,6 +912,7 @@ impl<'a, 'b> SkeletonInterface3D<'a> {
         println!("  Partial alveolae: ({}, {})", palv[0], palv[1]);
     }
 
+    /// Prints partial node information
     pub fn print_partial_node(&self, ind_pnode: usize) -> () {
         let nod = self.pnode_node[ind_pnode];
         let corner = self.pnode_corner[ind_pnode];
@@ -926,6 +932,7 @@ impl<'a, 'b> SkeletonInterface3D<'a> {
         println!("");
     }
 
+    /// Prints partial edge information
     pub fn print_partial_edge(&self, ind_pedge: usize) -> () {
         let edg = self.pedge_edge[ind_pedge];
         let corner = self.pedge_corner[ind_pedge];
@@ -951,6 +958,7 @@ impl<'a, 'b> SkeletonInterface3D<'a> {
         println!("  Opposite partial edge: {}", popp);
     }
 
+    /// Prints all information
     pub fn print_all(&self) -> () {
         println!("Nodes");
         for ind_node in 0..self.node_tet.len() {
@@ -979,6 +987,7 @@ impl<'a, 'b> SkeletonInterface3D<'a> {
         println!("");
     }
 
+    /// Checks if some alveolae remains uncomputed
     pub fn fully_computed(&self) -> Result<bool> {
         for i in 0..self.alve_seg.len() {
             let alve = self.get_alveola_uncheck(i);
@@ -990,6 +999,7 @@ impl<'a, 'b> SkeletonInterface3D<'a> {
         Ok(true)
     }
 
+    /// Computes edge, adding new nodes if necessary
     pub fn propagate_edge(&mut self, ind_edge: usize) -> Result<()> {
         let del_tri = self.edge_tri[ind_edge];
         let del_tets = self.get_tetrahedra_from_triangle(del_tri)?;
@@ -999,6 +1009,7 @@ impl<'a, 'b> SkeletonInterface3D<'a> {
         Ok(())
     }
 
+    /// Propagates all edges surrounding an alveola
     pub fn compute_alveola(&mut self, ind_alveola: usize) -> Result<()> {
         let ind_pedge_first =
             self.get_alveola(ind_alveola)?.partial_alveolae()[0].partial_edges()[0].ind();

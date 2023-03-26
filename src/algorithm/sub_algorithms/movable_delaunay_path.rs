@@ -2,7 +2,7 @@ use anyhow::Result;
 use nalgebra::Vector3;
 use std::collections::HashSet;
 
-use super::skeleton_interface::SkeletonInterface3D;
+use super::SkeletonInterface3D;
 
 pub struct MovableDelaunayPath<'a, 'b> {
     skeleton_interface: &'b SkeletonInterface3D<'a>,

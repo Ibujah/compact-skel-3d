@@ -2,12 +2,15 @@ use anyhow::Result;
 use nalgebra::base::*;
 use std::collections::HashMap;
 
+/// Mesh vertex
 pub type Vertex = Vector3<f32>;
+/// Mesh halfedge
 pub type HalfEdge = [usize; 2];
+/// Mesh face (array of halfedges)
 pub type FaceHalfedges = [usize; 3];
-pub type FaceVertices = [usize; 3];
 
 #[derive(Clone)]
+/// Manifold mesh
 pub struct ManifoldMesh3D {
     pub(super) vertices: HashMap<usize, Vertex>,
     pub(super) halfedges: HashMap<usize, HalfEdge>,
@@ -24,24 +27,28 @@ pub struct ManifoldMesh3D {
 }
 
 #[derive(Copy, Clone)]
+/// Vertex iterator
 pub struct IterVertex<'a> {
     mesh: &'a ManifoldMesh3D,
     ind_vertex: usize,
 }
 
 #[derive(Copy, Clone)]
+/// Halfedge iterator
 pub struct IterHalfEdge<'a> {
     mesh: &'a ManifoldMesh3D,
     ind_halfedge: usize,
 }
 
 #[derive(Copy, Clone)]
+/// Face iterator
 pub struct IterFace<'a> {
     mesh: &'a ManifoldMesh3D,
     ind_face: usize,
 }
 
 impl ManifoldMesh3D {
+    /// Manifold mesh constructor
     pub fn new() -> ManifoldMesh3D {
         ManifoldMesh3D {
             vertices: HashMap::new(),
@@ -59,6 +66,7 @@ impl ManifoldMesh3D {
         }
     }
 
+    /// Adds a vertex to th mesh
     pub fn add_vertex(&mut self, point: &Vector3<f32>) -> usize {
         self.vertices.insert(self.last_ind_vert, *point);
         self.map_vert_hedg.insert(self.last_ind_vert, Vec::new());
@@ -73,6 +81,7 @@ impl ManifoldMesh3D {
         }
     }
 
+    /// Vertex getter
     pub fn get_vertex(&self, ind_vertex: usize) -> Result<IterVertex> {
         if !self.vertices.contains_key(&ind_vertex) {
             return Err(anyhow::Error::msg("get_vertex(): Index out of bounds"));
@@ -81,16 +90,19 @@ impl ManifoldMesh3D {
         Ok(self.get_vertex_uncheck(ind_vertex))
     }
 
+    /// Gets number of vertices
     pub fn get_nb_vertices(&self) -> usize {
         self.vertices.len()
     }
 
+    /// Gets list of vertex index
     pub fn vertex_indices(&self) -> Vec<usize> {
         let mut inds: Vec<usize> = self.vertices.iter().map(|(&ind, _)| ind).collect();
         inds.sort();
         inds
     }
 
+    /// Gets vertex map
     pub fn vertices(&self) -> &HashMap<usize, Vertex> {
         &self.vertices
     }
@@ -125,6 +137,7 @@ impl ManifoldMesh3D {
         }
     }
 
+    /// Halfedge getter
     pub fn get_halfedge(&self, ind_halfedge: usize) -> Result<IterHalfEdge> {
         if !self.halfedges.contains_key(&ind_halfedge) {
             return Err(anyhow::Error::msg("get_halfedge(): Index out of bounds"));
@@ -132,45 +145,17 @@ impl ManifoldMesh3D {
         Ok(self.get_halfedge_uncheck(ind_halfedge))
     }
 
+    /// Gets number of halfedges
     pub fn get_nb_halfedges(&self) -> usize {
         self.halfedges.len()
     }
 
+    /// Gets halfedge map
     pub fn halfedges(&self) -> &HashMap<usize, HalfEdge> {
         &self.halfedges
     }
 
-    // pub(super) fn fill_face(
-    //     &mut self,
-    //     ind_face: usize,
-    //     ind_halfedge1: usize,
-    //     ind_halfedge2: usize,
-    //     ind_halfedge3: usize,
-    //     ind_halfedge1_opp: usize,
-    //     ind_halfedge2_opp: usize,
-    //     ind_halfedge3_opp: usize,
-    // ) -> () {
-    //     self.map_hedg_face.insert(ind_halfedge1, ind_face);
-    //     self.map_hedg_face.insert(ind_halfedge2, ind_face);
-    //     self.map_hedg_face.insert(ind_halfedge3, ind_face);
-
-    //     self.map_hedg_next.insert(ind_halfedge1, ind_halfedge2);
-    //     self.map_hedg_next.insert(ind_halfedge2, ind_halfedge3);
-    //     self.map_hedg_next.insert(ind_halfedge3, ind_halfedge1);
-
-    //     self.map_hedg_prev.insert(ind_halfedge1, ind_halfedge3);
-    //     self.map_hedg_prev.insert(ind_halfedge2, ind_halfedge1);
-    //     self.map_hedg_prev.insert(ind_halfedge3, ind_halfedge2);
-
-    //     self.map_hedg_opp.insert(ind_halfedge1, ind_halfedge1_opp);
-    //     self.map_hedg_opp.insert(ind_halfedge2, ind_halfedge2_opp);
-    //     self.map_hedg_opp.insert(ind_halfedge3, ind_halfedge3_opp);
-
-    //     self.map_hedg_opp.insert(ind_halfedge1_opp, ind_halfedge1);
-    //     self.map_hedg_opp.insert(ind_halfedge2_opp, ind_halfedge2);
-    //     self.map_hedg_opp.insert(ind_halfedge3_opp, ind_halfedge3);
-    // }
-
+    /// Adds a face and associated halfedges
     pub fn add_face(
         &mut self,
         ind_vertex1: usize,
@@ -242,6 +227,7 @@ impl ManifoldMesh3D {
         Ok(self.last_ind_face - 1)
     }
 
+    /// Removes a face and associated halfedges
     pub fn remove_face(&mut self, ind_face: usize) -> Result<()> {
         let [ind_he1, ind_he2, ind_he3] = self
             .faces
@@ -297,6 +283,7 @@ impl ManifoldMesh3D {
         }
     }
 
+    /// Face getter
     pub fn get_face(&self, ind_face: usize) -> Result<IterFace> {
         if !self.faces.contains_key(&ind_face) {
             return Err(anyhow::Error::msg("get_face(): Index out of bounds"));
@@ -304,31 +291,19 @@ impl ManifoldMesh3D {
         Ok(self.get_face_uncheck(ind_face))
     }
 
+    /// gets number of faces
     pub fn get_nb_faces(&self) -> usize {
         self.faces.len()
     }
 
+    /// Gets face map
     pub fn faces(&self) -> &HashMap<usize, FaceHalfedges> {
         &self.faces
     }
 
-    pub fn get_face_vertices(&self, ind_face: usize) -> Result<FaceVertices> {
-        if !self.faces.contains_key(&ind_face) {
-            return Err(anyhow::Error::msg(
-                "get_face_vertices(): Index out of bounds",
-            ));
-        }
-
-        let &face_he = self.faces.get(&ind_face).unwrap();
-        let &he1 = self.halfedges.get(&face_he[0]).unwrap();
-        let &he2 = self.halfedges.get(&face_he[1]).unwrap();
-        let &he3 = self.halfedges.get(&face_he[2]).unwrap();
-
-        let face_v = [he1[0], he2[0], he3[0]];
-
-        Ok(face_v)
-    }
-
+    /// Checks if an edge is in the mesh
+    ///
+    /// Returns halfedge iterator if found
     pub fn is_edge_in(&self, ind_vertex1: usize, ind_vertex2: usize) -> Option<IterHalfEdge> {
         if !self.vertices.contains_key(&ind_vertex1) || !self.vertices.contains_key(&ind_vertex2) {
             return None;
@@ -343,6 +318,9 @@ impl ManifoldMesh3D {
         None
     }
 
+    /// Checks if a face is in the mesh
+    ///
+    /// Returns face iterator if found
     pub fn is_face_in(
         &self,
         ind_vertex1: usize,
@@ -483,6 +461,7 @@ impl ManifoldMesh3D {
         Ok(())
     }
 
+    /// Checks integrity of the mesh
     pub fn check_mesh(&self) -> Result<()> {
         for (&f, _) in self.faces.iter() {
             self.check_face(f)?;
@@ -501,14 +480,17 @@ impl ManifoldMesh3D {
 }
 
 impl<'a> IterVertex<'a> {
+    /// Gets vertex coordinates
     pub fn vertex(&self) -> Vertex {
         *self.mesh.vertices.get(&self.ind_vertex).unwrap()
     }
 
+    /// Gets vertex index
     pub fn ind(&self) -> usize {
         self.ind_vertex
     }
 
+    /// Gets list of halfedges starting at this vertex
     pub fn halfedges(&self) -> Vec<IterHalfEdge<'a>> {
         let vec_he = self
             .mesh
@@ -528,14 +510,17 @@ impl<'a> IterVertex<'a> {
 }
 
 impl<'a> IterHalfEdge<'a> {
+    /// Gets halfedge (array of vertex indices)
     pub fn halfedge(&self) -> HalfEdge {
         *self.mesh.halfedges.get(&self.ind_halfedge).unwrap()
     }
 
+    /// Gets halfedge index
     pub fn ind(&self) -> usize {
         self.ind_halfedge
     }
 
+    /// First vertex iterator
     pub fn first_vertex(&self) -> IterVertex<'a> {
         IterVertex {
             mesh: self.mesh,
@@ -543,6 +528,7 @@ impl<'a> IterHalfEdge<'a> {
         }
     }
 
+    /// Last vertex iterator
     pub fn last_vertex(&self) -> IterVertex<'a> {
         IterVertex {
             mesh: self.mesh,
@@ -550,6 +536,7 @@ impl<'a> IterHalfEdge<'a> {
         }
     }
 
+    /// Next halfedge on same face
     pub fn next_halfedge(&self) -> Option<IterHalfEdge<'a>> {
         if let Some(&ind_next) = self.mesh.map_hedg_next.get(&self.ind_halfedge) {
             Some(IterHalfEdge {
@@ -561,6 +548,7 @@ impl<'a> IterHalfEdge<'a> {
         }
     }
 
+    /// Previous halfedge on same face
     pub fn prev_halfedge(&self) -> Option<IterHalfEdge<'a>> {
         if let Some(&ind_prev) = self.mesh.map_hedg_prev.get(&self.ind_halfedge) {
             Some(IterHalfEdge {
@@ -572,6 +560,7 @@ impl<'a> IterHalfEdge<'a> {
         }
     }
 
+    /// Opposite halfedge: Same vertices in opposite order (on neighbor face)
     pub fn opposite_halfedge(&self) -> Option<IterHalfEdge<'a>> {
         if let Some(&ind_opp) = self.mesh.map_hedg_opp.get(&self.ind_halfedge) {
             Some(IterHalfEdge {
@@ -583,6 +572,7 @@ impl<'a> IterHalfEdge<'a> {
         }
     }
 
+    /// Face containing halfedge
     pub fn face(&self) -> Option<IterFace<'a>> {
         if let Some(&ind_face) = self.mesh.map_hedg_face.get(&self.ind_halfedge) {
             Some(IterFace {
@@ -596,10 +586,17 @@ impl<'a> IterHalfEdge<'a> {
 }
 
 impl<'a> IterFace<'a> {
+    /// Gets face (array of halfedge indices)
     pub fn face_halfedges(&self) -> FaceHalfedges {
         *self.mesh.faces.get(&self.ind_face).unwrap()
     }
 
+    /// Gets face index
+    pub fn ind(&self) -> usize {
+        self.ind_face
+    }
+
+    /// Surrounding halfedges (array of halfedge iterators)
     pub fn halfedges(&self) -> [IterHalfEdge<'a>; 3] {
         let &face = self.mesh.faces.get(&self.ind_face).unwrap();
 
@@ -619,6 +616,7 @@ impl<'a> IterFace<'a> {
         ]
     }
 
+    /// Surrouding vertices (array of vertex iterators)
     pub fn vertices(&self) -> [IterVertex<'a>; 3] {
         let he = self.halfedges();
 
@@ -629,12 +627,9 @@ impl<'a> IterFace<'a> {
         ]
     }
 
+    /// Surrouding vertices (array of vertex indices)
     pub fn vertices_inds(&self) -> [usize; 3] {
         let ve = self.vertices();
         [ve[0].ind(), ve[1].ind(), ve[2].ind()]
-    }
-
-    pub fn ind(&self) -> usize {
-        self.ind_face
     }
 }

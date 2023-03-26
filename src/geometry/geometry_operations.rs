@@ -1,5 +1,6 @@
 use nalgebra::base::*;
 
+/// Checks if the 4 given points are planar
 pub fn is_flat(pts: [Vector3<f32>; 4], eps: Option<f32>) -> bool {
     let eps_val = eps.unwrap_or(0.00001);
     let vec_3_0n = (pts[0] - pts[3]).normalize();
@@ -18,6 +19,7 @@ pub fn is_flat(pts: [Vector3<f32>; 4], eps: Option<f32>) -> bool {
     det < eps_val
 }
 
+/// Computes sphere center associated to the 4 given points
 pub fn sphere_center(pts: [Vector3<f32>; 4]) -> Option<Vector3<f32>> {
     let vec_0_1 = pts[1] - pts[0];
     let vec_1_2 = pts[2] - pts[1];
@@ -55,6 +57,7 @@ pub fn sphere_center(pts: [Vector3<f32>; 4]) -> Option<Vector3<f32>> {
     mat_slv_mod.lu().solve(&vec_slv_mod)
 }
 
+/// Computes circle center associated to the 3 given points
 pub fn circle_center(pts: [Vector3<f32>; 3]) -> Option<Vector3<f32>> {
     let vec_0_1 = pts[1] - pts[0];
     let vec_1_2 = pts[2] - pts[1];
@@ -83,6 +86,9 @@ pub fn circle_center(pts: [Vector3<f32>; 3]) -> Option<Vector3<f32>> {
     mat_slv_mod.lu().solve(&vec_slv_mod)
 }
 
+/// Computes sphere center and radius associated to the 4 given points
+///
+/// If the 4 points are planar, a circle center is computed instead
 pub fn center_and_radius(pts: [Vector3<f32>; 4], eps: Option<f32>) -> Option<(Vector3<f32>, f32)> {
     let center = if is_flat(pts, eps) {
         circle_center([pts[0], pts[1], pts[2]])

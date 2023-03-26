@@ -9,6 +9,7 @@ pub type Edge = [usize; 2];
 pub type Triangle = [usize; 3];
 pub type Tetrahedron = [usize; 4];
 
+/// Delaunay structure
 pub struct DelaunayInterface<'a> {
     mesh: &'a mut ManifoldMesh3D,
 
@@ -101,6 +102,7 @@ impl<'a> DelaunayInterface<'a> {
         self.generate_struct()
     }
 
+    /// Creates Delaunay structure from mesh
     pub fn from_mesh(mesh: &'a mut ManifoldMesh3D) -> Result<DelaunayInterface<'a>> {
         let initial_vertices_number = mesh.get_nb_vertices();
         let mut deltet = DelaunayInterface {
@@ -116,22 +118,27 @@ impl<'a> DelaunayInterface<'a> {
         Ok(deltet)
     }
 
+    /// Mesh getter
     pub fn get_mesh(&self) -> &ManifoldMesh3D {
         self.mesh
     }
 
+    /// Edge set getter
     pub fn get_edges(&self) -> &HashSet<Edge> {
         &self.edges
     }
 
+    /// Face map getter
     pub fn get_faces(&self) -> &HashMap<Triangle, Vec<Tetrahedron>> {
         &self.faces
     }
 
+    /// Tetrahedra set getter
     pub fn get_tetrahedra(&self) -> &HashSet<Tetrahedron> {
         &self.tetras
     }
 
+    /// Gets tetrahedra surrounding a given triangle
     pub fn get_tetrahedra_from_triangle(&self, del_tri: Triangle) -> Result<Vec<Tetrahedron>> {
         let vec = self
             .faces
@@ -143,28 +150,33 @@ impl<'a> DelaunayInterface<'a> {
         Ok(vec)
     }
 
+    /// Checks if vertex was an original mesh vertex
     pub fn is_original_vertex(&self, ind_vertex: usize) -> bool {
         ind_vertex < self.initial_vertices_number
     }
 
+    /// Checks if edge is in Delaunay
     pub fn is_edge_in(&self, edge: &Edge) -> bool {
         let mut edge_sort = [edge[0], edge[1]];
         edge_sort.sort();
         self.edges.contains(&edge_sort)
     }
 
+    /// Checks if face is in Delaunay
     pub fn is_face_in(&self, face: &Triangle) -> bool {
         let mut face_sort = [face[0], face[1], face[2]];
         face_sort.sort();
         self.faces.contains_key(&face_sort)
     }
 
+    /// Checks if tetrahedron is in Delaunay
     pub fn is_tetra_in(&self, tetra: &Tetrahedron) -> bool {
         let mut tetra_sort = [tetra[0], tetra[1], tetra[2], tetra[3]];
         tetra_sort.sort();
         self.tetras.contains(&tetra_sort)
     }
 
+    /// Count number of non Delaunay halfedges
     pub fn count_non_del_halfedges(&self) -> Result<usize> {
         let mut nb_non_del = 0;
         for (_, &he) in self.mesh.halfedges() {
@@ -174,10 +186,11 @@ impl<'a> DelaunayInterface<'a> {
         Ok(nb_non_del)
     }
 
+    /// Count number of non Delaunay faces
     pub fn count_non_del_faces(&self) -> Result<usize> {
         let mut nb_non_del = 0;
         for (&i, _) in self.mesh.faces() {
-            let face = self.mesh.get_face_vertices(i)?;
+            let face = self.mesh.get_face(i).unwrap().vertices_inds();
             nb_non_del = nb_non_del + if self.is_face_in(&face) { 0 } else { 1 };
         }
         Ok(nb_non_del)
@@ -201,6 +214,7 @@ impl<'a> DelaunayInterface<'a> {
         Ok(angle)
     }
 
+    /// Gets first locally non Delaunay halfedge, starting from a shift
     pub fn get_local_non_del_halfedge(
         &self,
         shift: Option<usize>,
@@ -227,6 +241,7 @@ impl<'a> DelaunayInterface<'a> {
         Ok(None)
     }
 
+    /// Gets first globally non Delaunay halfedge, starting from a shift
     pub fn get_non_del_halfedge(
         &self,
         shift: Option<usize>,
@@ -246,6 +261,7 @@ impl<'a> DelaunayInterface<'a> {
         Ok(None)
     }
 
+    /// Gets first globally non Delaunay face, starting from a shift
     pub fn get_non_del_face(
         &self,
         shift: Option<usize>,
@@ -266,6 +282,7 @@ impl<'a> DelaunayInterface<'a> {
         Ok(None)
     }
 
+    /// Gets all non delaunay halfedges
     pub fn get_all_non_del_halfedge(&self) -> Result<Vec<usize>> {
         let mut non_del = Vec::new();
 
@@ -278,11 +295,12 @@ impl<'a> DelaunayInterface<'a> {
         Ok(non_del)
     }
 
+    /// Gets all non delaunay faces
     pub fn get_all_non_del_face(&self) -> Result<Vec<usize>> {
         let mut non_del = Vec::new();
 
         for (&ind_fac, _) in self.mesh.faces() {
-            let face = self.mesh.get_face_vertices(ind_fac)?;
+            let face = self.mesh.get_face(ind_fac).unwrap().vertices_inds();
             if !self.is_face_in(&face) {
                 non_del.push(ind_fac);
             };
@@ -291,10 +309,12 @@ impl<'a> DelaunayInterface<'a> {
         Ok(non_del)
     }
 
+    /// Flips given halfedge
     pub fn flip_halfedge(&mut self, ind_halfedge: usize) -> Result<bool> {
         mesh_operations::flip_halfedge(self.mesh, ind_halfedge)
     }
 
+    /// Splits given halfedge
     pub fn split_halfedge(
         &mut self,
         vert: &manifold_mesh3d::Vertex,
@@ -304,6 +324,7 @@ impl<'a> DelaunayInterface<'a> {
         self.recompute_struct()
     }
 
+    /// Splits given face
     pub fn split_face(&mut self, vert: &manifold_mesh3d::Vertex, ind_face: usize) -> Result<()> {
         mesh_operations::split_face(self.mesh, vert, ind_face)?;
         self.recompute_struct()

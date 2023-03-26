@@ -7,6 +7,7 @@ use std::io::{self, BufRead, Write};
 use crate::mesh3d::GenericMesh3D;
 use crate::mesh3d::ManifoldMesh3D;
 
+/// Loads obj file as manifold mesh
 pub fn load_obj_manifold(filename: &str) -> Result<ManifoldMesh3D> {
     let mut mesh = ManifoldMesh3D::new();
 
@@ -52,6 +53,7 @@ pub fn load_obj_manifold(filename: &str) -> Result<ManifoldMesh3D> {
     Ok(mesh)
 }
 
+/// Save manifold mesh as obj file
 pub fn save_obj_manifold(filename: &str, mesh: &ManifoldMesh3D) -> Result<()> {
     let mut file = File::create(filename)?;
 
@@ -82,6 +84,7 @@ pub fn save_obj_manifold(filename: &str, mesh: &ManifoldMesh3D) -> Result<()> {
     Ok(())
 }
 
+/// Save non manifold mesh as obj file
 pub fn save_obj_generic(filename: &str, mesh: &GenericMesh3D) -> Result<()> {
     let mut file = File::create(filename)?;
 
