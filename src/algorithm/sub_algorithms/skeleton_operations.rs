@@ -5,7 +5,7 @@ use std::collections::{HashMap, HashSet};
 
 use crate::mesh3d::GenericMesh3D;
 
-use super::path_part::PathPart;
+use super::skeleton_singular_path::PathPart;
 use super::MovableDelaunayPath;
 use super::SkeletonInterface3D;
 use super::SkeletonSeparation;
@@ -225,6 +225,28 @@ pub fn outer_partial_edges(
             for pedge in palve.partial_edges().iter() {
                 let pedge_neigh = pedge.partial_edge_neighbor();
                 if pedge_neigh.edge().is_singular() {
+                    vec_pedges.push(pedge_neigh.ind());
+                }
+            }
+        }
+    }
+    vec_pedges
+}
+
+/// Returns boundary edges on the sheet
+pub fn boundary_partial_edges(
+    skeleton_interface: &SkeletonInterface3D,
+    current_sheet: &Vec<usize>,
+) -> Vec<usize> {
+    let mut vec_pedges = Vec::new();
+    for &ind_alveola in current_sheet.iter() {
+        for palve in skeleton_interface
+            .get_alveola_uncheck(ind_alveola)
+            .partial_alveolae()
+        {
+            for pedge in palve.partial_edges().iter() {
+                let pedge_neigh = pedge.partial_edge_neighbor();
+                if pedge_neigh.is_boundary() {
                     vec_pedges.push(pedge_neigh.ind());
                 }
             }

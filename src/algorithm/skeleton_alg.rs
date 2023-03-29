@@ -143,6 +143,11 @@ fn loop_skeletonization(
                             ind_first_alveola = ind_alveola;
                         }
 
+                        let mut vec_pedges_boundary = skeleton_operations::boundary_partial_edges(
+                            &skeleton_interface,
+                            &current_sheet,
+                        );
+
                         for &ind_alveola in current_sheet.iter() {
                             if skeleton_interface.get_alveola(ind_alveola)?.is_full() {
                                 skeleton_operations::include_alveola_in_skel(

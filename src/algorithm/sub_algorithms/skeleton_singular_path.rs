@@ -1,8 +1,13 @@
 use anyhow::Result;
 use nalgebra::*;
 
-use super::path_part::PathPart;
 use super::SkeletonInterface3D;
+
+#[derive(Copy, Clone)]
+pub enum PathPart {
+    PartialNode(usize),
+    PartialEdge(usize),
+}
 
 pub enum State {
     Computing,

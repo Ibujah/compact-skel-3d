@@ -16,7 +16,7 @@ impl<'a, 'b> SkeletonSeparation<'a, 'b> {
         skeleton_interface: &'b mut SkeletonInterface3D<'a>,
         ind_pedge: usize,
     ) -> Result<SkeletonSeparation<'a, 'b>> {
-        let external_path = SkeletonSingularPath::create(ind_pedge, skeleton_interface)?;
+        let external_path = SkeletonSingularPath::create(ind_pedge, skeleton_interface);
         Ok(SkeletonSeparation {
             skeleton_interface,
             external_path,
@@ -71,7 +71,7 @@ impl<'a, 'b> SkeletonSeparation<'a, 'b> {
         loop {
             if let Some(ind_pedge) = vec_internal_pedges.pop() {
                 let mut skeleton_path_int =
-                    SkeletonSingularPath::create(ind_pedge, &mut self.skeleton_interface)?;
+                    SkeletonSingularPath::create(ind_pedge, &mut self.skeleton_interface);
                 skeleton_path_int.follow_singular_path(&mut self.skeleton_interface)?;
                 for &ind_pedge_new in skeleton_path_int.ind_partial_edges().iter() {
                     if let Some(pos) = vec_internal_pedges
