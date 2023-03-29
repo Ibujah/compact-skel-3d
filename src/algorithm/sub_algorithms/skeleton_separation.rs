@@ -24,6 +24,17 @@ impl<'a, 'b> SkeletonSeparation<'a, 'b> {
         })
     }
 
+    pub fn from_singular_path(
+        skeleton_interface: &'b mut SkeletonInterface3D<'a>,
+        sing_path: SkeletonSingularPath,
+    ) -> SkeletonSeparation<'a, 'b> {
+        SkeletonSeparation {
+            skeleton_interface,
+            external_path: sing_path,
+            internal_paths: Vec::new(),
+        }
+    }
+
     /// Skeleton interface getter
     pub fn skeleton_interface(&self) -> &SkeletonInterface3D {
         self.skeleton_interface

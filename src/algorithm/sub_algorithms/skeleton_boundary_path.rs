@@ -216,6 +216,10 @@ impl SkeletonBoundaryPath {
         Ok(())
     }
 
+    pub fn most_salient(&self, skeleton_interface: &SkeletonInterface3D) -> Result<usize> {
+        todo!();
+    }
+
     pub fn create_path_excluding(
         &self,
         skeleton_interface: &mut SkeletonInterface3D,

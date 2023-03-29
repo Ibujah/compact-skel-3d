@@ -5,6 +5,7 @@ use std::collections::{HashMap, HashSet};
 
 use crate::mesh3d::GenericMesh3D;
 
+use super::skeleton_boundary_path::SkeletonBoundaryPath;
 use super::skeleton_singular_path::PathPart;
 use super::MovableDelaunayPath;
 use super::SkeletonInterface3D;
@@ -604,6 +605,80 @@ pub fn collect_closing_faces(
         }
     }
     Ok(Some(closing_faces))
+}
+
+/// Simplifiy boundaries of a sheet
+pub fn simplify_boundaries(
+    skeleton_interface: &mut SkeletonInterface3D,
+    label: usize,
+    opt_epsilon: Option<f32>,
+) -> Result<()> {
+    let current_sheet = skeleton_interface.get_sheet(label);
+
+    let mut vec_pedges_boundary = boundary_partial_edges(&skeleton_interface, &current_sheet);
+
+    loop {
+        if let Some(ind_pedge) = vec_pedges_boundary.pop() {
+            let mut bnd_path = SkeletonBoundaryPath::create(ind_pedge, skeleton_interface)?;
+            bnd_path.follow_boundary_path(skeleton_interface)?;
+
+            let set_edges: HashSet<usize> = bnd_path
+                .components()
+                .iter()
+                .map(|&ind_pedge| {
+                    skeleton_interface
+                        .get_partial_edge_uncheck(ind_pedge)
+                        .edge()
+                        .ind()
+                })
+                .collect();
+            vec_pedges_boundary.retain(|&ind_pedge| {
+                !set_edges.contains(
+                    &skeleton_interface
+                        .get_partial_edge_uncheck(ind_pedge)
+                        .edge()
+                        .ind(),
+                )
+            });
+
+            let mut vec_bnd_paths = vec![bnd_path];
+            loop {
+                if let Some(bnd_path) = vec_bnd_paths.pop() {
+                    let ind_salient = bnd_path.most_salient(skeleton_interface)?;
+                    let sing_path =
+                        bnd_path.create_path_excluding(skeleton_interface, ind_salient)?;
+                    let separation =
+                        SkeletonSeparation::from_singular_path(skeleton_interface, sing_path);
+                    if let Some(epsilon) = opt_epsilon {
+                        if separation.closable_path()? {
+                            if let Some(mesh_faces) =
+                                collect_mesh_faces_index(&separation, epsilon)?
+                            {
+                                if let Some(closing_faces) =
+                                    collect_closing_faces(&separation, &mesh_faces)?
+                                {
+                                    if !mesh_faces.is_empty() && !closing_faces.is_empty() {
+                                        if try_remove_and_add(
+                                            skeleton_interface,
+                                            &mesh_faces,
+                                            &closing_faces,
+                                        )? {
+                                            todo!();
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    todo!();
+                }
+            }
+        } else {
+            break;
+        }
+    }
+
+    Ok(())
 }
 
 /// (Debug) Estimates Delaunay faces to add on mesh to close the given separation
