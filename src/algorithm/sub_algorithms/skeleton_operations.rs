@@ -5,8 +5,8 @@ use std::collections::{HashMap, HashSet};
 
 use crate::mesh3d::GenericMesh3D;
 
-use super::skeleton_boundary_path::SkeletonBoundaryPath;
-use super::skeleton_singular_path::PathPart;
+use super::skeleton_boundary_path;
+use super::skeleton_singular_path::{PathPart, SkeletonSingularPath};
 use super::MovableDelaunayPath;
 use super::SkeletonInterface3D;
 use super::SkeletonSeparation;
@@ -17,7 +17,16 @@ pub fn first_node_in(skeleton_interface: &mut SkeletonInterface3D) -> Result<usi
     let rand_fac = rng.gen_range(0..skeleton_interface.mesh.get_nb_faces());
     println!("First face: {}", rand_fac);
 
-    let face = skeleton_interface.get_mesh().get_face(rand_fac)?;
+    let mut cpt = 0;
+    let mut ind_face = 0;
+    for fac in skeleton_interface.get_mesh().faces() {
+        cpt = cpt + 1;
+        if cpt >= rand_fac {
+            ind_face = *fac.0;
+            break;
+        }
+    }
+    let face = skeleton_interface.get_mesh().get_face(ind_face)?;
 
     let mut triangle = face.vertices_inds();
     triangle.sort();
@@ -235,25 +244,73 @@ pub fn outer_partial_edges(
 }
 
 /// Returns boundary edges on the sheet
-pub fn boundary_partial_edges(
-    skeleton_interface: &SkeletonInterface3D,
-    current_sheet: &Vec<usize>,
-) -> Vec<usize> {
+pub fn boundary_partial_edges(skeleton_interface: &SkeletonInterface3D) -> Vec<usize> {
     let mut vec_pedges = Vec::new();
-    for &ind_alveola in current_sheet.iter() {
-        for palve in skeleton_interface
-            .get_alveola_uncheck(ind_alveola)
-            .partial_alveolae()
-        {
-            for pedge in palve.partial_edges().iter() {
-                let pedge_neigh = pedge.partial_edge_neighbor();
-                if pedge_neigh.is_boundary() {
-                    vec_pedges.push(pedge_neigh.ind());
-                }
-            }
+    for ind_pedge in 0..skeleton_interface.pedge_edge.len() {
+        let pedge = skeleton_interface.get_partial_edge_uncheck(ind_pedge);
+        if pedge.edge().degree() == 1 && pedge.partial_alveola().alveola().label().is_some() {
+            vec_pedges.push(pedge.ind());
         }
     }
     vec_pedges
+}
+
+/// For each partial edge, computes its saliency
+pub fn estimate_saliencies(
+    skeleton_interface: &SkeletonInterface3D,
+    vec_pedges: &Vec<usize>,
+) -> Result<Vec<(usize, f32)>> {
+    let mut saliencies = Vec::new();
+    for &ind_pedge in vec_pedges.iter() {
+        if let Some(saliency) =
+            skeleton_boundary_path::compute_saliency(ind_pedge, skeleton_interface)?
+        {
+            saliencies.push((ind_pedge, saliency));
+        }
+    }
+    Ok(saliencies)
+}
+
+/// Sorts saliency map
+pub fn sort_saliencies(saliencies: &mut Vec<(usize, f32)>) -> () {
+    saliencies.sort_by(|&(_, s1), &(_, s2)| (-s1).partial_cmp(&(-s2)).unwrap());
+}
+
+/// Computes singular path associated to boundary partial edge
+pub fn exclusion_singular_path(
+    ind_pedge: usize,
+    skeleton_interface: &mut SkeletonInterface3D,
+) -> Result<Option<(SkeletonSingularPath, Vec<usize>, HashSet<usize>)>> {
+    let set_alve_to_exclude =
+        skeleton_boundary_path::excluded_alveolae(ind_pedge, skeleton_interface);
+    if let Some(sing_path) = skeleton_boundary_path::singular_path_to_exclude_alveolae(
+        &set_alve_to_exclude,
+        skeleton_interface,
+    )? {
+        let vec_pedges = sing_path
+            .components()
+            .iter()
+            .filter_map(|&part| {
+                if let PathPart::PartialEdge(ind_pedge) = part {
+                    let mut pedge_opp = skeleton_interface
+                        .get_partial_edge_uncheck(ind_pedge)
+                        .partial_edge_neighbor();
+                    loop {
+                        if pedge_opp.partial_alveola().alveola().is_full() {
+                            break;
+                        }
+                        pedge_opp = pedge_opp.partial_edge_opposite().partial_edge_neighbor();
+                    }
+                    Some(pedge_opp.ind())
+                } else {
+                    None
+                }
+            })
+            .collect();
+        return Ok(Some((sing_path, vec_pedges, set_alve_to_exclude)));
+    }
+
+    Ok(None)
 }
 
 /// Computes skeleton separation starting from a partial edge
@@ -605,80 +662,6 @@ pub fn collect_closing_faces(
         }
     }
     Ok(Some(closing_faces))
-}
-
-/// Simplifiy boundaries of a sheet
-pub fn simplify_boundaries(
-    skeleton_interface: &mut SkeletonInterface3D,
-    label: usize,
-    opt_epsilon: Option<f32>,
-) -> Result<()> {
-    let current_sheet = skeleton_interface.get_sheet(label);
-
-    let mut vec_pedges_boundary = boundary_partial_edges(&skeleton_interface, &current_sheet);
-
-    loop {
-        if let Some(ind_pedge) = vec_pedges_boundary.pop() {
-            let mut bnd_path = SkeletonBoundaryPath::create(ind_pedge, skeleton_interface)?;
-            bnd_path.follow_boundary_path(skeleton_interface)?;
-
-            let set_edges: HashSet<usize> = bnd_path
-                .components()
-                .iter()
-                .map(|&ind_pedge| {
-                    skeleton_interface
-                        .get_partial_edge_uncheck(ind_pedge)
-                        .edge()
-                        .ind()
-                })
-                .collect();
-            vec_pedges_boundary.retain(|&ind_pedge| {
-                !set_edges.contains(
-                    &skeleton_interface
-                        .get_partial_edge_uncheck(ind_pedge)
-                        .edge()
-                        .ind(),
-                )
-            });
-
-            let mut vec_bnd_paths = vec![bnd_path];
-            loop {
-                if let Some(bnd_path) = vec_bnd_paths.pop() {
-                    let ind_salient = bnd_path.most_salient(skeleton_interface)?;
-                    let sing_path =
-                        bnd_path.create_path_excluding(skeleton_interface, ind_salient)?;
-                    let separation =
-                        SkeletonSeparation::from_singular_path(skeleton_interface, sing_path);
-                    if let Some(epsilon) = opt_epsilon {
-                        if separation.closable_path()? {
-                            if let Some(mesh_faces) =
-                                collect_mesh_faces_index(&separation, epsilon)?
-                            {
-                                if let Some(closing_faces) =
-                                    collect_closing_faces(&separation, &mesh_faces)?
-                                {
-                                    if !mesh_faces.is_empty() && !closing_faces.is_empty() {
-                                        if try_remove_and_add(
-                                            skeleton_interface,
-                                            &mesh_faces,
-                                            &closing_faces,
-                                        )? {
-                                            todo!();
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    todo!();
-                }
-            }
-        } else {
-            break;
-        }
-    }
-
-    Ok(())
 }
 
 /// (Debug) Estimates Delaunay faces to add on mesh to close the given separation

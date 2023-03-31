@@ -1,5 +1,7 @@
 use anyhow::Result;
+use std::collections::HashSet;
 
+use crate::algorithm::sub_algorithms::SkeletonSeparation;
 use crate::mesh3d::GenericMesh3D;
 use crate::mesh3d::ManifoldMesh3D;
 use crate::skeleton3d::Skeleton3D;
@@ -52,8 +54,8 @@ fn loop_skeletonization(
     skeleton_interface: &mut SkeletonInterface3D,
     opt_epsilon: Option<f32>,
 ) -> Result<()> {
-    println!("Finding some first alveola");
-    let mut ind_first_alveola = skeleton_operations::first_alveola_in(skeleton_interface)?;
+    // println!("Finding some first alveola");
+    // let mut ind_first_alveola = skeleton_operations::first_alveola_in(skeleton_interface)?;
     let mut cpt_loop = 0;
     let mut nb_sheets_prev = 0;
     loop {
@@ -64,6 +66,7 @@ fn loop_skeletonization(
         skeleton_interface.reinit_skeleton();
         println!("Loop {}", cpt_loop);
         println!("Propagating first sheet");
+        let ind_first_alveola = skeleton_operations::first_alveola_in(skeleton_interface)?;
         skeleton_operations::compute_sheet(skeleton_interface, ind_first_alveola, label)?;
         let current_sheet = skeleton_interface.get_sheet(label);
         let mut sheet_siz_max = current_sheet.len();
@@ -140,13 +143,8 @@ fn loop_skeletonization(
 
                         if current_sheet.len() > sheet_siz_max {
                             sheet_siz_max = current_sheet.len();
-                            ind_first_alveola = ind_alveola;
+                            //ind_first_alveola = ind_alveola;
                         }
-
-                        let mut vec_pedges_boundary = skeleton_operations::boundary_partial_edges(
-                            &skeleton_interface,
-                            &current_sheet,
-                        );
 
                         for &ind_alveola in current_sheet.iter() {
                             if skeleton_interface.get_alveola(ind_alveola)?.is_full() {
@@ -176,10 +174,78 @@ fn loop_skeletonization(
             label,
             vec_pedges.len()
         );
+
         if !modif_done || nb_sheets_prev == label {
             break;
         }
         nb_sheets_prev = label;
+
+        println!("Boundary edges correction");
+        let vec_pedges = skeleton_operations::boundary_partial_edges(skeleton_interface);
+        let mut saliencies =
+            skeleton_operations::estimate_saliencies(skeleton_interface, &vec_pedges)?;
+        skeleton_operations::sort_saliencies(&mut saliencies);
+        loop {
+            print!(
+                "\r{} boundary pedges remaining                                   ",
+                saliencies.len()
+            );
+            if let Some((ind_pedge, _)) = saliencies.pop() {
+                let pedge = skeleton_interface.get_partial_edge(ind_pedge)?;
+                if pedge.edge().degree() != 1 {
+                    continue;
+                }
+                if pedge.partial_alveola().alveola().label().is_none() {
+                    continue;
+                }
+                if let Some((sing_path, vec_new_pedges, set_alve)) =
+                    skeleton_operations::exclusion_singular_path(ind_pedge, skeleton_interface)?
+                {
+                    let skeleton_separation =
+                        SkeletonSeparation::from_singular_path(skeleton_interface, sing_path);
+                    if let Some(epsilon) = opt_epsilon {
+                        if let Some(mesh_faces) = skeleton_operations::collect_mesh_faces_index(
+                            &skeleton_separation,
+                            epsilon,
+                        )? {
+                            if let Some(closing_faces) = skeleton_operations::collect_closing_faces(
+                                &skeleton_separation,
+                                &mesh_faces,
+                            )? {
+                                if !mesh_faces.is_empty() && !closing_faces.is_empty() {
+                                    if skeleton_operations::try_remove_and_add(
+                                        skeleton_interface,
+                                        &mesh_faces,
+                                        &closing_faces,
+                                    )? {
+                                        for &ind_alve in set_alve.iter() {
+                                            if !skeleton_interface.get_alveola(ind_alve)?.is_full()
+                                            {
+                                                skeleton_interface
+                                                    .set_alveola_label(ind_alve, None)?;
+                                            }
+                                        }
+                                        // let mut new_saliencies =
+                                        //     skeleton_operations::estimate_saliencies(
+                                        //         skeleton_interface,
+                                        //         &vec_new_pedges,
+                                        //     )?;
+                                        // saliencies.append(&mut new_saliencies);
+                                        // skeleton_operations::sort_saliencies(&mut saliencies);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            } else {
+                break;
+            }
+        }
+        println!(
+            "\r{} boundary pedges remaining                                   ",
+            saliencies.len()
+        );
     }
     println!("Checking skeleton");
     skeleton_interface.check()?;

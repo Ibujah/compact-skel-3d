@@ -20,10 +20,7 @@ pub struct SkeletonSingularPath {
 }
 
 impl SkeletonSingularPath {
-    pub fn create(
-        ind_pedge: usize,
-        skeleton_interface: &mut SkeletonInterface3D,
-    ) -> SkeletonSingularPath {
+    pub fn create(ind_pedge: usize) -> SkeletonSingularPath {
         SkeletonSingularPath {
             components: Vec::new(),
             opt_ind_pedge_last: Some(ind_pedge),
@@ -313,5 +310,25 @@ impl SkeletonSingularPath {
         }
 
         Ok(palve_path)
+    }
+
+    pub fn print(&self, skeleton_interface: &SkeletonInterface3D) -> () {
+        for &part in self.components.iter() {
+            match part {
+                PathPart::PartialEdge(ind_pedge) => {
+                    let pedge = skeleton_interface.get_partial_edge_uncheck(ind_pedge);
+                    println!(
+                        "({} -> {}): {}",
+                        pedge.partial_node_first().unwrap().node().ind(),
+                        pedge.partial_node_last().unwrap().node().ind(),
+                        pedge.corner()
+                    );
+                }
+                PathPart::PartialNode(ind_pnode) => {
+                    let pnode = skeleton_interface.get_partial_node_uncheck(ind_pnode);
+                    println!("({}): {}", pnode.node().ind(), pnode.corner());
+                }
+            };
+        }
     }
 }

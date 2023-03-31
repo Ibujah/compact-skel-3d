@@ -491,6 +491,17 @@ impl<'a, 'b> SkeletonInterface3D<'a> {
         Ok(self.get_alveola_uncheck(ind_alveola))
     }
 
+    /// Set label to alveola
+    pub fn set_alveola_label(&'b mut self, ind_alveola: usize, label: Option<usize>) -> Result<()> {
+        if ind_alveola >= self.alve_seg.len() {
+            return Err(anyhow::Error::msg("Alveola index out of bounds"));
+        }
+
+        self.alve_label[ind_alveola] = label;
+
+        Ok(())
+    }
+
     /// Partial alveola getter
     pub fn get_partial_alveola(
         &'b self,
