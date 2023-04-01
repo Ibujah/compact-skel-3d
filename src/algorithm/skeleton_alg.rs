@@ -1,5 +1,4 @@
 use anyhow::Result;
-use std::collections::HashSet;
 
 use crate::algorithm::sub_algorithms::SkeletonSeparation;
 use crate::mesh3d::GenericMesh3D;
@@ -225,13 +224,13 @@ fn loop_skeletonization(
                                                     .set_alveola_label(ind_alve, None)?;
                                             }
                                         }
-                                        // let mut new_saliencies =
-                                        //     skeleton_operations::estimate_saliencies(
-                                        //         skeleton_interface,
-                                        //         &vec_new_pedges,
-                                        //     )?;
-                                        // saliencies.append(&mut new_saliencies);
-                                        // skeleton_operations::sort_saliencies(&mut saliencies);
+                                        let mut new_saliencies =
+                                            skeleton_operations::estimate_saliencies(
+                                                skeleton_interface,
+                                                &vec_new_pedges,
+                                            )?;
+                                        saliencies.append(&mut new_saliencies);
+                                        skeleton_operations::sort_saliencies(&mut saliencies);
                                     }
                                 }
                             }

@@ -336,33 +336,107 @@ pub fn try_remove_and_add<'a, 'b>(
     vec_rem_faces: &Vec<usize>,
     vec_add_faces: &Vec<[usize; 3]>,
 ) -> Result<bool> {
-    let mut vec_fac = Vec::new();
+    let mut vec_fac = HashMap::new();
+    let mut free_vert_save = HashMap::new();
+    let mut vec_free_vert = Vec::new();
     for &ind_face in vec_rem_faces {
-        vec_fac.push(
-            skeleton_interface
-                .mesh
-                .get_face(ind_face)
-                .unwrap()
-                .vertices_inds(),
-        );
-        skeleton_interface.mesh.remove_face(ind_face)?;
+        let vert_inds = skeleton_interface
+            .mesh
+            .get_face(ind_face)
+            .unwrap()
+            .vertices_inds();
+        vec_fac.insert(ind_face, vert_inds);
+        let opt_vec_face_vert = skeleton_interface.remove_mesh_face(ind_face)?;
+        if let Some(vec_face_vert) = opt_vec_face_vert {
+            vec_free_vert.append(&mut vec_face_vert.clone());
+            free_vert_save.insert(ind_face, vec_face_vert);
+        }
+        vec_free_vert.push(vert_inds[0]);
+        vec_free_vert.push(vert_inds[1]);
+        vec_free_vert.push(vert_inds[2]);
     }
-    let mut vec_added = Vec::new();
+    let mut set_free_vert: HashSet<usize> = HashSet::from_iter(vec_free_vert);
     for &[ind_v1, ind_v2, ind_v3] in vec_add_faces {
-        let res = skeleton_interface.mesh.add_face(ind_v1, ind_v2, ind_v3);
+        set_free_vert.remove(&ind_v1);
+        set_free_vert.remove(&ind_v2);
+        set_free_vert.remove(&ind_v3);
+    }
+    let vec_vert_mid: Vec<Vector3<f32>> = vec_add_faces
+        .iter()
+        .map(|&[ind_v1, ind_v2, ind_v3]| {
+            let vert1 = skeleton_interface
+                .get_mesh()
+                .get_vertex(ind_v1)
+                .unwrap()
+                .vertex();
+            let vert2 = skeleton_interface
+                .get_mesh()
+                .get_vertex(ind_v2)
+                .unwrap()
+                .vertex();
+            let vert3 = skeleton_interface
+                .get_mesh()
+                .get_vertex(ind_v3)
+                .unwrap()
+                .vertex();
+            (vert1 + vert2 + vert3) / 3.0
+        })
+        .collect();
+
+    let mut free_vert_new: HashMap<usize, Vec<usize>> = HashMap::new();
+    for &ind_vertex in set_free_vert.iter() {
+        let vert = skeleton_interface
+            .get_mesh()
+            .get_vertex(ind_vertex)?
+            .vertex();
+
+        let (ind_min, _) = vec_vert_mid
+            .iter()
+            .enumerate()
+            .fold(None, |vals, (ind_cur, vert_mid)| {
+                let dist_cur = (vert_mid - vert).norm();
+                if let Some((ind_min, dist_min)) = vals {
+                    if dist_min < dist_cur {
+                        Some((ind_min, dist_min))
+                    } else {
+                        Some((ind_cur, dist_cur))
+                    }
+                } else {
+                    Some((ind_cur, dist_cur))
+                }
+            })
+            .unwrap();
+        if let Some(free_vert) = free_vert_new.get_mut(&ind_min) {
+            free_vert.push(ind_vertex);
+        } else {
+            free_vert_new.insert(ind_min, vec![ind_vertex]);
+        }
+    }
+
+    let mut vec_added = Vec::new();
+    for i in 0..vec_add_faces.len() {
+        let [ind_v1, ind_v2, ind_v3] = vec_add_faces[i];
+        let res =
+            skeleton_interface.add_mesh_face(ind_v1, ind_v2, ind_v3, free_vert_new.remove(&i));
         match res {
             Ok(o) => vec_added.push(o),
             Err(_) => {
                 for &f in vec_added.iter() {
-                    skeleton_interface.mesh.remove_face(f)?;
+                    skeleton_interface.remove_mesh_face(f)?;
                 }
-                for &[v1, v2, v3] in vec_fac.iter() {
-                    skeleton_interface.mesh.add_face(v1, v2, v3)?;
+                for (ind_face, &[v1, v2, v3]) in vec_fac.iter() {
+                    skeleton_interface.add_mesh_face(
+                        v1,
+                        v2,
+                        v3,
+                        free_vert_save.remove(ind_face),
+                    )?;
                 }
                 return Ok(false);
             }
         }
     }
+
     Ok(true)
 }
 
@@ -457,6 +531,7 @@ pub fn collect_mesh_faces_index(
                     .skeleton_interface()
                     .get_mesh()
                     .get_halfedge(ind_hedge)?;
+                let ind_face = hedge.face().unwrap().ind();
                 let vert_test = hedge
                     .next_halfedge()
                     .unwrap()
@@ -470,11 +545,38 @@ pub fn collect_mesh_faces_index(
                     .find(|(row, &rad)| {
                         let diff = row - vert_test;
                         diff[0] * diff[0] + diff[1] * diff[1] + diff[2] * diff[2]
-                            < rad * rad + 2.0 * rad * epsilon + epsilon * epsilon
+                            < (rad + epsilon) * (rad + epsilon)
                     })
                     .is_none()
                 {
                     return Ok(false);
+                }
+                if let Some(vec_inds) = skeleton_separation
+                    .skeleton_interface()
+                    .out_vert_per_face
+                    .get(&ind_face)
+                {
+                    for &ind_v in vec_inds.iter() {
+                        let vert = skeleton_separation
+                            .skeleton_interface()
+                            .get_mesh()
+                            .get_vertex(ind_v)
+                            .unwrap()
+                            .vertex()
+                            .transpose();
+                        if center_mat
+                            .row_iter()
+                            .zip(radius_mat.iter())
+                            .find(|(row, &rad)| {
+                                let diff = row - vert;
+                                diff[0] * diff[0] + diff[1] * diff[1] + diff[2] * diff[2]
+                                    < (rad + epsilon) * (rad + epsilon)
+                            })
+                            .is_none()
+                        {
+                            return Ok(false);
+                        }
+                    }
                 }
 
                 let face = hedge.face().unwrap();
