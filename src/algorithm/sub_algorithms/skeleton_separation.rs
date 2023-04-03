@@ -1,24 +1,37 @@
 use anyhow::Result;
 
 use super::SkeletonInterface3D;
-use super::SkeletonPath;
+use super::SkeletonSingularPath;
 
 /// Sepration on skeleton
 pub struct SkeletonSeparation<'a, 'b> {
     skeleton_interface: &'b mut SkeletonInterface3D<'a>,
-    external_path: SkeletonPath,
-    internal_paths: Vec<SkeletonPath>,
+    external_path: SkeletonSingularPath,
+    internal_paths: Vec<SkeletonSingularPath>,
 }
 
 impl<'a, 'b> SkeletonSeparation<'a, 'b> {
     /// Separation constructor
-    pub fn new(
+    pub fn create(
         skeleton_interface: &'b mut SkeletonInterface3D<'a>,
         ind_pedge: usize,
+    ) -> Result<SkeletonSeparation<'a, 'b>> {
+        let external_path = SkeletonSingularPath::create(ind_pedge);
+        Ok(SkeletonSeparation {
+            skeleton_interface,
+            external_path,
+            internal_paths: Vec::new(),
+        })
+    }
+
+    /// Creates separation from singular path alone
+    pub fn from_singular_path(
+        skeleton_interface: &'b mut SkeletonInterface3D<'a>,
+        sing_path: SkeletonSingularPath,
     ) -> SkeletonSeparation<'a, 'b> {
         SkeletonSeparation {
             skeleton_interface,
-            external_path: SkeletonPath::new(ind_pedge),
+            external_path: sing_path,
             internal_paths: Vec::new(),
         }
     }
@@ -29,12 +42,12 @@ impl<'a, 'b> SkeletonSeparation<'a, 'b> {
     }
 
     /// External path getter
-    pub fn external_path(&self) -> &SkeletonPath {
+    pub fn external_path(&self) -> &SkeletonSingularPath {
         &self.external_path
     }
 
     /// Internal path getter
-    pub fn internal_paths(&self) -> &Vec<SkeletonPath> {
+    pub fn internal_paths(&self) -> &Vec<SkeletonSingularPath> {
         &self.internal_paths
     }
 
@@ -69,7 +82,7 @@ impl<'a, 'b> SkeletonSeparation<'a, 'b> {
         let mut vec_internal_pedges = self.internal_partial_edges();
         loop {
             if let Some(ind_pedge) = vec_internal_pedges.pop() {
-                let mut skeleton_path_int = SkeletonPath::new(ind_pedge);
+                let mut skeleton_path_int = SkeletonSingularPath::create(ind_pedge);
                 skeleton_path_int.follow_singular_path(&mut self.skeleton_interface)?;
                 for &ind_pedge_new in skeleton_path_int.ind_partial_edges().iter() {
                     if let Some(pos) = vec_internal_pedges
@@ -98,5 +111,10 @@ impl<'a, 'b> SkeletonSeparation<'a, 'b> {
     pub fn closable_path(&self) -> Result<bool> {
         self.external_path.closable_path(&self.skeleton_interface)
         // Ok(true)
+    }
+
+    /// Prints separation
+    pub fn print(&self) -> () {
+        self.external_path.print(&self.skeleton_interface);
     }
 }

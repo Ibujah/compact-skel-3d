@@ -5,7 +5,8 @@ use std::collections::{HashMap, HashSet};
 
 use crate::mesh3d::GenericMesh3D;
 
-use super::skeleton_path::PathPart;
+use super::skeleton_boundary_path;
+use super::skeleton_singular_path::{PathPart, SkeletonSingularPath};
 use super::MovableDelaunayPath;
 use super::SkeletonInterface3D;
 use super::SkeletonSeparation;
@@ -16,7 +17,16 @@ pub fn first_node_in(skeleton_interface: &mut SkeletonInterface3D) -> Result<usi
     let rand_fac = rng.gen_range(0..skeleton_interface.mesh.get_nb_faces());
     println!("First face: {}", rand_fac);
 
-    let face = skeleton_interface.get_mesh().get_face(rand_fac)?;
+    let mut cpt = 0;
+    let mut ind_face = 0;
+    for fac in skeleton_interface.get_mesh().faces() {
+        cpt = cpt + 1;
+        if cpt >= rand_fac {
+            ind_face = *fac.0;
+            break;
+        }
+    }
+    let face = skeleton_interface.get_mesh().get_face(ind_face)?;
 
     let mut triangle = face.vertices_inds();
     triangle.sort();
@@ -233,6 +243,76 @@ pub fn outer_partial_edges(
     vec_pedges
 }
 
+/// Returns boundary edges on the sheet
+pub fn boundary_partial_edges(skeleton_interface: &SkeletonInterface3D) -> Vec<usize> {
+    let mut vec_pedges = Vec::new();
+    for ind_pedge in 0..skeleton_interface.pedge_edge.len() {
+        let pedge = skeleton_interface.get_partial_edge_uncheck(ind_pedge);
+        if pedge.edge().degree() == 1 && pedge.partial_alveola().alveola().label().is_some() {
+            vec_pedges.push(pedge.ind());
+        }
+    }
+    vec_pedges
+}
+
+/// For each partial edge, computes its saliency
+pub fn estimate_saliencies(
+    skeleton_interface: &SkeletonInterface3D,
+    vec_pedges: &Vec<usize>,
+) -> Result<Vec<(usize, f32)>> {
+    let mut saliencies = Vec::new();
+    for &ind_pedge in vec_pedges.iter() {
+        if let Some(saliency) =
+            skeleton_boundary_path::compute_saliency(ind_pedge, skeleton_interface)?
+        {
+            saliencies.push((ind_pedge, saliency));
+        }
+    }
+    Ok(saliencies)
+}
+
+/// Sorts saliency map
+pub fn sort_saliencies(saliencies: &mut Vec<(usize, f32)>) -> () {
+    saliencies.sort_by(|&(_, s1), &(_, s2)| (-s1).partial_cmp(&(-s2)).unwrap());
+}
+
+/// Computes singular path associated to boundary partial edge
+pub fn exclusion_singular_path(
+    ind_pedge: usize,
+    skeleton_interface: &mut SkeletonInterface3D,
+) -> Result<Option<(SkeletonSingularPath, Vec<usize>, HashSet<usize>)>> {
+    let set_alve_to_exclude =
+        skeleton_boundary_path::excluded_alveolae(ind_pedge, skeleton_interface);
+    if let Some(sing_path) = skeleton_boundary_path::singular_path_to_exclude_alveolae(
+        &set_alve_to_exclude,
+        skeleton_interface,
+    )? {
+        let vec_pedges = sing_path
+            .components()
+            .iter()
+            .filter_map(|&part| {
+                if let PathPart::PartialEdge(ind_pedge) = part {
+                    let mut pedge_opp = skeleton_interface
+                        .get_partial_edge_uncheck(ind_pedge)
+                        .partial_edge_neighbor();
+                    loop {
+                        if pedge_opp.partial_alveola().alveola().is_full() {
+                            break;
+                        }
+                        pedge_opp = pedge_opp.partial_edge_opposite().partial_edge_neighbor();
+                    }
+                    Some(pedge_opp.ind())
+                } else {
+                    None
+                }
+            })
+            .collect();
+        return Ok(Some((sing_path, vec_pedges, set_alve_to_exclude)));
+    }
+
+    Ok(None)
+}
+
 /// Computes skeleton separation starting from a partial edge
 pub fn extract_skeleton_separation<'a, 'b>(
     skeleton_interface: &'b mut SkeletonInterface3D<'a>,
@@ -240,7 +320,7 @@ pub fn extract_skeleton_separation<'a, 'b>(
 ) -> Result<Option<SkeletonSeparation<'a, 'b>>> {
     let pedge = skeleton_interface.get_partial_edge_uncheck(ind_pedge);
     if pedge.is_singular() {
-        let mut skeleton_separation = SkeletonSeparation::new(skeleton_interface, ind_pedge);
+        let mut skeleton_separation = SkeletonSeparation::create(skeleton_interface, ind_pedge)?;
         skeleton_separation.follow_separation()?;
         return Ok(Some(skeleton_separation));
     }
@@ -256,33 +336,107 @@ pub fn try_remove_and_add<'a, 'b>(
     vec_rem_faces: &Vec<usize>,
     vec_add_faces: &Vec<[usize; 3]>,
 ) -> Result<bool> {
-    let mut vec_fac = Vec::new();
+    let mut vec_fac = HashMap::new();
+    let mut free_vert_save = HashMap::new();
+    let mut vec_free_vert = Vec::new();
     for &ind_face in vec_rem_faces {
-        vec_fac.push(
-            skeleton_interface
-                .mesh
-                .get_face(ind_face)
-                .unwrap()
-                .vertices_inds(),
-        );
-        skeleton_interface.mesh.remove_face(ind_face)?;
+        let vert_inds = skeleton_interface
+            .mesh
+            .get_face(ind_face)
+            .unwrap()
+            .vertices_inds();
+        vec_fac.insert(ind_face, vert_inds);
+        let opt_vec_face_vert = skeleton_interface.remove_mesh_face(ind_face)?;
+        if let Some(vec_face_vert) = opt_vec_face_vert {
+            vec_free_vert.append(&mut vec_face_vert.clone());
+            free_vert_save.insert(ind_face, vec_face_vert);
+        }
+        vec_free_vert.push(vert_inds[0]);
+        vec_free_vert.push(vert_inds[1]);
+        vec_free_vert.push(vert_inds[2]);
     }
-    let mut vec_added = Vec::new();
+    let mut set_free_vert: HashSet<usize> = HashSet::from_iter(vec_free_vert);
     for &[ind_v1, ind_v2, ind_v3] in vec_add_faces {
-        let res = skeleton_interface.mesh.add_face(ind_v1, ind_v2, ind_v3);
+        set_free_vert.remove(&ind_v1);
+        set_free_vert.remove(&ind_v2);
+        set_free_vert.remove(&ind_v3);
+    }
+    let vec_vert_mid: Vec<Vector3<f32>> = vec_add_faces
+        .iter()
+        .map(|&[ind_v1, ind_v2, ind_v3]| {
+            let vert1 = skeleton_interface
+                .get_mesh()
+                .get_vertex(ind_v1)
+                .unwrap()
+                .vertex();
+            let vert2 = skeleton_interface
+                .get_mesh()
+                .get_vertex(ind_v2)
+                .unwrap()
+                .vertex();
+            let vert3 = skeleton_interface
+                .get_mesh()
+                .get_vertex(ind_v3)
+                .unwrap()
+                .vertex();
+            (vert1 + vert2 + vert3) / 3.0
+        })
+        .collect();
+
+    let mut free_vert_new: HashMap<usize, Vec<usize>> = HashMap::new();
+    for &ind_vertex in set_free_vert.iter() {
+        let vert = skeleton_interface
+            .get_mesh()
+            .get_vertex(ind_vertex)?
+            .vertex();
+
+        let (ind_min, _) = vec_vert_mid
+            .iter()
+            .enumerate()
+            .fold(None, |vals, (ind_cur, vert_mid)| {
+                let dist_cur = (vert_mid - vert).norm();
+                if let Some((ind_min, dist_min)) = vals {
+                    if dist_min < dist_cur {
+                        Some((ind_min, dist_min))
+                    } else {
+                        Some((ind_cur, dist_cur))
+                    }
+                } else {
+                    Some((ind_cur, dist_cur))
+                }
+            })
+            .unwrap();
+        if let Some(free_vert) = free_vert_new.get_mut(&ind_min) {
+            free_vert.push(ind_vertex);
+        } else {
+            free_vert_new.insert(ind_min, vec![ind_vertex]);
+        }
+    }
+
+    let mut vec_added = Vec::new();
+    for i in 0..vec_add_faces.len() {
+        let [ind_v1, ind_v2, ind_v3] = vec_add_faces[i];
+        let res =
+            skeleton_interface.add_mesh_face(ind_v1, ind_v2, ind_v3, free_vert_new.remove(&i));
         match res {
             Ok(o) => vec_added.push(o),
             Err(_) => {
                 for &f in vec_added.iter() {
-                    skeleton_interface.mesh.remove_face(f)?;
+                    skeleton_interface.remove_mesh_face(f)?;
                 }
-                for &[v1, v2, v3] in vec_fac.iter() {
-                    skeleton_interface.mesh.add_face(v1, v2, v3)?;
+                for (ind_face, &[v1, v2, v3]) in vec_fac.iter() {
+                    skeleton_interface.add_mesh_face(
+                        v1,
+                        v2,
+                        v3,
+                        free_vert_save.remove(ind_face),
+                    )?;
                 }
                 return Ok(false);
             }
         }
     }
+
     Ok(true)
 }
 
@@ -377,6 +531,7 @@ pub fn collect_mesh_faces_index(
                     .skeleton_interface()
                     .get_mesh()
                     .get_halfedge(ind_hedge)?;
+                let ind_face = hedge.face().unwrap().ind();
                 let vert_test = hedge
                     .next_halfedge()
                     .unwrap()
@@ -390,11 +545,38 @@ pub fn collect_mesh_faces_index(
                     .find(|(row, &rad)| {
                         let diff = row - vert_test;
                         diff[0] * diff[0] + diff[1] * diff[1] + diff[2] * diff[2]
-                            < rad * rad + 2.0 * rad * epsilon + epsilon * epsilon
+                            < (rad + epsilon) * (rad + epsilon)
                     })
                     .is_none()
                 {
                     return Ok(false);
+                }
+                if let Some(vec_inds) = skeleton_separation
+                    .skeleton_interface()
+                    .out_vert_per_face
+                    .get(&ind_face)
+                {
+                    for &ind_v in vec_inds.iter() {
+                        let vert = skeleton_separation
+                            .skeleton_interface()
+                            .get_mesh()
+                            .get_vertex(ind_v)
+                            .unwrap()
+                            .vertex()
+                            .transpose();
+                        if center_mat
+                            .row_iter()
+                            .zip(radius_mat.iter())
+                            .find(|(row, &rad)| {
+                                let diff = row - vert;
+                                diff[0] * diff[0] + diff[1] * diff[1] + diff[2] * diff[2]
+                                    < (rad + epsilon) * (rad + epsilon)
+                            })
+                            .is_none()
+                        {
+                            return Ok(false);
+                        }
+                    }
                 }
 
                 let face = hedge.face().unwrap();

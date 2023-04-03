@@ -15,6 +15,9 @@ pub struct SkeletonInterface3D<'a> {
     pub(super) skeleton: Skeleton3D,
     pub(super) debug_meshes: Vec<GenericMesh3D>,
 
+    // For non linked vertices
+    pub(super) out_vert_per_face: HashMap<usize, Vec<usize>>,
+
     // existing delaunay: neighbor information
     pub(super) faces: HashMap<[usize; 3], Vec<[usize; 4]>>,
 
@@ -123,6 +126,7 @@ impl<'a, 'b> SkeletonInterface3D<'a> {
                 mesh,
                 skeleton: Skeleton3D::new(),
                 debug_meshes: Vec::new(),
+                out_vert_per_face: HashMap::new(),
                 faces,
                 del_tet: HashMap::new(),
                 del_tri: HashMap::new(),
@@ -491,6 +495,17 @@ impl<'a, 'b> SkeletonInterface3D<'a> {
         Ok(self.get_alveola_uncheck(ind_alveola))
     }
 
+    /// Set label to alveola
+    pub fn set_alveola_label(&'b mut self, ind_alveola: usize, label: Option<usize>) -> Result<()> {
+        if ind_alveola >= self.alve_seg.len() {
+            return Err(anyhow::Error::msg("Alveola index out of bounds"));
+        }
+
+        self.alve_label[ind_alveola] = label;
+
+        Ok(())
+    }
+
     /// Partial alveola getter
     pub fn get_partial_alveola(
         &'b self,
@@ -520,6 +535,30 @@ impl<'a, 'b> SkeletonInterface3D<'a> {
     /// Mesh getter
     pub fn get_mesh(&self) -> &ManifoldMesh3D {
         self.mesh
+    }
+
+    /// Removes face and gets free vertices
+    pub fn remove_mesh_face(&mut self, ind_face: usize) -> Result<Option<Vec<usize>>> {
+        self.mesh.remove_face(ind_face)?;
+        if let Some((_, verts)) = self.out_vert_per_face.remove_entry(&ind_face) {
+            return Ok(Some(verts));
+        }
+        Ok(None)
+    }
+
+    /// Removes face and gets free vertices
+    pub fn add_mesh_face(
+        &mut self,
+        ind_v1: usize,
+        ind_v2: usize,
+        ind_v3: usize,
+        opt_vert_out: Option<Vec<usize>>,
+    ) -> Result<usize> {
+        let ind_face = self.mesh.add_face(ind_v1, ind_v2, ind_v3)?;
+        if let Some(vert_out) = opt_vert_out {
+            self.out_vert_per_face.insert(ind_face, vert_out);
+        }
+        Ok(ind_face)
     }
 
     /// Debug meshed getter
@@ -1146,6 +1185,22 @@ impl<'a, 'b> IterEdge<'a, 'b> {
 
     pub fn is_singular(&self) -> bool {
         self.degree() >= 3
+    }
+
+    pub fn is_non_manifold(&self) -> bool {
+        let [alve1, alve2, alve3] = self.alveolae();
+        let opt_lab1 = alve1.label();
+        let opt_lab2 = alve2.label();
+        let opt_lab3 = alve3.label();
+        if let [Some(lab1), Some(lab2), Some(lab3)] = [opt_lab1, opt_lab2, opt_lab3] {
+            if lab1 == lab2 && lab1 == lab3 {
+                if alve1.is_full() && alve2.is_full() && alve3.is_full() {
+                    return true;
+                }
+            }
+        }
+
+        false
     }
 
     pub fn alveolae(&self) -> [IterAlveola<'a, 'b>; 3] {
