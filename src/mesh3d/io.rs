@@ -53,6 +53,76 @@ pub fn load_obj_manifold(filename: &str) -> Result<ManifoldMesh3D> {
     Ok(mesh)
 }
 
+/// Loads off file as manifold mesh
+pub fn load_off_manifold(filename: &str) -> Result<ManifoldMesh3D> {
+    let mut mesh = ManifoldMesh3D::new();
+
+    let file = File::open(filename)?;
+    let lines = io::BufReader::new(file).lines();
+    let mut opt_nb_vert = None;
+    let mut opt_nb_face = None;
+    let mut cur_vert = 0;
+    let mut cur_face = 0;
+    for line_ in lines {
+        if let Ok(line) = line_ {
+            if opt_nb_vert.is_none() {
+                if line == "OFF" {
+                    continue;
+                }
+                let mut line_split = line.split_whitespace();
+                let nb_vert = line_split
+                    .next()
+                    .ok_or(anyhow::Error::msg("Expected value1"))?
+                    .parse::<usize>()?;
+                opt_nb_vert = Some(nb_vert);
+                let nb_face = line_split
+                    .next()
+                    .ok_or(anyhow::Error::msg("Expected value2"))?
+                    .parse::<usize>()?;
+                opt_nb_face = Some(nb_face);
+            } else {
+                let nb_vert = opt_nb_vert.unwrap();
+                let nb_face = opt_nb_face.unwrap();
+                if cur_vert < nb_vert {
+                    let mut line_split = line.split_whitespace();
+                    let mut vert: Vector3<f32> = Vector3::new(0.0, 0.0, 0.0);
+                    for i in 0..3 {
+                        let ind = line_split
+                            .next()
+                            .ok_or(anyhow::Error::msg("Expected value3"))?
+                            .parse::<f32>()?;
+                        vert[i] = ind;
+                    }
+
+                    mesh.add_vertex(&vert);
+                    cur_vert = cur_vert + 1;
+                } else if cur_vert < nb_face {
+                    let mut line_split = line.split_whitespace();
+                    let mut face = Vec::new();
+                    let nbv = line_split
+                        .next()
+                        .ok_or(anyhow::Error::msg("Expected value4"))?
+                        .parse::<usize>()?;
+                    for _ in 0..nbv {
+                        let ind = line_split
+                            .next()
+                            .ok_or(anyhow::Error::msg("Expected value5"))?
+                            .parse::<usize>()?;
+                        face.push(ind);
+                    }
+                    if face.len() != 3 {
+                        return Err(anyhow::Error::msg("Face with more than 3 vertices"));
+                    }
+                    mesh.add_face(face[0], face[1], face[2])?;
+                    cur_face = cur_face + 1;
+                }
+            }
+        }
+    }
+
+    Ok(mesh)
+}
+
 /// Save manifold mesh as obj file
 pub fn save_obj_manifold(filename: &str, mesh: &ManifoldMesh3D) -> Result<()> {
     let mut file = File::create(filename)?;

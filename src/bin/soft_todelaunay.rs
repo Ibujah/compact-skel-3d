@@ -20,7 +20,16 @@ fn main() -> Result<()> {
     let obj_out_path_str = args.obj_out_path.to_str().unwrap_or("");
 
     println!("Loading topo_mesh");
-    let mut mesh = io::load_obj_manifold(obj_in_path_str)?;
+    let extension = &obj_in_path_str[obj_in_path_str.len() - 3..];
+    println!("{}", extension);
+
+    let mut mesh = if extension == "obj" {
+        io::load_obj_manifold(obj_in_path_str)?
+    } else if extension == "off" {
+        io::load_off_manifold(obj_in_path_str)?
+    } else {
+        return Err(anyhow::Error::msg("Extension not handled"));
+    };
 
     println!("Checking mesh");
     mesh.check_mesh()?;
