@@ -1498,4 +1498,24 @@ impl<'a, 'b> IterPartialAlveola<'a, 'b> {
             })
             .collect()
     }
+
+    pub fn normal(&self) -> Vector3<f32> {
+        let ind_beg = self.partial_alveola_opposite().corner();
+        let ind_end = self.corner();
+
+        let vert_beg = self
+            .skeleton_interface
+            .get_mesh()
+            .get_vertex(ind_beg)
+            .unwrap()
+            .vertex();
+        let vert_end = self
+            .skeleton_interface
+            .get_mesh()
+            .get_vertex(ind_end)
+            .unwrap()
+            .vertex();
+
+        (vert_end - vert_beg).normalize()
+    }
 }
