@@ -75,8 +75,8 @@ fn main() -> Result<()> {
     println!("");
 
     println!("Saving skeleton and mesh");
-    mesh3d::io::save_obj_manifold(obj_out_path_str, &mesh)?;
-    skeleton3d::io::save_obj(skel_out_path_str, &skeleton)?;
+    mesh3d::io::save_obj_manifold(obj_out_path_str, &mesh, None)?;
+    skeleton3d::io::save_obj(skel_out_path_str, &skeleton, None)?;
 
     Ok(())
 }

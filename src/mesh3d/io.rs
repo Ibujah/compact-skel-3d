@@ -124,8 +124,16 @@ pub fn load_off_manifold(filename: &str) -> Result<ManifoldMesh3D> {
 }
 
 /// Save manifold mesh as obj file
-pub fn save_obj_manifold(filename: &str, mesh: &ManifoldMesh3D) -> Result<()> {
+pub fn save_obj_manifold(
+    filename: &str,
+    mesh: &ManifoldMesh3D,
+    opt_material_file: Option<&str>,
+) -> Result<()> {
     let mut file = File::create(filename)?;
+
+    if let Some(material_file) = opt_material_file {
+        writeln!(file, "mtllib {}", material_file)?;
+    }
 
     let mut corresp: HashMap<usize, usize> = HashMap::new();
     let mut cpt = 1;
@@ -137,7 +145,20 @@ pub fn save_obj_manifold(filename: &str, mesh: &ManifoldMesh3D) -> Result<()> {
         writeln!(file, "v {} {} {}", vert[0], vert[1], vert[2])?;
     }
 
-    for (&f, _) in mesh.faces() {
+    let mut groups: HashMap<String, Vec<usize>> = HashMap::new();
+    let mut non_grouped = Vec::new();
+    for (&ind_face, opt_lab) in mesh.groups.iter() {
+        if let Some(lab) = opt_lab {
+            groups
+                .entry(lab.clone())
+                .and_modify(|g| g.push(ind_face))
+                .or_insert(vec![ind_face]);
+        } else {
+            non_grouped.push(ind_face);
+        }
+    }
+
+    for &f in non_grouped.iter() {
         let face = mesh.get_face(f)?.vertices_inds();
         let ind0 = corresp.get(&face[0]).ok_or(anyhow::Error::msg(
             "save_obj(): vertex face does not exists",
@@ -149,6 +170,25 @@ pub fn save_obj_manifold(filename: &str, mesh: &ManifoldMesh3D) -> Result<()> {
             "save_obj(): vertex face does not exists",
         ))?;
         writeln!(file, "f {}// {}// {}//", ind0, ind1, ind2)?;
+    }
+    for (lab, group) in groups {
+        writeln!(file, "g {}", lab)?;
+        if opt_material_file.is_some() {
+            writeln!(file, "usemtl mtl_{}", lab)?;
+        }
+        for &f in group.iter() {
+            let face = mesh.get_face(f)?.vertices_inds();
+            let ind0 = corresp.get(&face[0]).ok_or(anyhow::Error::msg(
+                "save_obj(): vertex face does not exists",
+            ))?;
+            let ind1 = corresp.get(&face[1]).ok_or(anyhow::Error::msg(
+                "save_obj(): vertex face does not exists",
+            ))?;
+            let ind2 = corresp.get(&face[2]).ok_or(anyhow::Error::msg(
+                "save_obj(): vertex face does not exists",
+            ))?;
+            writeln!(file, "f {}// {}// {}//", ind0, ind1, ind2)?;
+        }
     }
 
     Ok(())

@@ -1,4 +1,5 @@
 use anyhow::Result;
+use rand::Rng;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::Write;
@@ -40,8 +41,16 @@ fn write_alveola(
 }
 
 /// Save skeleton as .obj file
-pub fn save_obj(filename: &str, skeleton: &Skeleton3D) -> Result<()> {
+pub fn save_obj(
+    filename: &str,
+    skeleton: &Skeleton3D,
+    opt_material_file: Option<&str>,
+) -> Result<()> {
     let mut file = File::create(filename)?;
+
+    if let Some(material_file) = opt_material_file {
+        writeln!(file, "mtllib {}", material_file)?;
+    }
 
     let mut skel_ind_to_ind = HashMap::new();
     let mut ind = 1;
@@ -102,10 +111,42 @@ pub fn save_obj(filename: &str, skeleton: &Skeleton3D) -> Result<()> {
             .collect();
         if alv_ind.len() != 0 {
             writeln!(file, "g sheet{}", lab_curr)?;
+            if opt_material_file.is_some() {
+                writeln!(file, "usemtl mtl_sheet{}", lab_curr)?;
+            }
             for ind in alv_ind.iter() {
                 write_alveola(&mut file, &skel_ind_to_ind, &skeleton.alveolae[ind])?;
             }
         }
+    }
+
+    Ok(())
+}
+
+/// Save material file
+pub fn save_mtl(filename: &str, skeleton: &Skeleton3D) -> Result<()> {
+    let mut file = File::create(filename)?;
+
+    let mut siz_sheet = HashMap::new();
+    for (_, &opt_lab) in skeleton.labels.iter() {
+        if let Some(lab) = opt_lab {
+            siz_sheet
+                .entry(lab)
+                .and_modify(|e| *e = *e + 1)
+                .or_insert(1);
+        }
+    }
+
+    let mut rng = rand::thread_rng();
+    for (&lab, _) in siz_sheet.iter() {
+        let rand_r = rng.gen_range(0..11) as f32;
+        let rand_g = rng.gen_range(0..11) as f32;
+        let rand_b = rng.gen_range(0..11) as f32;
+        let col_r = rand_r / 10.0;
+        let col_g = rand_g / 10.0;
+        let col_b = rand_b / 10.0;
+        writeln!(file, "newmtl mtl_sheet{}", lab)?;
+        writeln!(file, "Kd {} {} {}", col_r, col_g, col_b)?;
     }
 
     Ok(())

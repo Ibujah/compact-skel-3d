@@ -45,6 +45,11 @@ impl Skeleton3D {
         Ok(())
     }
 
+    /// Get nodes hashmap
+    pub fn get_nodes(&self) -> &HashMap<usize, Sphere> {
+        &self.nodes
+    }
+
     /// Adds an edge to the skeleton
     pub fn add_edge(&mut self, ind_edge: usize, ind_nodes: [usize; 2]) -> () {
         if !self.edges.contains_key(&ind_edge) {
