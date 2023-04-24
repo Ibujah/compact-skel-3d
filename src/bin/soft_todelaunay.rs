@@ -47,7 +47,7 @@ fn main() -> Result<()> {
     mesh.check_mesh()?;
 
     println!("Save mesh");
-    io::save_obj_manifold(obj_out_path_str, &mesh)?;
+    io::save_obj_manifold(obj_out_path_str, &mesh, None)?;
 
     Ok(())
 }

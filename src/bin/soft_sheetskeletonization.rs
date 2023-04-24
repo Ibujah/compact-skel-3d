@@ -33,21 +33,18 @@ struct Cli {
     obj_in_path: Option<std::path::PathBuf>,
     #[arg(long = "epsilon")]
     epsilon: Option<f32>,
-    #[arg(default_value = "./ressources/mesh.obj", long = "objoutfile")]
-    obj_out_path: std::path::PathBuf,
-    #[arg(default_value = "./ressources/skeleton.obj", long = "skeloutfile")]
-    skel_out_path: std::path::PathBuf,
-    #[arg(default_value = "./ressources/debug", long = "debugoutfile")]
-    debug_out_path: std::path::PathBuf,
+    #[arg(default_value = "./output/", long = "pathout")]
+    out_path: std::path::PathBuf,
+    #[arg(default_value = "mesh.obj", long = "objoutfile")]
+    obj_out_name: std::path::PathBuf,
+    #[arg(default_value = "skeleton.obj", long = "skeloutfile")]
+    skel_out_name: std::path::PathBuf,
+    #[arg(default_value = "sheet_color.mtl", long = "mtloutfile")]
+    mtl_out_name: std::path::PathBuf,
 }
 
 fn main() -> Result<()> {
     let args = Cli::parse();
-
-    let obj_out_path_str = args.obj_out_path.to_str().unwrap_or("");
-    let epsilon = args.epsilon;
-    let skel_out_path_str = args.skel_out_path.to_str().unwrap_or("");
-    let debug_out_path_str = args.debug_out_path.to_str().unwrap_or("");
 
     let mut mesh = if let Some(obj_in_path) = args.obj_in_path {
         let obj_in_path_str = obj_in_path.to_str().unwrap_or("");
@@ -55,6 +52,12 @@ fn main() -> Result<()> {
     } else {
         generate_test_mesh()?
     };
+
+    let epsilon = args.epsilon;
+    let out_path_str = args.out_path.to_str().unwrap();
+    let obj_out_name_str = args.obj_out_name.to_str().unwrap();
+    let skel_out_name_str = args.skel_out_name.to_str().unwrap();
+    let mtl_out_name_str = args.mtl_out_name.to_str().unwrap();
 
     println!("Checking mesh");
     mesh.check_mesh()?;
@@ -114,7 +117,8 @@ fn main() -> Result<()> {
 
     let now = Instant::now();
     println!("Sheet skeletonization");
-    let (skeleton, vec_debug_meshes) = skeleton_alg::sheet_skeletonization(&mut mesh, epsilon)?;
+    let (skeleton, _work_mesh, vec_debug_meshes) =
+        skeleton_alg::sheet_skeletonization(&mut mesh, epsilon)?;
     let duration = now.elapsed();
     let sec = duration.as_secs();
     let min = sec / 60;
@@ -123,14 +127,23 @@ fn main() -> Result<()> {
     println!("");
 
     println!("Saving skeleton and debug meshes");
-    mesh3d::io::save_obj_manifold(obj_out_path_str, &mesh)?;
+    mesh3d::io::save_obj_manifold(
+        &format!("{}{}", out_path_str, obj_out_name_str),
+        &mesh,
+        Some(mtl_out_name_str),
+    )?;
     for i in 0..vec_debug_meshes.len() {
         mesh3d::io::save_obj_generic(
-            &format!("{}{}.obj", debug_out_path_str, i),
+            &format!("{}debug{}.obj", out_path_str, i),
             &vec_debug_meshes[i],
         )?;
     }
-    skeleton3d::io::save_obj(skel_out_path_str, &skeleton)?;
+    skeleton3d::io::save_obj(
+        &format!("{}{}", out_path_str, skel_out_name_str),
+        &skeleton,
+        Some(mtl_out_name_str),
+    )?;
+    skeleton3d::io::save_mtl(&format!("{}{}", out_path_str, mtl_out_name_str), &skeleton)?;
 
     Ok(())
 }

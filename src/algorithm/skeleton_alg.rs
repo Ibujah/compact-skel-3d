@@ -1,4 +1,5 @@
 use anyhow::Result;
+use std::collections::HashMap;
 
 use crate::algorithm::sub_algorithms::SkeletonSeparation;
 use crate::mesh3d::GenericMesh3D;
@@ -255,17 +256,55 @@ fn loop_skeletonization(
 pub fn sheet_skeletonization(
     mesh: &mut ManifoldMesh3D,
     opt_epsilon: Option<f32>,
-) -> Result<(Skeleton3D, Vec<GenericMesh3D>)> {
+) -> Result<(Skeleton3D, ManifoldMesh3D, Vec<GenericMesh3D>)> {
     println!("Init skeleton interface");
-    let mut skeleton_interface = SkeletonInterface3D::init(mesh)?;
+    let mut mesh_cl = mesh.clone();
+    let mut skeleton_interface = SkeletonInterface3D::init(&mut mesh_cl)?;
     skeleton_interface.check()?;
 
     if let Some(err) = loop_skeletonization(&mut skeleton_interface, opt_epsilon).err() {
         println!("{}", err);
     }
 
+    println!("Computing labels");
+    let label_per_vertex = skeleton_interface.get_label_per_vertex()?;
+    let mut assignment: Vec<(usize, String)> = Vec::new();
+    for (&ind_face, _) in mesh.faces() {
+        let vert_inds = mesh.get_face(ind_face)?.vertices_inds();
+        let mut nb_vote_per_lab = HashMap::new();
+        for ind_v in vert_inds.iter() {
+            if let Some(list_lab) = label_per_vertex.get(ind_v) {
+                for &lab in list_lab.iter() {
+                    nb_vote_per_lab
+                        .entry(lab)
+                        .and_modify(|c| *c += 1)
+                        .or_insert(1);
+                }
+            }
+        }
+
+        let (opt_lab, _) =
+            nb_vote_per_lab
+                .iter()
+                .fold((None, 0), |(lab, nb), (&lab_cur, &nb_cur)| {
+                    if nb_cur > nb {
+                        (Some(lab_cur), nb_cur)
+                    } else {
+                        (lab, nb)
+                    }
+                });
+
+        if let Some(lab) = opt_lab {
+            assignment.push((ind_face, format!("sheet{}", lab)));
+        }
+    }
+    for (ind_face, lab) in assignment.iter() {
+        mesh.set_face_in_group(*ind_face, lab.clone());
+    }
+
     Ok((
         skeleton_interface.get_skeleton().clone(),
+        skeleton_interface.get_mesh().clone(),
         skeleton_interface.get_debug_meshes().clone(),
     ))
 }

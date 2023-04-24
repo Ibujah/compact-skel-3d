@@ -1,6 +1,6 @@
 use anyhow::Result;
 use nalgebra::base::*;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use crate::geometry::geometry_operations;
 use crate::mesh3d::GenericMesh3D;
@@ -1065,6 +1065,57 @@ impl<'a, 'b> SkeletonInterface3D<'a> {
             }
         }
         Ok(())
+    }
+
+    /// Labelling each meshvertex
+    pub fn get_label_per_vertex(&self) -> Result<HashMap<usize, HashSet<usize>>> {
+        let mut labels_per_vert: HashMap<usize, HashSet<usize>> = HashMap::new();
+
+        for (&ind_node, _) in self.skeleton.get_nodes().iter() {
+            let node = self.get_node(ind_node)?;
+
+            let mut list_lab = HashSet::new();
+            let mut verts = Vec::new();
+            for edge in node.edges() {
+                if !edge.is_full() {
+                    let [ind_vertex1, ind_vertex2, ind_vertex3] = edge.delaunay_triangle();
+                    let ind_f = self
+                        .mesh
+                        .is_face_in(ind_vertex1, ind_vertex2, ind_vertex3)
+                        .unwrap();
+                    if let Some(l_v) = self.out_vert_per_face.get(&ind_f.ind()) {
+                        for &v in l_v {
+                            verts.push(v);
+                        }
+                    }
+                    continue;
+                }
+                for alve in edge.alveolae() {
+                    if let Some(lab) = alve.label() {
+                        list_lab.insert(lab);
+                    }
+                }
+            }
+            if list_lab.len() == 1 {
+                let &lab = list_lab.iter().next().unwrap();
+                for ind_vert in node.delaunay_tetrahedron() {
+                    verts.push(ind_vert);
+                }
+                verts.sort();
+                verts.dedup();
+                for ind_vert in verts {
+                    if let Some(set) = labels_per_vert.get_mut(&ind_vert) {
+                        set.insert(lab);
+                    } else {
+                        let mut set = HashSet::new();
+                        set.insert(lab);
+                        labels_per_vert.insert(ind_vert, set);
+                    }
+                }
+            }
+        }
+
+        Ok(labels_per_vert)
     }
 }
 
