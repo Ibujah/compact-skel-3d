@@ -6,6 +6,7 @@ use std::collections::{HashMap, HashSet};
 use crate::mesh3d::GenericMesh3D;
 
 use super::skeleton_boundary_path;
+use super::skeleton_problematic_path;
 use super::skeleton_singular_path::{PathPart, SkeletonSingularPath};
 use super::MovableDelaunayPath;
 use super::SkeletonInterface3D;
@@ -243,12 +244,24 @@ pub fn outer_partial_edges(
     vec_pedges
 }
 
-/// Returns boundary edges on the sheet
+/// Returns boundary edges on skeleton
 pub fn boundary_partial_edges(skeleton_interface: &SkeletonInterface3D) -> Vec<usize> {
     let mut vec_pedges = Vec::new();
     for ind_pedge in 0..skeleton_interface.pedge_edge.len() {
         let pedge = skeleton_interface.get_partial_edge_uncheck(ind_pedge);
         if pedge.edge().degree() == 1 && pedge.partial_alveola().alveola().label().is_some() {
+            vec_pedges.push(pedge.ind());
+        }
+    }
+    vec_pedges
+}
+
+/// Returns problematic edges on skeleton
+pub fn problematic_partial_edges(skeleton_interface: &SkeletonInterface3D) -> Vec<usize> {
+    let mut vec_pedges = Vec::new();
+    for ind_pedge in 0..skeleton_interface.pedge_edge.len() {
+        let pedge = skeleton_interface.get_partial_edge_uncheck(ind_pedge);
+        if pedge.edge().is_non_manifold() && pedge.partial_alveola().alveola().label().is_some() {
             vec_pedges.push(pedge.ind());
         }
     }
@@ -1039,4 +1052,21 @@ pub fn create_debug_meshes<'a, 'b>(
     }
 
     Ok(debug_meshes)
+}
+
+pub fn handle_problematic_pedge(
+    ind_pedge: usize,
+    skeleton_interface: &mut SkeletonInterface3D,
+) -> Result<()> {
+    let mut skel_prob =
+        skeleton_problematic_path::SkeletonProblematicPath::create(ind_pedge, skeleton_interface)?;
+    skel_prob.follow_problematic_path(skeleton_interface)?;
+
+    if skel_prob.removable_from_last(skeleton_interface)? {
+        let vec_sing = skeleton_problematic_path::last_to_boundary(&skel_prob, skeleton_interface)?;
+    } else if skel_prob.removable_from_first(skeleton_interface)? {
+        let vec_sing =
+            skeleton_problematic_path::first_to_boundary(&skel_prob, skeleton_interface)?;
+    }
+    Ok(())
 }

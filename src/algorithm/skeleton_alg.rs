@@ -246,6 +246,26 @@ fn loop_skeletonization(
             "\r{} boundary pedges remaining                                   ",
             saliencies.len()
         );
+        println!("Problematic edges correction");
+        let mut problematics = skeleton_operations::problematic_partial_edges(skeleton_interface);
+        loop {
+            print!(
+                "\r{} problematic pedges remaining                                   ",
+                problematics.len()
+            );
+            if let Some(ind_pedge) = problematics.pop() {
+                let pedge = skeleton_interface.get_partial_edge(ind_pedge)?;
+                if !pedge.edge().is_non_manifold() {
+                    continue;
+                }
+                if pedge.partial_alveola().alveola().label().is_none() {
+                    continue;
+                }
+                skeleton_operations::handle_problematic_pedge(ind_pedge, skeleton_interface)?;
+            } else {
+                break;
+            }
+        }
     }
     println!("Checking skeleton");
     skeleton_interface.check()?;
