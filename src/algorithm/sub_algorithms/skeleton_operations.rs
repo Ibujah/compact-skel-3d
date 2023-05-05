@@ -3,6 +3,9 @@ use nalgebra::base::*;
 use rand::Rng;
 use std::collections::{HashMap, HashSet};
 
+use crate::algorithm::sub_algorithms::skeleton_problematic_path::{
+    first_to_boundary, last_to_boundary, SkeletonProblematicPath,
+};
 use crate::mesh3d::GenericMesh3D;
 
 use super::skeleton_boundary_path;
@@ -204,7 +207,7 @@ pub fn compute_sheet(
                     .get_alveola_uncheck(ind_alveola)
                     .edges()
                     .iter()
-                    .filter(|edge| edge.degree() == 2)
+                    .filter(|edge| edge.is_regular())
                 {
                     edge.alveolae().iter().fold((), |_, alv| {
                         if alv.ind() != ind_alveola && alv.is_full() {
@@ -1054,19 +1057,61 @@ pub fn create_debug_meshes<'a, 'b>(
     Ok(debug_meshes)
 }
 
+/// Try to solve problematic path
+pub fn try_solve_problematic_path(
+    skel_prob: &mut SkeletonProblematicPath,
+    skeleton_interface: &mut SkeletonInterface3D,
+    label_pedge: usize,
+    new_label: usize,
+) -> Result<bool> {
+    let vec_edges = if skel_prob.follow_boundary_path_from_first(skeleton_interface)? {
+        last_to_boundary(skel_prob, skeleton_interface, label_pedge)?
+    } else if skel_prob.follow_boundary_path_from_last(skeleton_interface)? {
+        first_to_boundary(skel_prob, skeleton_interface, label_pedge)?
+    } else {
+        Vec::new()
+    };
+    if vec_edges.len() == 0 {
+        return Ok(false);
+    }
+
+    for &ind_edge in vec_edges.iter() {
+        skeleton_interface.set_edge_sing(ind_edge)?;
+    }
+    let ind_pedge = skel_prob.components()[0];
+    let pedge = skeleton_interface.get_partial_edge_uncheck(ind_pedge);
+    let ind_alveola = pedge.partial_alveola().alveola().ind();
+
+    compute_sheet(skeleton_interface, ind_alveola, new_label)?;
+    for ind_alveola in skeleton_interface.get_sheet(new_label) {
+        skeleton_interface
+            .skeleton
+            .set_label(ind_alveola, new_label);
+    }
+
+    Ok(true)
+}
+
+/// Problematic edges correction
 pub fn handle_problematic_pedge(
     ind_pedge: usize,
     skeleton_interface: &mut SkeletonInterface3D,
-) -> Result<()> {
+    label: usize,
+) -> Result<usize> {
     let mut skel_prob =
         skeleton_problematic_path::SkeletonProblematicPath::create(ind_pedge, skeleton_interface)?;
+
     skel_prob.follow_problematic_path(skeleton_interface)?;
 
-    if skel_prob.removable_from_last(skeleton_interface)? {
-        let vec_sing = skeleton_problematic_path::last_to_boundary(&skel_prob, skeleton_interface)?;
-    } else if skel_prob.removable_from_first(skeleton_interface)? {
-        let vec_sing =
-            skeleton_problematic_path::first_to_boundary(&skel_prob, skeleton_interface)?;
+    let label_pedge = skeleton_interface
+        .get_partial_edge(ind_pedge)?
+        .partial_alveola()
+        .alveola()
+        .label()
+        .unwrap();
+    if try_solve_problematic_path(&mut skel_prob, skeleton_interface, label_pedge, label + 1)? {
+        return Ok(label + 1);
     }
-    Ok(())
+
+    Ok(label)
 }

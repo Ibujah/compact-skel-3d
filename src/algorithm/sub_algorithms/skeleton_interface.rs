@@ -37,6 +37,7 @@ pub struct SkeletonInterface3D<'a> {
     pub(super) edge_pedge_opp: Vec<[usize; 3]>, // opposite partial edges associated to each edge, ordered with corners
     pub(super) edge_node: Vec<[Option<usize>; 2]>, // links two nodes (ordered)
     pub(super) edge_alve: Vec<[usize; 3]>,      // alveolae indices
+    pub(super) edge_set_sing: Vec<bool>,        // True to force edge singularization
 
     // alveola related
     pub(super) alve_seg: Vec<[usize; 2]>, // link to delaunay segments
@@ -139,6 +140,7 @@ impl<'a, 'b> SkeletonInterface3D<'a> {
                 edge_pedge_opp: Vec::new(),
                 edge_node: Vec::new(),
                 edge_alve: Vec::new(),
+                edge_set_sing: Vec::new(),
                 alve_seg: Vec::new(),
                 alve_palve: Vec::new(),
                 alve_edge: Vec::new(),
@@ -167,6 +169,7 @@ impl<'a, 'b> SkeletonInterface3D<'a> {
         for lab in self.alve_label.iter_mut() {
             *lab = None;
         }
+        self.reset_edge_sing();
     }
 
     /// Adds a skeletal node
@@ -228,6 +231,7 @@ impl<'a, 'b> SkeletonInterface3D<'a> {
                 let (pedges_dir, pedges_opp) = self.add_partial_edges(ind_edge, del_tri);
                 self.edge_pedge_dir.push(pedges_dir);
                 self.edge_pedge_opp.push(pedges_opp);
+                self.edge_set_sing.push(false);
 
                 let ind_alv0 = self.add_alveola(&[del_tri[1], del_tri[2]]);
                 let ind_alv1 = self.add_alveola(&[del_tri[0], del_tri[2]]);
@@ -581,6 +585,22 @@ impl<'a, 'b> SkeletonInterface3D<'a> {
             .map(|&x| x)
             .collect();
         Ok(vec)
+    }
+
+    /// Force an edge to be singular
+    pub fn set_edge_sing(&mut self, ind_edge: usize) -> Result<()> {
+        if ind_edge >= self.edge_set_sing.len() {
+            return Err(anyhow::Error::msg("Edge index out of bounds"));
+        }
+        self.edge_set_sing[ind_edge] = true;
+        Ok(())
+    }
+
+    /// Reset all forced edges to non singular
+    pub fn reset_edge_sing(&mut self) -> () {
+        for i in 0..self.edge_set_sing.len() {
+            self.edge_set_sing[i] = false;
+        }
     }
 
     fn check_node(&self, ind_node: usize) -> Result<()> {
@@ -1235,7 +1255,15 @@ impl<'a, 'b> IterEdge<'a, 'b> {
     }
 
     pub fn is_singular(&self) -> bool {
-        self.degree() >= 3
+        self.skeleton_interface.edge_set_sing[self.ind_edge] || self.degree() >= 3
+    }
+
+    pub fn is_regular(&self) -> bool {
+        !self.skeleton_interface.edge_set_sing[self.ind_edge] && self.degree() == 2
+    }
+
+    pub fn is_boundary(&self) -> bool {
+        self.degree() == 1
     }
 
     pub fn is_non_manifold(&self) -> bool {
