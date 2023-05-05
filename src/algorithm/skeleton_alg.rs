@@ -58,9 +58,10 @@ fn loop_skeletonization(
     // let mut ind_first_alveola = skeleton_operations::first_alveola_in(skeleton_interface)?;
     let mut cpt_loop = 0;
     let mut nb_sheets_prev = 0;
+    let mut label;
     loop {
         cpt_loop = cpt_loop + 1;
-        let mut label = 1;
+        label = 1;
         let mut modif_done = false;
 
         skeleton_interface.reinit_skeleton();
@@ -247,6 +248,34 @@ fn loop_skeletonization(
             saliencies.len()
         );
     }
+    println!("Problematic edges correction");
+    let mut problematics = skeleton_operations::problematic_partial_edges(skeleton_interface);
+    loop {
+        print!(
+            "\r{} problematic pedges remaining                                   ",
+            problematics.len()
+        );
+        if let Some(ind_pedge) = problematics.pop() {
+            let pedge = skeleton_interface.get_partial_edge(ind_pedge)?;
+            if !pedge.edge().is_non_manifold() {
+                continue;
+            }
+            if pedge.partial_alveola().alveola().label().is_none() {
+                continue;
+            }
+            label = skeleton_operations::handle_problematic_pedge(
+                ind_pedge,
+                skeleton_interface,
+                label,
+            )?;
+        } else {
+            break;
+        }
+    }
+    println!(
+        "\r{} problematic pedges remaining                                   ",
+        problematics.len()
+    );
     println!("Checking skeleton");
     skeleton_interface.check()?;
     Ok(())
