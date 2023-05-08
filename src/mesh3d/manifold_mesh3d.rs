@@ -237,6 +237,8 @@ impl ManifoldMesh3D {
             .remove(&ind_face)
             .ok_or(anyhow::Error::msg("remove_face() face does not exist"))?;
 
+        self.groups.remove(&ind_face);
+
         self.map_hedg_face.remove(&ind_he1);
         self.map_hedg_face.remove(&ind_he2);
         self.map_hedg_face.remove(&ind_he3);

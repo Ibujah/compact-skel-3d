@@ -1,6 +1,7 @@
 use anyhow::Result;
 use clap::Parser;
 use nalgebra::base::*;
+use std::fs;
 use std::time::Instant;
 
 use compact_skel_3d::algorithm::{delaunay_alg, skeleton_alg};
@@ -127,6 +128,7 @@ fn main() -> Result<()> {
     println!("");
 
     println!("Saving skeleton and debug meshes");
+    fs::create_dir_all(out_path_str)?;
     mesh3d::io::save_obj_manifold(
         &format!("{}{}", out_path_str, obj_out_name_str),
         &mesh,

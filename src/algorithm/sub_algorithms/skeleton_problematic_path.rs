@@ -487,7 +487,11 @@ fn next_pedges_to_eval(
             continue;
         }
         for pedg in edg.partial_edges().iter() {
-            if pedg.partial_node_first().unwrap().node().ind() != ind_node {
+            if let Some(pnode) = pedg.partial_node_first() {
+                if pnode.node().ind() != ind_node {
+                    continue;
+                }
+            } else {
                 continue;
             }
             if pedg.partial_alveola().alveola().label() == Some(label) {
