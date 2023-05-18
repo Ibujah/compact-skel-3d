@@ -59,6 +59,7 @@ fn loop_skeletonization(
     let mut cpt_loop = 0;
     let mut nb_sheets_prev = 0;
     let mut label;
+    let mut ind_first_alveola = skeleton_operations::first_alveola_in(skeleton_interface)?;
     loop {
         cpt_loop = cpt_loop + 1;
         label = 1;
@@ -67,7 +68,6 @@ fn loop_skeletonization(
         skeleton_interface.reinit_skeleton();
         println!("Loop {}", cpt_loop);
         println!("Propagating first sheet");
-        let ind_first_alveola = skeleton_operations::first_alveola_in(skeleton_interface)?;
         skeleton_operations::compute_sheet(skeleton_interface, ind_first_alveola, label)?;
         let current_sheet = skeleton_interface.get_sheet(label);
         let mut sheet_siz_max = current_sheet.len();
@@ -81,13 +81,12 @@ fn loop_skeletonization(
             }
         }
         let mut vec_pedges =
-            skeleton_operations::outer_partial_edges(&skeleton_interface, &current_sheet);
-        vec_pedges.sort();
-        vec_pedges.dedup();
+            skeleton_operations::outer_partial_edges(&skeleton_interface, &current_sheet)?;
+        vec_pedges.sort_by(|(_, r1), (_, r2)| r2.partial_cmp(r1).unwrap());
 
         println!("Searching paths");
         loop {
-            if let Some(ind_pedge) = vec_pedges.pop() {
+            if let Some((ind_pedge, _)) = vec_pedges.pop() {
                 print!(
                     "\rSheet {},  {} pedges remaining                                   ",
                     label,
@@ -159,10 +158,9 @@ fn loop_skeletonization(
                         let mut vec_pedges_new = skeleton_operations::outer_partial_edges(
                             &skeleton_interface,
                             &current_sheet,
-                        );
+                        )?;
                         vec_pedges.append(&mut vec_pedges_new);
-                        vec_pedges.sort();
-                        vec_pedges.dedup();
+                        vec_pedges.sort_by(|(_, r1), (_, r2)| r2.partial_cmp(r1).unwrap());
                     }
                 }
             } else {
@@ -247,6 +245,7 @@ fn loop_skeletonization(
             "\r{} boundary pedges remaining                                   ",
             saliencies.len()
         );
+        ind_first_alveola = skeleton_operations::largest_alveola(skeleton_interface)?;
     }
     println!("Problematic edges correction");
     let mut problematics = skeleton_operations::problematic_partial_edges(skeleton_interface);

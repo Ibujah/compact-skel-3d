@@ -1219,6 +1219,26 @@ impl<'a, 'b> IterEdge<'a, 'b> {
         self.skeleton_interface.edge_tri[self.ind_edge]
     }
 
+    pub fn center_and_radius(&self) -> Result<(Vector3<f32>, f32)> {
+        let tri_vert: Vec<Vector3<f32>> = self
+            .delaunay_triangle()
+            .iter()
+            .map(|&ind| {
+                self.skeleton_interface
+                    .get_mesh()
+                    .get_vertex(ind)
+                    .unwrap()
+                    .vertex()
+            })
+            .collect();
+
+        let center = geometry_operations::circle_center([tri_vert[0], tri_vert[1], tri_vert[2]])
+            .ok_or(anyhow::Error::msg("No center and radius found"))?;
+        let radius = (center - tri_vert[0]).norm();
+
+        Ok((center, radius))
+    }
+
     pub fn nodes(&self) -> Vec<IterNode<'a, 'b>> {
         let mut nods: Vec<IterNode> = Vec::new();
         self.skeleton_interface.edge_node[self.ind_edge]
@@ -1340,6 +1360,24 @@ impl<'a, 'b> IterAlveola<'a, 'b> {
 
     pub fn delaunay_segment(&self) -> [usize; 2] {
         self.skeleton_interface.alve_seg[self.ind_alveola]
+    }
+
+    pub fn center_and_radius(&self) -> (Vector3<f32>, f32) {
+        let edg_vert: Vec<Vector3<f32>> = self
+            .delaunay_segment()
+            .iter()
+            .map(|&ind| {
+                self.skeleton_interface
+                    .get_mesh()
+                    .get_vertex(ind)
+                    .unwrap()
+                    .vertex()
+            })
+            .collect();
+        let center = (edg_vert[0] + edg_vert[1]) / 2.0;
+        let radius = (edg_vert[0] - edg_vert[1]).norm() / 2.0;
+
+        (center, radius)
     }
 
     pub fn edges(&self) -> Vec<IterEdge<'a, 'b>> {

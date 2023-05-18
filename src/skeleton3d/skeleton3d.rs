@@ -50,6 +50,11 @@ impl Skeleton3D {
         &self.nodes
     }
 
+    /// Get alveolae hashmap
+    pub fn get_alveolae(&self) -> &HashMap<usize, Vec<usize>> {
+        &self.alveolae
+    }
+
     /// Adds an edge to the skeleton
     pub fn add_edge(&mut self, ind_edge: usize, ind_nodes: [usize; 2]) -> () {
         if !self.edges.contains_key(&ind_edge) {

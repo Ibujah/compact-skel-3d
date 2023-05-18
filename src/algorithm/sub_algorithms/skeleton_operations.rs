@@ -105,6 +105,28 @@ pub fn first_alveola_in(skeleton_interface: &mut SkeletonInterface3D) -> Result<
     Err(anyhow::Error::msg("No first alveola found"))
 }
 
+/// Estimates largest alveola of the skeleton
+pub fn largest_alveola(skeleton_interface: &SkeletonInterface3D) -> Result<usize> {
+    let mut opt_radius_max = None;
+    let mut opt_ind_max = None;
+    for (&ind_alveola, _) in skeleton_interface.get_skeleton().get_alveolae() {
+        let (_, radius) = skeleton_interface
+            .get_alveola(ind_alveola)?
+            .center_and_radius();
+        if let Some(radius_max) = opt_radius_max {
+            if radius_max < radius {
+                opt_radius_max = Some(radius);
+                opt_ind_max = Some(ind_alveola);
+            }
+        } else {
+            opt_radius_max = Some(radius);
+            opt_ind_max = Some(ind_alveola);
+        }
+    }
+
+    opt_ind_max.ok_or(anyhow::Error::msg("No largest alveola found"))
+}
+
 /// Includes an alveola in the final skeleton
 pub fn include_alveola_in_skel(
     skeleton_interface: &mut SkeletonInterface3D,
@@ -229,7 +251,7 @@ pub fn compute_sheet(
 pub fn outer_partial_edges(
     skeleton_interface: &SkeletonInterface3D,
     current_sheet: &Vec<usize>,
-) -> Vec<usize> {
+) -> Result<Vec<(usize, f32)>> {
     let mut vec_pedges = Vec::new();
     for &ind_alveola in current_sheet.iter() {
         for palve in skeleton_interface
@@ -239,12 +261,13 @@ pub fn outer_partial_edges(
             for pedge in palve.partial_edges().iter() {
                 let pedge_neigh = pedge.partial_edge_neighbor();
                 if pedge_neigh.edge().is_singular() {
-                    vec_pedges.push(pedge_neigh.ind());
+                    let (_, radius) = pedge_neigh.edge().center_and_radius()?;
+                    vec_pedges.push((pedge_neigh.ind(), radius));
                 }
             }
         }
     }
-    vec_pedges
+    Ok(vec_pedges)
 }
 
 /// Returns boundary edges on skeleton
