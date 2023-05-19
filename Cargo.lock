@@ -449,7 +449,7 @@ dependencies = [
 [[package]]
 name = "tritet"
 version = "0.2.0"
-source = "git+https://github.com/Ibujah/tritet/#c5366eda3b3e982001bb9715a17a04a73028732a"
+source = "git+https://github.com/user-9550748/tritet#f8aae44090f2f541722be31c33422a9205957da5"
 dependencies = [
  "cc",
  "once_cell",
