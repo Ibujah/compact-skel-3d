@@ -8,20 +8,6 @@ Compact 3d skeletonization in rust, mesh conversion to delaunay
 
 This program is writen in Rust. You can install the main tool (cargo) [here](https://www.rust-lang.org/tools/install).
 
-### Installing dependencies
-
-Linux:
-```
-sudo apt-get install build essential liblapacke-dev libopenblas-dev
-pip install matplotlib
-```
-
-MacOS
-```
-brew install openblas lapack
-pip3 install matplotlib
-```
-
 ### Build and run
 
 Build instructions:
