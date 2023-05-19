@@ -9,8 +9,7 @@ edition = "2021"
 clap = {version = "4.0.18", features = ["derive"]}
 anyhow = "1.0.66"
 nalgebra = "0.31.3"
-tritet = "0.2.0"
-plotpy = "0.3.5"
+tritet = { version = "0.2.0", git = "https://github.com/Ibujah/tritet/", default-features = false }
 rand = "0.8.5"
 
 [[bin]]
