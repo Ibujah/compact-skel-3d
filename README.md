@@ -1,6 +1,6 @@
 # 3D skeletonization
 
-Compact 3d skeletonization in rust, mesh conversion to delaunay
+Compact 3d skeletonization in rust, mesh conversion to delaunay. Link to the article [here](https://hal.science/hal-04262568) (prepublication on HAL).
 
 ## Instructions
 
