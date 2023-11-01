@@ -15,7 +15,7 @@ pub struct ManifoldMesh3D {
     pub(super) vertices: HashMap<usize, Vertex>,
     pub(super) halfedges: HashMap<usize, HalfEdge>,
     pub(super) faces: HashMap<usize, FaceHalfedges>,
-    pub(super) groups: HashMap<usize, Option<String>>,
+    pub(super) groups: HashMap<usize, Option<usize>>,
     pub(super) last_ind_vert: usize,
     pub(super) last_ind_hedge: usize,
     pub(super) last_ind_face: usize,
@@ -484,7 +484,7 @@ impl ManifoldMesh3D {
     }
 
     /// Assign a group to a face
-    pub fn set_face_in_group(&mut self, ind_face: usize, group: String) -> () {
+    pub fn set_face_in_group(&mut self, ind_face: usize, group: usize) -> () {
         self.groups.insert(ind_face, Some(group));
     }
 }

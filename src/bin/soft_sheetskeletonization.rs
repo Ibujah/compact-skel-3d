@@ -36,12 +36,10 @@ struct Cli {
     epsilon: Option<f32>,
     #[arg(default_value = "./output/", long = "pathout")]
     out_path: std::path::PathBuf,
-    #[arg(default_value = "mesh.obj", long = "objoutfile")]
+    #[arg(default_value = "mesh.ply", long = "objoutfile")]
     obj_out_name: std::path::PathBuf,
-    #[arg(default_value = "skeleton.obj", long = "skeloutfile")]
+    #[arg(default_value = "skeleton.ply", long = "skeloutfile")]
     skel_out_name: std::path::PathBuf,
-    #[arg(default_value = "sheet_color.mtl", long = "mtloutfile")]
-    mtl_out_name: std::path::PathBuf,
 }
 
 fn main() -> Result<()> {
@@ -58,7 +56,6 @@ fn main() -> Result<()> {
     let out_path_str = args.out_path.to_str().unwrap();
     let obj_out_name_str = args.obj_out_name.to_str().unwrap();
     let skel_out_name_str = args.skel_out_name.to_str().unwrap();
-    let mtl_out_name_str = args.mtl_out_name.to_str().unwrap();
 
     println!("Checking mesh");
     mesh.check_mesh()?;
@@ -129,23 +126,22 @@ fn main() -> Result<()> {
 
     println!("Saving skeleton and debug meshes");
     fs::create_dir_all(out_path_str)?;
-    mesh3d::io::save_obj_manifold(
-        &format!("{}{}", out_path_str, obj_out_name_str),
-        &mesh,
-        Some(mtl_out_name_str),
-    )?;
     for i in 0..vec_debug_meshes.len() {
         mesh3d::io::save_obj_generic(
             &format!("{}debug{}.obj", out_path_str, i),
             &vec_debug_meshes[i],
         )?;
     }
-    skeleton3d::io::save_obj(
+    let vec_col = skeleton3d::io::save_ply(
         &format!("{}{}", out_path_str, skel_out_name_str),
         &skeleton,
-        Some(mtl_out_name_str),
+        None,
     )?;
-    skeleton3d::io::save_mtl(&format!("{}{}", out_path_str, mtl_out_name_str), &skeleton)?;
+    mesh3d::io::save_ply_manifold(
+        &format!("{}{}", out_path_str, obj_out_name_str),
+        &mesh,
+        Some(vec_col),
+    )?;
 
     Ok(())
 }
