@@ -151,3 +151,131 @@ pub fn save_mtl(filename: &str, skeleton: &Skeleton3D) -> Result<()> {
 
     Ok(())
 }
+
+/// Save radii as .rad file
+pub fn save_rad(filename: &str, skeleton: &Skeleton3D) -> Result<()> {
+    let mut file = File::create(filename)?;
+
+    for (_, sph) in skeleton.nodes.iter() {
+        let rad = sph.radius;
+        writeln!(file, "{}", rad)?;
+    }
+
+    Ok(())
+}
+
+/// Save skeleton as .ply file
+pub fn save_ply(
+    filename: &str,
+    skeleton: &Skeleton3D,
+    colors: Option<Vec<[u8; 3]>>,
+) -> Result<Vec<[u8; 3]>> {
+    let mut file = File::create(filename)?;
+
+    writeln!(file, "ply")?;
+    writeln!(file, "format ascii 1.0")?;
+
+    writeln!(file, "element vertex {}", skeleton.nodes.len())?;
+    writeln!(file, "property float x")?;
+    writeln!(file, "property float y")?;
+    writeln!(file, "property float z")?;
+    writeln!(file, "property float radius")?;
+    writeln!(file, "property uchar red")?;
+    writeln!(file, "property uchar green")?;
+    writeln!(file, "property uchar blue")?;
+
+    writeln!(file, "element face {}", skeleton.alveolae.len())?;
+    writeln!(file, "property list uchar int vertex_index")?;
+    writeln!(file, "property uchar label")?;
+    writeln!(file, "property uchar red")?;
+    writeln!(file, "property uchar green")?;
+    writeln!(file, "property uchar blue")?;
+
+    writeln!(file, "end_header")?;
+
+    let mut min_rad = -1.0;
+    let mut max_rad = -1.0;
+    for (_, sph) in skeleton.nodes.iter() {
+        let rad = sph.radius;
+        if min_rad < 0.0 || min_rad < rad {
+            min_rad = rad;
+        }
+        if max_rad < 0.0 || max_rad > rad {
+            max_rad = rad;
+        }
+    }
+
+    let mut skel_ind_to_ind = HashMap::new();
+    let mut ind = 0;
+    for (skel_ind, sph) in skeleton.nodes.iter() {
+        let vert = sph.center;
+        let rad = sph.radius;
+
+        let p = (rad - min_rad) / (max_rad - min_rad);
+        writeln!(
+            file,
+            "{} {} {} {} {} {} {}",
+            vert[0],
+            vert[1],
+            vert[2],
+            rad,
+            (p * 255.0) as u8,
+            0,
+            ((1.0 - p) * 255.0) as u8
+        )?;
+        skel_ind_to_ind.insert(skel_ind, ind);
+        ind = ind + 1;
+    }
+
+    let vec_col = if let Some(col) = colors {
+        col
+    } else {
+        let lab_max = skeleton.labels.iter().fold(0, |lm, (_, opt_lab)| {
+            if let &Some(lab) = opt_lab {
+                if lm > lab {
+                    lm
+                } else {
+                    lab
+                }
+            } else {
+                lm
+            }
+        }) + 1;
+        let mut vec_col = Vec::new();
+        let mut rng = rand::thread_rng();
+        for _ in 0..(lab_max + 1) {
+            let rand_r = rng.gen_range(0..11) as f32;
+            let rand_g = rng.gen_range(0..11) as f32;
+            let rand_b = rng.gen_range(0..11) as f32;
+            let col_r = (255.0 * rand_r / 10.0) as u8;
+            let col_g = (255.0 * rand_g / 10.0) as u8;
+            let col_b = (255.0 * rand_b / 10.0) as u8;
+            vec_col.push([col_r, col_g, col_b]);
+        }
+        vec_col
+    };
+
+    for (alv_ind, alv_nods) in skeleton.alveolae.iter() {
+        let label = skeleton.labels[alv_ind];
+        write!(file, "{} ", alv_nods.len())?;
+        for i in alv_nods {
+            write!(file, "{} ", skel_ind_to_ind[i])?;
+        }
+        if let Some(lab) = label {
+            writeln!(
+                file,
+                "{} {} {} {}",
+                lab, vec_col[lab][0], vec_col[lab][1], vec_col[lab][2]
+            )?;
+        } else {
+            let lab = vec_col.len() - 1;
+            writeln!(
+                file,
+                "{} {} {} {}",
+                lab, vec_col[lab][0], vec_col[lab][1], vec_col[lab][2]
+            )?;
+        }
+    }
+
+    Ok(vec_col)
+}

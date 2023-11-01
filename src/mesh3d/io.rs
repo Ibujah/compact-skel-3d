@@ -1,5 +1,6 @@
 use anyhow::Result;
 use nalgebra::base::*;
+use rand::Rng;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::{self, BufRead, Write};
@@ -150,7 +151,7 @@ pub fn save_obj_manifold(
     for (&ind_face, opt_lab) in mesh.groups.iter() {
         if let Some(lab) = opt_lab {
             groups
-                .entry(lab.clone())
+                .entry(format!("sheet{}", lab))
                 .and_modify(|g| g.push(ind_face))
                 .or_insert(vec![ind_face]);
         } else {
@@ -215,4 +216,93 @@ pub fn save_obj_generic(filename: &str, mesh: &GenericMesh3D) -> Result<()> {
     }
 
     Ok(())
+}
+
+/// Save manifold mesh as ply file
+pub fn save_ply_manifold(
+    filename: &str,
+    mesh: &ManifoldMesh3D,
+    colors: Option<Vec<[u8; 3]>>,
+) -> Result<Vec<[u8; 3]>> {
+    let mut file = File::create(filename)?;
+
+    writeln!(file, "ply")?;
+    writeln!(file, "format ascii 1.0")?;
+
+    writeln!(file, "element vertex {}", mesh.vertices.len())?;
+    writeln!(file, "property float x")?;
+    writeln!(file, "property float y")?;
+    writeln!(file, "property float z")?;
+
+    writeln!(file, "element face {}", mesh.faces.len())?;
+    writeln!(file, "property list uchar int vertex_index")?;
+    writeln!(file, "property uchar label")?;
+    writeln!(file, "property uchar red")?;
+    writeln!(file, "property uchar green")?;
+    writeln!(file, "property uchar blue")?;
+
+    writeln!(file, "end_header")?;
+
+    let mut corresp: HashMap<usize, usize> = HashMap::new();
+    let mut cpt = 0;
+
+    for v in mesh.vertex_indices() {
+        let vert = mesh.get_vertex(v)?.vertex();
+        corresp.insert(v, cpt);
+        cpt = cpt + 1;
+        writeln!(file, "{} {} {}", vert[0], vert[1], vert[2])?;
+    }
+
+    let vec_col = if let Some(col) = colors {
+        col
+    } else {
+        let lab_max = mesh.groups.iter().fold(0, |lm, (_, opt_lab)| {
+            if let &Some(lab) = opt_lab {
+                if lm > lab {
+                    lm
+                } else {
+                    lab
+                }
+            } else {
+                lm
+            }
+        }) + 1;
+        let mut vec_col = Vec::new();
+        let mut rng = rand::thread_rng();
+        for _ in 0..(lab_max + 1) {
+            let rand_r = rng.gen_range(0..11) as f32;
+            let rand_g = rng.gen_range(0..11) as f32;
+            let rand_b = rng.gen_range(0..11) as f32;
+            let col_r = (255.0 * rand_r / 10.0) as u8;
+            let col_g = (255.0 * rand_g / 10.0) as u8;
+            let col_b = (255.0 * rand_b / 10.0) as u8;
+            vec_col.push([col_r, col_g, col_b]);
+        }
+        vec_col
+    };
+
+    for (&fac_ind, _) in mesh.faces.iter() {
+        let face = mesh.get_face(fac_ind)?.vertices_inds();
+        let label = mesh.groups[&fac_ind];
+        write!(file, "{} ", face.len())?;
+        for i in face {
+            write!(file, "{} ", corresp[&i])?;
+        }
+        if let Some(lab) = label {
+            writeln!(
+                file,
+                "{} {} {} {}",
+                lab, vec_col[lab][0], vec_col[lab][1], vec_col[lab][2]
+            )?;
+        } else {
+            let lab = vec_col.len() - 1;
+            writeln!(
+                file,
+                "{} {} {} {}",
+                lab, vec_col[lab][0], vec_col[lab][1], vec_col[lab][2]
+            )?;
+        }
+    }
+
+    Ok(vec_col)
 }
