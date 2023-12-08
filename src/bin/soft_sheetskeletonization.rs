@@ -36,8 +36,8 @@ struct Cli {
     epsilon: Option<f32>,
     #[arg(default_value = "./output/", long = "pathout")]
     out_path: std::path::PathBuf,
-    #[arg(default_value = "mesh.ply", long = "objoutfile")]
-    obj_out_name: std::path::PathBuf,
+    #[arg(default_value = "mesh.ply", long = "meshoutfile")]
+    mesh_out_name: std::path::PathBuf,
     #[arg(default_value = "skeleton.ply", long = "skeloutfile")]
     skel_out_name: std::path::PathBuf,
 }
@@ -54,7 +54,7 @@ fn main() -> Result<()> {
 
     let epsilon = args.epsilon;
     let out_path_str = args.out_path.to_str().unwrap();
-    let obj_out_name_str = args.obj_out_name.to_str().unwrap();
+    let mesh_out_name_str = args.mesh_out_name.to_str().unwrap();
     let skel_out_name_str = args.skel_out_name.to_str().unwrap();
 
     println!("Checking mesh");
@@ -138,7 +138,7 @@ fn main() -> Result<()> {
         None,
     )?;
     mesh3d::io::save_ply_manifold(
-        &format!("{}{}", out_path_str, obj_out_name_str),
+        &format!("{}{}", out_path_str, mesh_out_name_str),
         &mesh,
         Some(vec_col),
     )?;
