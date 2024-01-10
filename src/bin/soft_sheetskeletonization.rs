@@ -1,5 +1,6 @@
 use anyhow::Result;
 use clap::Parser;
+use env_logger;
 use nalgebra::base::*;
 use std::fs;
 use std::time::Instant;
@@ -43,6 +44,7 @@ struct Cli {
 }
 
 fn main() -> Result<()> {
+    env_logger::init();
     let args = Cli::parse();
 
     let mut mesh = if let Some(obj_in_path) = args.obj_in_path {

@@ -1,5 +1,6 @@
 use anyhow::Result;
 use clap::Parser;
+use env_logger;
 use nalgebra::base::*;
 use std::time::Instant;
 
@@ -38,6 +39,7 @@ struct Cli {
 }
 
 fn main() -> Result<()> {
+    env_logger::init();
     let args = Cli::parse();
 
     let obj_out_path_str = args.obj_out_path.to_str().unwrap_or("");

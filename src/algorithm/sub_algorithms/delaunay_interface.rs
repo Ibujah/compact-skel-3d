@@ -1,6 +1,7 @@
 use anyhow::Result;
+use simple_delaunay_lib::delaunay_3d::delaunay_struct_3d::DelaunayStructure3D;
+use simple_delaunay_lib::delaunay_3d::simplicial_struct_3d::Node;
 use std::collections::{HashMap, HashSet};
-use tritet::{StrError, Tetgen};
 
 use crate::mesh3d::mesh_operations;
 use crate::mesh3d::{manifold_mesh3d, ManifoldMesh3D};
@@ -12,16 +13,13 @@ pub type Tetrahedron = [usize; 4];
 /// Delaunay structure
 pub struct DelaunayInterface<'a> {
     mesh: &'a mut ManifoldMesh3D,
+    del_struct: DelaunayStructure3D,
 
     edges: HashSet<Edge>,
     faces: HashMap<Triangle, Vec<Tetrahedron>>,
     tetras: HashSet<Tetrahedron>,
 
     initial_vertices_number: usize,
-}
-
-fn to_anyhow(err: StrError) -> anyhow::Error {
-    anyhow::Error::msg(err.to_string())
 }
 
 impl<'a> DelaunayInterface<'a> {
@@ -56,50 +54,48 @@ impl<'a> DelaunayInterface<'a> {
     }
 
     fn generate_struct(&mut self) -> Result<()> {
-        let mut tetgen = Tetgen::new(
-            self.mesh.get_nb_vertices(),
-            Some(vec![3; self.mesh.get_nb_faces()]),
-            None,
-            None,
-        )
-        .map_err(to_anyhow)?;
-
+        let mut points = Vec::new();
         for v in self.mesh.vertex_indices() {
-            // let mut i = 0;
-            // for (&v, vert) in self.mesh.vertices() {
-            //     println!("{}:{} ({}, {}, {})", i, v, vert[0], vert[1], vert[2]);
-            //     i = i + 1;
             let vert = self.mesh.get_vertex(v)?.vertex();
-            if v >= self.mesh.get_nb_vertices() {
-                return Err(anyhow::Error::msg(
-                    "generate_struct(): Vertex index over vertex number, not currently handled",
-                ));
-            }
-            tetgen
-                .set_point(v, vert[0] as f64, vert[1] as f64, vert[2] as f64)
-                .map_err(to_anyhow)?;
+            points.push([vert[0] as f64, vert[1] as f64, vert[2] as f64]);
         }
+        self.del_struct.insert_vertices(&points, true)?;
 
-        tetgen.generate_delaunay(false).map_err(to_anyhow)?;
-
-        for t in 0..tetgen.ntet() {
-            let mut tetra = [0; 4];
-            for m in 0..4 {
-                tetra[m] = tetgen.tet_node(t, m);
+        for ind_tet in 0..self.del_struct.get_simplicial().get_nb_tetrahedra() {
+            if let [Node::Value(i1), Node::Value(i2), Node::Value(i3), Node::Value(i4)] = self
+                .del_struct
+                .get_simplicial()
+                .get_tetrahedron(ind_tet)?
+                .nodes()
+            {
+                self.insert_tetra(&mut [i1, i2, i3, i4]);
             }
-
-            self.insert_tetra(&mut tetra);
         }
 
         Ok(())
     }
 
-    fn recompute_struct(&mut self) -> Result<()> {
+    fn insert_vertex(&mut self, ind_vertex: usize) -> Result<()> {
+        let vert = self.mesh.get_vertex(ind_vertex)?.vertex();
+        self.del_struct
+            .insert_vertex([vert[0] as f64, vert[1] as f64, vert[2] as f64], None)?;
+
         self.edges = HashSet::new();
         self.faces = HashMap::new();
         self.tetras = HashSet::new();
 
-        self.generate_struct()
+        for ind_tet in 0..self.del_struct.get_simplicial().get_nb_tetrahedra() {
+            if let [Node::Value(i1), Node::Value(i2), Node::Value(i3), Node::Value(i4)] = self
+                .del_struct
+                .get_simplicial()
+                .get_tetrahedron(ind_tet)?
+                .nodes()
+            {
+                self.insert_tetra(&mut [i1, i2, i3, i4]);
+            }
+        }
+
+        Ok(())
     }
 
     /// Creates Delaunay structure from mesh
@@ -107,6 +103,7 @@ impl<'a> DelaunayInterface<'a> {
         let initial_vertices_number = mesh.get_nb_vertices();
         let mut deltet = DelaunayInterface {
             mesh,
+            del_struct: DelaunayStructure3D::new(),
             edges: HashSet::new(),
             faces: HashMap::new(),
             tetras: HashSet::new(),
@@ -320,13 +317,13 @@ impl<'a> DelaunayInterface<'a> {
         vert: &manifold_mesh3d::Vertex,
         ind_halfedge: usize,
     ) -> Result<()> {
-        mesh_operations::split_halfedge(self.mesh, vert, ind_halfedge)?;
-        self.recompute_struct()
+        let ind_vertex = mesh_operations::split_halfedge(self.mesh, vert, ind_halfedge)?;
+        self.insert_vertex(ind_vertex)
     }
 
     /// Splits given face
     pub fn split_face(&mut self, vert: &manifold_mesh3d::Vertex, ind_face: usize) -> Result<()> {
-        mesh_operations::split_face(self.mesh, vert, ind_face)?;
-        self.recompute_struct()
+        let ind_vertex = mesh_operations::split_face(self.mesh, vert, ind_face)?;
+        self.insert_vertex(ind_vertex)
     }
 }
