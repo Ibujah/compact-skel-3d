@@ -100,7 +100,7 @@ pub fn split_halfedge(
     mesh: &mut ManifoldMesh3D,
     vert: &Vector3<f32>,
     ind_halfedge: usize,
-) -> Result<()> {
+) -> Result<usize> {
     if !mesh.halfedges.contains_key(&ind_halfedge) {
         return Err(anyhow::Error::msg("split_halfedge(): Index out of bounds"));
     }
@@ -141,7 +141,7 @@ pub fn split_halfedge(
     mesh.add_face(ind_v2, ind_v5, ind_v4)?;
     mesh.add_face(ind_v1, ind_v4, ind_v5)?;
 
-    Ok(())
+    Ok(ind_v5)
 }
 
 /// Splits a face
@@ -154,7 +154,11 @@ pub fn split_halfedge(
 ///  /       \        / /   \ \
 /// 2 ------- 3      2 ------- 3
 /// ```
-pub fn split_face(mesh: &mut ManifoldMesh3D, vert: &Vector3<f32>, ind_face: usize) -> Result<()> {
+pub fn split_face(
+    mesh: &mut ManifoldMesh3D,
+    vert: &Vector3<f32>,
+    ind_face: usize,
+) -> Result<usize> {
     if !mesh.faces.contains_key(&ind_face) {
         return Err(anyhow::Error::msg("split_face(): Index out of bounds"));
     }
@@ -172,5 +176,5 @@ pub fn split_face(mesh: &mut ManifoldMesh3D, vert: &Vector3<f32>, ind_face: usiz
     mesh.add_face(ind_v2, ind_v3, ind_v4)?;
     mesh.add_face(ind_v1, ind_v4, ind_v3)?;
 
-    Ok(())
+    Ok(ind_v4)
 }

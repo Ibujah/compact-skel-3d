@@ -1,5 +1,6 @@
 use anyhow::Result;
 use clap::Parser;
+use env_logger;
 use std::time::Instant;
 
 use compact_skel_3d::algorithm::delaunay_alg;
@@ -14,6 +15,7 @@ struct Cli {
 }
 
 fn main() -> Result<()> {
+    env_logger::init();
     let args = Cli::parse();
 
     let obj_in_path_str = args.obj_in_path.to_str().unwrap_or("");
