@@ -39,7 +39,7 @@ impl<'a> DelaunayInterface<'a> {
                     if let (Node::Value(i1), Node::Value(_)) =
                         (hes[i].first_node(), hes[i].last_node())
                     {
-                        self.vertex_edges[i1].push((hes[i].triangle_subind(), i));
+                        self.vertex_edges[i1].push((tri.ind(), i));
                     }
                 }
             }
@@ -68,7 +68,7 @@ impl<'a> DelaunayInterface<'a> {
                     if let (Node::Value(i1), Node::Value(i2)) =
                         (hes[i].first_node(), hes[i].last_node())
                     {
-                        self.vertex_edges[i1].push((hes[i].triangle_subind(), i));
+                        self.vertex_edges[i1].push((tri.ind(), i));
                         vert_to_check.insert(i1);
                         vert_to_check.insert(i2);
                     }
