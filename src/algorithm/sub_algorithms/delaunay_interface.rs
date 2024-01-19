@@ -15,60 +15,33 @@ pub struct DelaunayInterface<'a> {
     mesh: &'a mut ManifoldMesh3D,
     del_struct: DelaunayStructure3D,
 
-    edges: HashSet<Edge>,
-    faces: HashMap<Triangle, Vec<Tetrahedron>>,
-    tetras: HashSet<Tetrahedron>,
+    vertex_edges: Vec<Vec<(usize, usize)>>,
 
     initial_vertices_number: usize,
 }
 
 impl<'a> DelaunayInterface<'a> {
-    fn insert_tetra(&mut self, tetra: &mut Tetrahedron) -> () {
-        tetra.sort();
-
-        self.edges.insert([tetra[0], tetra[1]]);
-        self.edges.insert([tetra[0], tetra[2]]);
-        self.edges.insert([tetra[0], tetra[3]]);
-        self.edges.insert([tetra[1], tetra[2]]);
-        self.edges.insert([tetra[1], tetra[3]]);
-        self.edges.insert([tetra[2], tetra[3]]);
-
-        self.faces
-            .entry([tetra[0], tetra[1], tetra[2]])
-            .or_insert(Vec::new())
-            .push(*tetra);
-        self.faces
-            .entry([tetra[0], tetra[1], tetra[3]])
-            .or_insert(Vec::new())
-            .push(*tetra);
-        self.faces
-            .entry([tetra[0], tetra[2], tetra[3]])
-            .or_insert(Vec::new())
-            .push(*tetra);
-        self.faces
-            .entry([tetra[1], tetra[2], tetra[3]])
-            .or_insert(Vec::new())
-            .push(*tetra);
-
-        self.tetras.insert([tetra[0], tetra[1], tetra[2], tetra[3]]);
-    }
-
     fn generate_struct(&mut self) -> Result<()> {
         let mut points = Vec::new();
         for v in self.mesh.vertex_indices() {
             let vert = self.mesh.get_vertex(v)?.vertex();
             points.push([vert[0] as f64, vert[1] as f64, vert[2] as f64]);
+            self.vertex_edges.push(Vec::new());
         }
         self.del_struct.insert_vertices(&points, true)?;
 
         for ind_tet in 0..self.del_struct.get_simplicial().get_nb_tetrahedra() {
-            if let [Node::Value(i1), Node::Value(i2), Node::Value(i3), Node::Value(i4)] = self
-                .del_struct
-                .get_simplicial()
-                .get_tetrahedron(ind_tet)?
-                .nodes()
-            {
-                self.insert_tetra(&mut [i1, i2, i3, i4]);
+            let tetra = self.del_struct.get_simplicial().get_tetrahedron(ind_tet)?;
+
+            for tri in tetra.halftriangles() {
+                let hes = tri.halfedges();
+                for i in 0..3 {
+                    if let (Node::Value(i1), Node::Value(_)) =
+                        (hes[i].first_node(), hes[i].last_node())
+                    {
+                        self.vertex_edges[i1].push((hes[i].triangle_subind(), i));
+                    }
+                }
             }
         }
 
@@ -80,19 +53,48 @@ impl<'a> DelaunayInterface<'a> {
         self.del_struct
             .insert_vertex([vert[0] as f64, vert[1] as f64, vert[2] as f64], None)?;
 
-        self.edges = HashSet::new();
-        self.faces = HashMap::new();
-        self.tetras = HashSet::new();
+        self.vertex_edges.push(Vec::new());
 
-        for ind_tet in 0..self.del_struct.get_simplicial().get_nb_tetrahedra() {
-            if let [Node::Value(i1), Node::Value(i2), Node::Value(i3), Node::Value(i4)] = self
-                .del_struct
-                .get_simplicial()
-                .get_tetrahedron(ind_tet)?
-                .nodes()
-            {
-                self.insert_tetra(&mut [i1, i2, i3, i4]);
+        let tet_update = self
+            .del_struct
+            .get_simplicial()
+            .get_tetrahedra_containing(&Node::Value(self.vertex_edges.len() - 1));
+
+        let mut vert_to_check = HashSet::new();
+        for tetra in tet_update {
+            for tri in tetra.halftriangles() {
+                let hes = tri.halfedges();
+                for i in 0..3 {
+                    if let (Node::Value(i1), Node::Value(i2)) =
+                        (hes[i].first_node(), hes[i].last_node())
+                    {
+                        self.vertex_edges[i1].push((hes[i].triangle_subind(), i));
+                        vert_to_check.insert(i1);
+                        vert_to_check.insert(i2);
+                    }
+                }
             }
+        }
+
+        for iv in vert_to_check {
+            self.vertex_edges[iv] = self.vertex_edges[iv]
+                .iter()
+                .filter_map(|&(it, i)| {
+                    if self
+                        .del_struct
+                        .get_simplicial()
+                        .get_halftriangle(it)
+                        .unwrap()
+                        .halfedges()[i]
+                        .first_node()
+                        .equals(&Node::Value(iv))
+                    {
+                        Some((it, i))
+                    } else {
+                        None
+                    }
+                })
+                .collect();
         }
 
         Ok(())
@@ -104,9 +106,7 @@ impl<'a> DelaunayInterface<'a> {
         let mut deltet = DelaunayInterface {
             mesh,
             del_struct: DelaunayStructure3D::new(),
-            edges: HashSet::new(),
-            faces: HashMap::new(),
-            tetras: HashSet::new(),
+            vertex_edges: Vec::new(),
             initial_vertices_number,
         };
 
@@ -120,31 +120,40 @@ impl<'a> DelaunayInterface<'a> {
         self.mesh
     }
 
-    /// Edge set getter
-    pub fn get_edges(&self) -> &HashSet<Edge> {
-        &self.edges
-    }
-
-    /// Face map getter
-    pub fn get_faces(&self) -> &HashMap<Triangle, Vec<Tetrahedron>> {
-        &self.faces
-    }
-
     /// Tetrahedra set getter
-    pub fn get_tetrahedra(&self) -> &HashSet<Tetrahedron> {
-        &self.tetras
-    }
+    pub fn get_faces(&self) -> HashMap<Triangle, Vec<Tetrahedron>> {
+        let mut face_set = HashMap::new();
+        for ind_tet in 0..self.del_struct.get_simplicial().get_nb_tetrahedra() {
+            let tetra = self
+                .del_struct
+                .get_simplicial()
+                .get_tetrahedron(ind_tet)
+                .unwrap();
+            if let [Node::Value(i1), Node::Value(i2), Node::Value(i3), Node::Value(i4)] =
+                tetra.nodes()
+            {
+                let mut tetra_ind = [i1, i2, i3, i4];
+                tetra_ind.sort();
 
-    /// Gets tetrahedra surrounding a given triangle
-    pub fn get_tetrahedra_from_triangle(&self, del_tri: Triangle) -> Result<Vec<Tetrahedron>> {
-        let vec = self
-            .faces
-            .get(&del_tri)
-            .ok_or(anyhow::Error::msg("Triangle does not exist"))?
-            .iter()
-            .map(|&x| x)
-            .collect();
-        Ok(vec)
+                face_set
+                    .entry([tetra_ind[0], tetra_ind[1], tetra_ind[2]])
+                    .or_insert(Vec::new())
+                    .push(tetra_ind);
+                face_set
+                    .entry([tetra_ind[0], tetra_ind[1], tetra_ind[3]])
+                    .or_insert(Vec::new())
+                    .push(tetra_ind);
+                face_set
+                    .entry([tetra_ind[0], tetra_ind[2], tetra_ind[3]])
+                    .or_insert(Vec::new())
+                    .push(tetra_ind);
+                face_set
+                    .entry([tetra_ind[1], tetra_ind[2], tetra_ind[3]])
+                    .or_insert(Vec::new())
+                    .push(tetra_ind);
+            }
+        }
+        face_set
     }
 
     /// Checks if vertex was an original mesh vertex
@@ -154,23 +163,38 @@ impl<'a> DelaunayInterface<'a> {
 
     /// Checks if edge is in Delaunay
     pub fn is_edge_in(&self, edge: &Edge) -> bool {
-        let mut edge_sort = [edge[0], edge[1]];
-        edge_sort.sort();
-        self.edges.contains(&edge_sort)
+        self.vertex_edges[edge[0]]
+            .iter()
+            .position(|&(it, i)| {
+                self.del_struct
+                    .get_simplicial()
+                    .get_halftriangle(it)
+                    .unwrap()
+                    .halfedges()[i]
+                    .last_node()
+                    .equals(&Node::Value(edge[1]))
+            })
+            .is_some()
     }
 
     /// Checks if face is in Delaunay
     pub fn is_face_in(&self, face: &Triangle) -> bool {
-        let mut face_sort = [face[0], face[1], face[2]];
-        face_sort.sort();
-        self.faces.contains_key(&face_sort)
-    }
-
-    /// Checks if tetrahedron is in Delaunay
-    pub fn is_tetra_in(&self, tetra: &Tetrahedron) -> bool {
-        let mut tetra_sort = [tetra[0], tetra[1], tetra[2], tetra[3]];
-        tetra_sort.sort();
-        self.tetras.contains(&tetra_sort)
+        self.vertex_edges[face[0]]
+            .iter()
+            .position(|&(it, i)| {
+                let he = self
+                    .del_struct
+                    .get_simplicial()
+                    .get_halftriangle(it)
+                    .unwrap()
+                    .halfedges()[i];
+                if he.last_node().equals(&Node::Value(face[1])) {
+                    he.next().last_node().equals(&Node::Value(face[2]))
+                } else {
+                    false
+                }
+            })
+            .is_some()
     }
 
     /// Count number of non Delaunay halfedges
