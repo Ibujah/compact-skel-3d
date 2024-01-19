@@ -7,9 +7,9 @@ use super::sub_algorithms::DelaunayInterface;
 
 fn extract_physical_edges(
     mesh: &ManifoldMesh3D,
-    ang_max: Option<f32>,
+    ang_max: Option<f64>,
 ) -> Result<HashSet<manifold_mesh3d::HalfEdge>> {
-    let ang_max = ang_max.unwrap_or(std::f32::consts::PI);
+    let ang_max = ang_max.unwrap_or(std::f64::consts::PI);
     let cos_min = ang_max.cos();
 
     let mut physical: HashSet<manifold_mesh3d::HalfEdge> = HashSet::new();
@@ -20,7 +20,7 @@ fn extract_physical_edges(
             continue;
         }
 
-        if ang_max == std::f32::consts::PI {
+        if ang_max == std::f64::consts::PI {
             physical.insert(he.halfedge());
         }
 
@@ -91,8 +91,8 @@ fn compute_halfedge_split_vertex(
 
     let vec = (vert2 - vert1).normalize();
 
-    let vs1 = vert1 + vec * 2.0_f32.powf(k_1);
-    let vs2 = vert1 + vec * 2.0_f32.powf(k_2);
+    let vs1 = vert1 + vec * 2.0_f64.powf(k_1);
+    let vs2 = vert1 + vec * 2.0_f64.powf(k_2);
 
     let d1 = (vert_mid - vs1).norm();
     let d2 = (vert_mid - vs2).norm();
@@ -111,7 +111,7 @@ fn compute_face_split_vertex(face: manifold_mesh3d::IterFace) -> Result<manifold
 }
 
 /// Modifies a manifold mesh to convert it into Delaunay mesh
-pub fn to_delaunay(mesh: &mut ManifoldMesh3D, ang_max: Option<f32>) -> Result<()> {
+pub fn to_delaunay(mesh: &mut ManifoldMesh3D, ang_max: Option<f64>) -> Result<()> {
     let mut deltet = DelaunayInterface::from_mesh(mesh)?;
 
     let physical = extract_physical_edges(deltet.get_mesh(), ang_max)?;

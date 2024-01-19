@@ -129,7 +129,7 @@ pub fn include_alveola_in_skel(
             .delaunay_tetrahedron()
             .iter()
             .map(|&ind_vertex| Ok(skeleton_interface.mesh.get_vertex(ind_vertex)?.vertex()))
-            .collect::<Result<Vec<Vector3<f32>>>>()?
+            .collect::<Result<Vec<Vector3<f64>>>>()?
             .try_into()
             .map_err(|_x: Vec<_>| anyhow::Error::msg("Could not convert vec to array"))
             .unwrap();
@@ -275,7 +275,7 @@ pub fn problematic_partial_edges(skeleton_interface: &SkeletonInterface3D) -> Ve
 pub fn estimate_saliencies(
     skeleton_interface: &SkeletonInterface3D,
     vec_pedges: &Vec<usize>,
-) -> Result<Vec<(usize, f32)>> {
+) -> Result<Vec<(usize, f64)>> {
     let mut saliencies = Vec::new();
     for &ind_pedge in vec_pedges.iter() {
         if let Some(saliency) =
@@ -288,7 +288,7 @@ pub fn estimate_saliencies(
 }
 
 /// Sorts saliency map
-pub fn sort_saliencies(saliencies: &mut Vec<(usize, f32)>) -> () {
+pub fn sort_saliencies(saliencies: &mut Vec<(usize, f64)>) -> () {
     saliencies.sort_by(|&(_, s1), &(_, s2)| (-s1).partial_cmp(&(-s2)).unwrap());
 }
 
@@ -377,7 +377,7 @@ pub fn try_remove_and_add<'a, 'b>(
         set_free_vert.remove(&ind_v2);
         set_free_vert.remove(&ind_v3);
     }
-    let vec_vert_mid: Vec<Vector3<f32>> = vec_add_faces
+    let vec_vert_mid: Vec<Vector3<f64>> = vec_add_faces
         .iter()
         .map(|&[ind_v1, ind_v2, ind_v3]| {
             let vert1 = skeleton_interface
@@ -459,7 +459,7 @@ pub fn try_remove_and_add<'a, 'b>(
 /// Collect list of faces on mesh portion described by separation
 pub fn collect_mesh_faces_index(
     skeleton_separation: &SkeletonSeparation,
-    epsilon: f32,
+    epsilon: f64,
 ) -> Result<Option<Vec<usize>>> {
     fn last_hedge_deletion(
         mesh_paths_external: &mut Vec<Vec<usize>>,
@@ -536,9 +536,9 @@ pub fn collect_mesh_faces_index(
     fn last_hedge_expansion(
         mesh_paths_external: &mut Vec<Vec<usize>>,
         skeleton_separation: &SkeletonSeparation,
-        center_mat: &MatrixXx3<f32>,
-        radius_mat: &MatrixXx1<f32>,
-        epsilon: f32,
+        center_mat: &MatrixXx3<f64>,
+        radius_mat: &MatrixXx1<f64>,
+        epsilon: f64,
         faces: &mut Vec<usize>,
     ) -> Result<bool> {
         if let Some(mut mesh_path_external) = mesh_paths_external.pop() {

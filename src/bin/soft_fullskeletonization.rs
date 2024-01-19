@@ -14,7 +14,7 @@ fn generate_test_mesh() -> Result<ManifoldMesh3D> {
     let down_vert = mesh.add_vertex(&Vector3::new(0.0, 0.0, -0.5));
     let mut surr_vert = Vec::new();
     for i in 0..9 {
-        let ang = 2.0 * std::f32::consts::PI * (i as f32) / 9.0;
+        let ang = 2.0 * std::f64::consts::PI * (i as f64) / 9.0;
         let cur_vert = mesh.add_vertex(&Vector3::new(ang.cos(), ang.sin(), 0.0));
         surr_vert.push(cur_vert);
     }
@@ -58,7 +58,7 @@ fn main() -> Result<()> {
 
     println!("Mesh to delaunay");
     let now = Instant::now();
-    delaunay_alg::to_delaunay(&mut mesh, Some(std::f32::consts::PI * 20.0 / 180.0))?;
+    delaunay_alg::to_delaunay(&mut mesh, Some(std::f64::consts::PI * 20.0 / 180.0))?;
     let duration = now.elapsed();
     let sec = duration.as_secs();
     let min = sec / 60;

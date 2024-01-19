@@ -3,7 +3,7 @@ use nalgebra::base::*;
 use std::collections::HashMap;
 
 /// Mesh vertex
-pub type Vertex = Vector3<f32>;
+pub type Vertex = Vector3<f64>;
 /// Mesh halfedge
 pub type HalfEdge = [usize; 2];
 /// Mesh face (array of halfedges)
@@ -69,7 +69,7 @@ impl ManifoldMesh3D {
     }
 
     /// Adds a vertex to th mesh
-    pub fn add_vertex(&mut self, point: &Vector3<f32>) -> usize {
+    pub fn add_vertex(&mut self, point: &Vector3<f64>) -> usize {
         self.vertices.insert(self.last_ind_vert, *point);
         self.map_vert_hedg.insert(self.last_ind_vert, Vec::new());
         self.last_ind_vert = self.last_ind_vert + 1;

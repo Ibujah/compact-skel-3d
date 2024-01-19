@@ -42,7 +42,7 @@ pub fn next_boundary_edge(
 pub fn compute_saliency(
     ind_pedge: usize,
     skeleton_interface: &SkeletonInterface3D,
-) -> Result<Option<f32>> {
+) -> Result<Option<f64>> {
     if let Some(ind_aft) = next_boundary_edge(ind_pedge, skeleton_interface) {
         let pedge_cur = skeleton_interface.get_partial_edge_uncheck(ind_pedge);
         let pedge_aft = skeleton_interface.get_partial_edge_uncheck(ind_aft);

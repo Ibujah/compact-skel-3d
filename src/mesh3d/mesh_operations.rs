@@ -98,7 +98,7 @@ pub fn flip_halfedge(mesh: &mut ManifoldMesh3D, ind_halfedge: usize) -> Result<b
 /// ```
 pub fn split_halfedge(
     mesh: &mut ManifoldMesh3D,
-    vert: &Vector3<f32>,
+    vert: &Vector3<f64>,
     ind_halfedge: usize,
 ) -> Result<usize> {
     if !mesh.halfedges.contains_key(&ind_halfedge) {
@@ -156,7 +156,7 @@ pub fn split_halfedge(
 /// ```
 pub fn split_face(
     mesh: &mut ManifoldMesh3D,
-    vert: &Vector3<f32>,
+    vert: &Vector3<f64>,
     ind_face: usize,
 ) -> Result<usize> {
     if !mesh.faces.contains_key(&ind_face) {

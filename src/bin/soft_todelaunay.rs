@@ -38,7 +38,7 @@ fn main() -> Result<()> {
 
     println!("Mesh to delaunay");
     let now = Instant::now();
-    delaunay_alg::to_delaunay(&mut mesh, Some(std::f32::consts::PI * 20.0 / 180.0))?;
+    delaunay_alg::to_delaunay(&mut mesh, Some(std::f64::consts::PI * 20.0 / 180.0))?;
     let duration = now.elapsed();
     let sec = duration.as_secs();
     let min = sec / 60;

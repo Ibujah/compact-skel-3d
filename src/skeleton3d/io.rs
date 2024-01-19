@@ -139,9 +139,9 @@ pub fn save_mtl(filename: &str, skeleton: &Skeleton3D) -> Result<()> {
 
     let mut rng = rand::thread_rng();
     for (&lab, _) in siz_sheet.iter() {
-        let rand_r = rng.gen_range(0..11) as f32;
-        let rand_g = rng.gen_range(0..11) as f32;
-        let rand_b = rng.gen_range(0..11) as f32;
+        let rand_r = rng.gen_range(0..11) as f64;
+        let rand_g = rng.gen_range(0..11) as f64;
+        let rand_b = rng.gen_range(0..11) as f64;
         let col_r = rand_r / 10.0;
         let col_g = rand_g / 10.0;
         let col_b = rand_b / 10.0;
@@ -244,9 +244,9 @@ pub fn save_ply(
         let mut vec_col = Vec::new();
         let mut rng = rand::thread_rng();
         for _ in 0..(lab_max + 1) {
-            let rand_r = rng.gen_range(0..11) as f32;
-            let rand_g = rng.gen_range(0..11) as f32;
-            let rand_b = rng.gen_range(0..11) as f32;
+            let rand_r = rng.gen_range(0..11) as f64;
+            let rand_g = rng.gen_range(0..11) as f64;
+            let rand_b = rng.gen_range(0..11) as f64;
             let col_r = (255.0 * rand_r / 10.0) as u8;
             let col_g = (255.0 * rand_g / 10.0) as u8;
             let col_b = (255.0 * rand_b / 10.0) as u8;

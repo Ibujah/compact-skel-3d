@@ -8,9 +8,9 @@ use crate::geometry::geometry_operations;
 /// Sphere
 pub struct Sphere {
     /// Sphere center
-    pub center: Vector3<f32>,
+    pub center: Vector3<f64>,
     /// sphere radius
-    pub radius: f32,
+    pub radius: f64,
 }
 
 #[derive(Clone)]
@@ -35,7 +35,7 @@ impl Skeleton3D {
     }
 
     /// Adds a node to the skeleton
-    pub fn add_node(&mut self, ind_node: usize, boundary_points: [Vector3<f32>; 4]) -> Result<()> {
+    pub fn add_node(&mut self, ind_node: usize, boundary_points: [Vector3<f64>; 4]) -> Result<()> {
         if !self.nodes.contains_key(&ind_node) {
             let (center, radius) = geometry_operations::center_and_radius(boundary_points, None)
                 .ok_or(anyhow::Error::msg("Flat tetrahedron"))?;

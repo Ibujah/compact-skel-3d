@@ -1148,8 +1148,8 @@ impl<'a, 'b> IterNode<'a, 'b> {
         self.skeleton_interface.node_tet[self.ind_node]
     }
 
-    pub fn center_and_radius(&self) -> Result<(Vector3<f32>, f32)> {
-        let tet_vert: Vec<Vector3<f32>> = self
+    pub fn center_and_radius(&self) -> Result<(Vector3<f64>, f64)> {
+        let tet_vert: Vec<Vector3<f64>> = self
             .delaunay_tetrahedron()
             .iter()
             .map(|&ind| {
