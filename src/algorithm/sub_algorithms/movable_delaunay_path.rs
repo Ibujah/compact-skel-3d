@@ -7,7 +7,7 @@ use super::SkeletonInterface3D;
 pub struct MovableDelaunayPath<'a, 'b> {
     skeleton_interface: &'b SkeletonInterface3D<'a>,
     ind_palves: Vec<usize>,
-    normals: Vec<Vector3<f32>>,
+    normals: Vec<Vector3<f64>>,
     faces_prev: Vec<Option<[usize; 3]>>,
     faces_prev_prior: Vec<Option<i8>>,
     has_face_connected: Vec<bool>,

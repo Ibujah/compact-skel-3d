@@ -2,7 +2,7 @@ use anyhow::Result;
 use nalgebra::base::*;
 
 /// Mesh vertex
-pub type Vertex = Vector3<f32>;
+pub type Vertex = Vector3<f64>;
 /// Mesh edge
 pub type Edge = [usize; 2];
 /// Mesh face (array of vertex indices)
@@ -33,7 +33,7 @@ impl GenericMesh3D {
     }
 
     /// Adds a vertex to the mesh
-    pub fn add_vertex(&mut self, point: &Vector3<f32>) -> usize {
+    pub fn add_vertex(&mut self, point: &Vector3<f64>) -> usize {
         self.vertices.push(*point);
         self.map_vert_edg.push(Vec::new());
         self.vertices.len() - 1

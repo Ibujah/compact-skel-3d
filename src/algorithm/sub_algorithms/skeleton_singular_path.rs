@@ -224,10 +224,10 @@ impl SkeletonSingularPath {
     pub fn basis_spheres_matrices(
         &self,
         skeleton_interface: &SkeletonInterface3D,
-    ) -> Result<(MatrixXx3<f32>, MatrixXx1<f32>)> {
+    ) -> Result<(MatrixXx3<f64>, MatrixXx1<f64>)> {
         let ind_nodes = self.nodes(skeleton_interface);
-        let mut center_mat = MatrixXx3::<f32>::zeros(ind_nodes.len());
-        let mut radius_mat = MatrixXx1::<f32>::zeros(ind_nodes.len());
+        let mut center_mat = MatrixXx3::<f64>::zeros(ind_nodes.len());
+        let mut radius_mat = MatrixXx1::<f64>::zeros(ind_nodes.len());
 
         for i in 0..ind_nodes.len() {
             let ind_node = ind_nodes[i];

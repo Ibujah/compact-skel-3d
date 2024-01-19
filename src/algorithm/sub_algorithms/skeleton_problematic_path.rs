@@ -502,7 +502,7 @@ fn next_pedges_to_eval(
     vec_res
 }
 
-fn dist_min(ctr: &Vector3<f32>, vec_centers: &Vec<Vector3<f32>>) -> f32 {
+fn dist_min(ctr: &Vector3<f64>, vec_centers: &Vec<Vector3<f64>>) -> f64 {
     vec_centers
         .iter()
         .map(|ctr_cur| (ctr - ctr_cur).norm())
@@ -525,7 +525,7 @@ pub(super) fn last_to_boundary(
     skeleton_interface: &mut SkeletonInterface3D,
     label: usize,
 ) -> Result<Vec<usize>> {
-    let vec_centers: Vec<Vector3<f32>> = skel_prob
+    let vec_centers: Vec<Vector3<f64>> = skel_prob
         .components_boundary
         .iter()
         .map(|&ind_pedge| {
@@ -646,7 +646,7 @@ pub(super) fn first_to_boundary(
     skeleton_interface: &mut SkeletonInterface3D,
     label: usize,
 ) -> Result<Vec<usize>> {
-    let vec_centers: Vec<Vector3<f32>> = skel_prob
+    let vec_centers: Vec<Vector3<f64>> = skel_prob
         .components_boundary
         .iter()
         .map(|&ind_pedge| {

@@ -52,7 +52,7 @@ pub fn full_skeletonization(mesh: &mut ManifoldMesh3D) -> Result<Skeleton3D> {
 
 fn loop_skeletonization(
     skeleton_interface: &mut SkeletonInterface3D,
-    opt_epsilon: Option<f32>,
+    opt_epsilon: Option<f64>,
 ) -> Result<()> {
     // println!("Finding some first alveola");
     // let mut ind_first_alveola = skeleton_operations::first_alveola_in(skeleton_interface)?;
@@ -284,7 +284,7 @@ fn loop_skeletonization(
 /// Computes the sheet based skeletonization of a delaunay mesh
 pub fn sheet_skeletonization(
     mesh: &mut ManifoldMesh3D,
-    opt_epsilon: Option<f32>,
+    opt_epsilon: Option<f64>,
 ) -> Result<(Skeleton3D, ManifoldMesh3D, Vec<GenericMesh3D>)> {
     println!("Init skeleton interface");
     let mut mesh_cl = mesh.clone();

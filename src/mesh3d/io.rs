@@ -19,13 +19,13 @@ pub fn load_obj_manifold(filename: &str) -> Result<ManifoldMesh3D> {
             if line.len() > 2 {
                 if &line[..2] == "v " {
                     let mut line_split = line.split_whitespace();
-                    let mut vert: Vector3<f32> = Vector3::new(0.0, 0.0, 0.0);
+                    let mut vert: Vector3<f64> = Vector3::new(0.0, 0.0, 0.0);
                     line_split.next();
                     for i in 0..3 {
                         let cur = line_split
                             .next()
                             .ok_or(anyhow::Error::msg("Expected value"))?;
-                        vert[i] = cur.parse::<f32>()?;
+                        vert[i] = cur.parse::<f64>()?;
                     }
 
                     mesh.add_vertex(&vert);
@@ -86,12 +86,12 @@ pub fn load_off_manifold(filename: &str) -> Result<ManifoldMesh3D> {
                 let nb_face = opt_nb_face.unwrap();
                 if cur_vert < nb_vert {
                     let mut line_split = line.split_whitespace();
-                    let mut vert: Vector3<f32> = Vector3::new(0.0, 0.0, 0.0);
+                    let mut vert: Vector3<f64> = Vector3::new(0.0, 0.0, 0.0);
                     for i in 0..3 {
                         let ind = line_split
                             .next()
                             .ok_or(anyhow::Error::msg("Expected value3"))?
-                            .parse::<f32>()?;
+                            .parse::<f64>()?;
                         vert[i] = ind;
                     }
 
@@ -270,9 +270,9 @@ pub fn save_ply_manifold(
         let mut vec_col = Vec::new();
         let mut rng = rand::thread_rng();
         for _ in 0..(lab_max + 1) {
-            let rand_r = rng.gen_range(0..11) as f32;
-            let rand_g = rng.gen_range(0..11) as f32;
-            let rand_b = rng.gen_range(0..11) as f32;
+            let rand_r = rng.gen_range(0..11) as f64;
+            let rand_g = rng.gen_range(0..11) as f64;
+            let rand_b = rng.gen_range(0..11) as f64;
             let col_r = (255.0 * rand_r / 10.0) as u8;
             let col_g = (255.0 * rand_g / 10.0) as u8;
             let col_b = (255.0 * rand_b / 10.0) as u8;
