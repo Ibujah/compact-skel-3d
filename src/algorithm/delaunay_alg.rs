@@ -116,8 +116,10 @@ pub fn to_delaunay(mesh: &mut ManifoldMesh3D, ang_max: Option<f32>) -> Result<()
 
     let physical = extract_physical_edges(deltet.get_mesh(), ang_max)?;
 
-    let mut nb_non_del_hedges = deltet.count_non_del_halfedges()?;
-    let mut nb_non_del_faces = deltet.count_non_del_faces()?;
+    let nb_non_del_hedges_init = deltet.count_non_del_halfedges();
+    let nb_non_del_faces_init = deltet.count_non_del_faces();
+    let mut nb_non_del_hedges = nb_non_del_hedges_init;
+    let mut nb_non_del_faces = nb_non_del_faces_init;
     println!("Vertices: {}", deltet.get_mesh().get_nb_vertices());
     println!(
         "Non delaunay edges: {}/{}",
@@ -133,8 +135,6 @@ pub fn to_delaunay(mesh: &mut ManifoldMesh3D, ang_max: Option<f32>) -> Result<()
     let mut num_split_edge = 0;
     let mut num_split_face = 0;
     let mut num_flip = 0;
-    let mut shift_edge = 0;
-    let mut shift_face = 0;
     let mut cpt_force_split = 0;
 
     print!(
@@ -143,8 +143,7 @@ pub fn to_delaunay(mesh: &mut ManifoldMesh3D, ang_max: Option<f32>) -> Result<()
     );
 
     loop {
-        if let Some(he) = deltet.get_non_del_halfedge(Some(shift_edge))? {
-            shift_edge = (shift_edge + 1) % deltet.get_mesh().get_nb_halfedges();
+        if let Some(he) = deltet.get_non_del_halfedge()? {
             let mut he_inds = he.halfedge();
             he_inds.sort();
             let is_physical = physical.contains(&he_inds);
@@ -163,24 +162,27 @@ pub fn to_delaunay(mesh: &mut ManifoldMesh3D, ang_max: Option<f32>) -> Result<()
                 num_split_edge = num_split_edge + 1;
                 cpt_force_split = 0;
             }
-        } else if let Some(face) = deltet.get_non_del_face(Some(shift_face))? {
-            shift_face = shift_face + 1;
+        } else if let Some(face) = deltet.get_non_del_face()? {
             let vert_split = compute_face_split_vertex(face)?;
-            deltet.split_face(&vert_split, face.ind())?;
+            let ind_face = face.ind();
+            deltet.split_face(&vert_split, ind_face)?;
             num_split_face = num_split_face + 1;
-        } else {
+        } else if deltet.count_non_del_faces() == 0 && deltet.count_non_del_halfedges() == 0 {
             break;
         }
-        nb_non_del_hedges = deltet.count_non_del_halfedges()?;
-        nb_non_del_faces = deltet.count_non_del_faces()?;
+        nb_non_del_hedges = deltet.count_non_del_halfedges();
+        nb_non_del_faces = deltet.count_non_del_faces();
         print!("\r{} non del edges, {} non del faces, {} flip(s), {} edge split(s), {} face split(s)    ", 
                nb_non_del_hedges >> 1, nb_non_del_faces, num_flip, num_split_edge, num_split_face);
+        if nb_non_del_hedges > nb_non_del_hedges_init || nb_non_del_faces > nb_non_del_faces_init {
+            break;
+        }
     }
     print!("\r{} flip(s), {} edge split(s), {} face split(s)                                                                          ", num_flip, num_split_edge, num_split_face);
     println!("");
 
-    nb_non_del_hedges = deltet.count_non_del_halfedges()?;
-    nb_non_del_faces = deltet.count_non_del_faces()?;
+    nb_non_del_hedges = deltet.count_non_del_halfedges();
+    nb_non_del_faces = deltet.count_non_del_faces();
     println!("Vertices: {}", deltet.get_mesh().get_nb_vertices());
     println!(
         "Non delaunay edges: {}/{}",
