@@ -105,9 +105,9 @@ pub struct IterPartialAlveola<'a, 'b> {
 impl<'a, 'b> SkeletonInterface3D<'a> {
     /// Skeleton interface initialisation from Delaunay mesh
     pub fn init(mesh: &'a mut ManifoldMesh3D) -> Result<SkeletonInterface3D<'a>> {
-        let deltet = DelaunayInterface::from_mesh(mesh)?;
-        let nb_non_del_hedges = deltet.count_non_del_halfedges()?;
-        let nb_non_del_faces = deltet.count_non_del_faces()?;
+        let mut deltet = DelaunayInterface::from_mesh(mesh)?;
+        let nb_non_del_hedges = deltet.count_non_del_halfedges();
+        let nb_non_del_faces = deltet.count_non_del_faces();
 
         let faces: HashMap<[usize; 3], Vec<[usize; 4]>> = deltet
             .get_faces()
