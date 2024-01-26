@@ -5,6 +5,9 @@ use nalgebra::base::*;
 use std::fs;
 use std::time::Instant;
 
+use std::fs::File;
+use std::io::Write;
+
 use compact_skel_3d::algorithm::skeleton_alg;
 use compact_skel_3d::mesh3d::{self, ManifoldMesh3D};
 use compact_skel_3d::skeleton3d;
@@ -112,14 +115,16 @@ fn main() -> Result<()> {
         None
     };
 
+    let nb_vert = mesh.get_nb_vertices();
+
     let now = Instant::now();
     println!("Sheet skeletonization");
-    let (skeleton, _work_mesh, vec_debug_meshes) =
+    let (skeleton, _work_mesh, vec_debug_meshes, nb_pb) =
         skeleton_alg::sheet_skeletonization(&mut mesh, epsilon)?;
     let duration = now.elapsed();
-    let sec = duration.as_secs();
-    let min = sec / 60;
-    let sec = sec - min * 60;
+    let sec_all = duration.as_secs();
+    let min = sec_all / 60;
+    let sec = sec_all - min * 60;
     println!("Skeleton computed in {}m{}s", min, sec);
     println!("");
 
@@ -141,6 +146,15 @@ fn main() -> Result<()> {
         &mesh,
         Some(vec_col),
     )?;
+
+    let mut file_pb = File::create(&format!("{}problematics.txt", out_path_str))?;
+    writeln!(file_pb, "{}", nb_pb)?;
+
+    let mut file_time = File::create(&format!("{}time.txt", out_path_str))?;
+    writeln!(file_time, "{}", sec_all)?;
+
+    let mut file_vert = File::create(&format!("{}nb_vert.txt", out_path_str))?;
+    writeln!(file_vert, "{}", nb_vert)?;
 
     Ok(())
 }
