@@ -28,7 +28,7 @@ impl<'a> DelaunayInterface<'a> {
         let mut points = Vec::new();
         for v in self.mesh.vertex_indices() {
             let vert = self.mesh.get_vertex(v)?.vertex();
-            points.push([vert[0] as f64, vert[1] as f64, vert[2] as f64]);
+            points.push([vert[0], vert[1], vert[2]]);
             self.vertex_edges.push(Vec::new());
         }
         self.del_struct.insert_vertices(&points, true)?;
@@ -51,11 +51,12 @@ impl<'a> DelaunayInterface<'a> {
         Ok(())
     }
 
-    fn insert_vertex(&mut self, ind_vertex: usize) -> Result<()> {
+    fn insert_vertex(&mut self, ind_vertex: usize, near_to: usize) -> Result<()> {
         let vert = self.mesh.get_vertex(ind_vertex)?.vertex();
-        self.del_struct
-            .insert_vertex([vert[0] as f64, vert[1] as f64, vert[2] as f64], None)?;
-
+        self.del_struct.insert_vertex(
+            [vert[0] as f64, vert[1] as f64, vert[2] as f64],
+            Some(near_to),
+        )?;
         self.vertex_edges.push(Vec::new());
 
         let tet_update = self
@@ -189,13 +190,11 @@ impl<'a> DelaunayInterface<'a> {
         self.vertex_edges[edge[0]]
             .iter()
             .position(|&(it, i)| {
-                self.del_struct
-                    .get_simplicial()
-                    .get_halftriangle(it)
-                    .unwrap()
-                    .halfedges()[i]
-                    .last_node()
-                    .equals(&Node::Value(edge[1]))
+                if let Ok(tri) = self.del_struct.get_simplicial().get_halftriangle(it) {
+                    tri.halfedges()[i].last_node().equals(&Node::Value(edge[1]))
+                } else {
+                    false
+                }
             })
             .is_some()
     }
@@ -205,14 +204,13 @@ impl<'a> DelaunayInterface<'a> {
         self.vertex_edges[face[0]]
             .iter()
             .position(|&(it, i)| {
-                let he = self
-                    .del_struct
-                    .get_simplicial()
-                    .get_halftriangle(it)
-                    .unwrap()
-                    .halfedges()[i];
-                if he.last_node().equals(&Node::Value(face[1])) {
-                    he.next().last_node().equals(&Node::Value(face[2]))
+                if let Ok(tri) = self.del_struct.get_simplicial().get_halftriangle(it) {
+                    let he = tri.halfedges()[i];
+                    if he.last_node().equals(&Node::Value(face[1])) {
+                        he.next().last_node().equals(&Node::Value(face[2]))
+                    } else {
+                        false
+                    }
                 } else {
                     false
                 }
@@ -238,6 +236,23 @@ impl<'a> DelaunayInterface<'a> {
 
     /// Gets first globally non Delaunay halfedge, starting from a shift
     pub fn get_non_del_halfedge(&mut self) -> Result<Option<manifold_mesh3d::IterHalfEdge>> {
+        let mut length: Vec<(usize, f64)> = self
+            .non_del_edges
+            .iter()
+            .map(|&ind_he| {
+                if let Ok(edge) = self.mesh.get_halfedge(ind_he) {
+                    (
+                        ind_he,
+                        (edge.first_vertex().vertex() - edge.last_vertex().vertex()).norm_squared(),
+                    )
+                } else {
+                    (ind_he, 0.0)
+                }
+            })
+            .collect();
+        length.sort_by(|(_, l1), (_, l2)| l1.partial_cmp(l2).unwrap());
+        self.non_del_edges = length.iter().map(|&(ind_he, _)| ind_he).collect();
+
         loop {
             if let Some(ind_he) = self.non_del_edges.pop() {
                 if let Ok(edge) = self.mesh.get_halfedge(ind_he) {
@@ -280,13 +295,38 @@ impl<'a> DelaunayInterface<'a> {
         vert: &manifold_mesh3d::Vertex,
         ind_halfedge: usize,
     ) -> Result<()> {
+        let ind_near_vert = self.mesh.get_halfedge(ind_halfedge)?.first_vertex().ind();
+        let (it, _) = self.vertex_edges[ind_near_vert][0];
+        let ind_tet = self
+            .del_struct
+            .get_simplicial()
+            .get_halftriangle(it)?
+            .tetrahedron()
+            .ind();
+
+        log::debug!("he to split {}", ind_halfedge);
         let ind_vertex = mesh_operations::split_halfedge(self.mesh, vert, ind_halfedge)?;
-        self.insert_vertex(ind_vertex)
+        log::debug!(
+            "Added {} , ({}, {}, {})",
+            ind_vertex,
+            vert[0],
+            vert[1],
+            vert[2]
+        );
+        self.insert_vertex(ind_vertex, ind_tet)
     }
 
     /// Splits given face
     pub fn split_face(&mut self, vert: &manifold_mesh3d::Vertex, ind_face: usize) -> Result<()> {
+        let ind_near_vert = self.mesh.get_face(ind_face)?.vertices_inds()[0];
+        let (it, _) = self.vertex_edges[ind_near_vert][0];
+        let ind_tet = self
+            .del_struct
+            .get_simplicial()
+            .get_halftriangle(it)?
+            .tetrahedron()
+            .ind();
         let ind_vertex = mesh_operations::split_face(self.mesh, vert, ind_face)?;
-        self.insert_vertex(ind_vertex)
+        self.insert_vertex(ind_vertex, ind_tet)
     }
 }

@@ -1,5 +1,5 @@
 use anyhow::Result;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use crate::mesh3d::{manifold_mesh3d, ManifoldMesh3D};
 
@@ -90,6 +90,11 @@ fn compute_halfedge_split_vertex(
     let k_2 = k_1 + 1.0;
 
     let vec = (vert2 - vert1).normalize();
+    if vec[0].is_nan() {
+        return Err(anyhow::Error::msg(
+            "Could not convert to delaunay (edge with length 0)",
+        ));
+    }
 
     let vs1 = vert1 + vec * 2.0_f64.powf(k_1);
     let vs2 = vert1 + vec * 2.0_f64.powf(k_2);
@@ -111,7 +116,10 @@ fn compute_face_split_vertex(face: manifold_mesh3d::IterFace) -> Result<manifold
 }
 
 /// Modifies a manifold mesh to convert it into Delaunay mesh
-pub fn to_delaunay(mesh: &mut ManifoldMesh3D, ang_max: Option<f64>) -> Result<()> {
+pub fn to_delaunay(
+    mesh: &mut ManifoldMesh3D,
+    ang_max: Option<f64>,
+) -> Result<HashMap<[usize; 3], Vec<[usize; 4]>>> {
     let mut deltet = DelaunayInterface::from_mesh(mesh)?;
 
     let physical = extract_physical_edges(deltet.get_mesh(), ang_max)?;
@@ -136,11 +144,7 @@ pub fn to_delaunay(mesh: &mut ManifoldMesh3D, ang_max: Option<f64>) -> Result<()
     let mut num_split_face = 0;
     let mut num_flip = 0;
     let mut cpt_force_split = 0;
-
-    print!(
-        "\r{} flip(s), {} edge split(s), {} face split(s)",
-        num_flip, num_split_edge, num_split_face
-    );
+    let mut step = 0;
 
     loop {
         if let Some(he) = deltet.get_non_del_halfedge()? {
@@ -172,12 +176,16 @@ pub fn to_delaunay(mesh: &mut ManifoldMesh3D, ang_max: Option<f64>) -> Result<()
         }
         nb_non_del_hedges = deltet.count_non_del_halfedges();
         nb_non_del_faces = deltet.count_non_del_faces();
-        print!("\r{} non del edges, {} non del faces, {} flip(s), {} edge split(s), {} face split(s)    ", 
+        if step % 100 == 0 {
+            print!("\r{} non del edges, {} non del faces, {} flip(s), {} edge split(s), {} face split(s)    ",
                nb_non_del_hedges >> 1, nb_non_del_faces, num_flip, num_split_edge, num_split_face);
+        }
+        step = step + 1;
         if nb_non_del_hedges > nb_non_del_hedges_init || nb_non_del_faces > nb_non_del_faces_init {
             break;
         }
     }
+
     print!("\r{} flip(s), {} edge split(s), {} face split(s)                                                                          ", num_flip, num_split_edge, num_split_face);
     println!("");
 
@@ -195,5 +203,5 @@ pub fn to_delaunay(mesh: &mut ManifoldMesh3D, ang_max: Option<f64>) -> Result<()
         deltet.get_mesh().get_nb_faces()
     );
 
-    Ok(())
+    Ok(deltet.get_faces())
 }

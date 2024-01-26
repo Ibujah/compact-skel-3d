@@ -8,8 +8,8 @@ use compact_skel_3d::mesh3d::io;
 
 #[derive(Parser)]
 struct Cli {
-    #[arg(default_value = "./ressources/hand.obj", long = "objinfile")]
-    obj_in_path: std::path::PathBuf,
+    #[arg(default_value = "./ressources/hand.obj", long = "meshinfile")]
+    mesh_in_path: std::path::PathBuf,
     #[arg(default_value = "./ressources/hand_del.obj", long = "objoutfile")]
     obj_out_path: std::path::PathBuf,
 }
@@ -18,17 +18,16 @@ fn main() -> Result<()> {
     env_logger::init();
     let args = Cli::parse();
 
-    let obj_in_path_str = args.obj_in_path.to_str().unwrap_or("");
+    let mesh_in_path_str = args.mesh_in_path.to_str().unwrap_or("");
     let obj_out_path_str = args.obj_out_path.to_str().unwrap_or("");
 
     println!("Loading topo_mesh");
-    let extension = &obj_in_path_str[obj_in_path_str.len() - 3..];
-    println!("{}", extension);
+    let extension = &mesh_in_path_str[mesh_in_path_str.len() - 3..];
 
     let mut mesh = if extension == "obj" {
-        io::load_obj_manifold(obj_in_path_str)?
+        io::load_obj_manifold(mesh_in_path_str)?
     } else if extension == "off" {
-        io::load_off_manifold(obj_in_path_str)?
+        io::load_off_manifold(mesh_in_path_str)?
     } else {
         return Err(anyhow::Error::msg("Extension not handled"));
     };

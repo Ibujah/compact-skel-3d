@@ -17,10 +17,10 @@ cargo build --release
 
 Mesh conversion to Delaunay:
 ```
-cargo run --release --bin soft_todelaunay -- --objinfile ./ressources/hand.obj --objoutfile ./ressources/hand_del.obj
+cargo run --release --bin soft_todelaunay -- --meshinfile ./ressources/hand.obj --objoutfile ./ressources/hand_del.obj
 ```
 
 Delaunay mesh skeletonization:
 ```
-cargo run --release --bin soft_sheetskeletonization -- --objinfile ./ressources/hand_del.obj --epsilon 0.01 --pathout ./hand/
+cargo run --release --bin soft_sheetskeletonization -- --meshinfile ./ressources/hand_del.obj --epsilon 0.01 --pathout ./hand/
 ```
