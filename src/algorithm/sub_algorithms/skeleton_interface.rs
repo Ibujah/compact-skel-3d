@@ -7,8 +7,6 @@ use crate::mesh3d::GenericMesh3D;
 use crate::mesh3d::ManifoldMesh3D;
 use crate::skeleton3d::Skeleton3D;
 
-use super::DelaunayInterface;
-
 /// Skeleton interface structure
 pub struct SkeletonInterface3D<'a> {
     pub(super) mesh: &'a mut ManifoldMesh3D,
@@ -104,62 +102,46 @@ pub struct IterPartialAlveola<'a, 'b> {
 
 impl<'a, 'b> SkeletonInterface3D<'a> {
     /// Skeleton interface initialisation from Delaunay mesh
-    pub fn init(mesh: &'a mut ManifoldMesh3D) -> Result<SkeletonInterface3D<'a>> {
-        let mut deltet = DelaunayInterface::from_mesh(mesh)?;
-        let nb_non_del_hedges = deltet.count_non_del_halfedges();
-        let nb_non_del_faces = deltet.count_non_del_faces();
-
-        let faces: HashMap<[usize; 3], Vec<[usize; 4]>> = deltet
-            .get_faces()
-            .iter()
-            .map(|(&tri, tetras)| (tri, tetras.clone()))
-            .collect();
-
-        if nb_non_del_hedges != 0 || nb_non_del_faces != 0 {
-            Err(anyhow::Error::msg("Mesh is not Delaunay"))
-        } else {
-            let mut closing_mesh = GenericMesh3D::new();
-            for ind_vertex in 0..mesh.get_nb_vertices() {
-                let vertex = mesh.get_vertex(ind_vertex)?.vertex();
-                closing_mesh.add_vertex(&vertex);
-            }
-            Ok(SkeletonInterface3D {
-                mesh,
-                skeleton: Skeleton3D::new(),
-                debug_meshes: Vec::new(),
-                out_vert_per_face: HashMap::new(),
-                faces,
-                del_tet: HashMap::new(),
-                del_tri: HashMap::new(),
-                del_seg: HashMap::new(),
-                node_tet: Vec::new(),
-                node_pnode: Vec::new(),
-                node_edge: Vec::new(),
-                edge_tri: Vec::new(),
-                edge_pedge_dir: Vec::new(),
-                edge_pedge_opp: Vec::new(),
-                edge_node: Vec::new(),
-                edge_alve: Vec::new(),
-                edge_set_sing: Vec::new(),
-                alve_seg: Vec::new(),
-                alve_palve: Vec::new(),
-                alve_edge: Vec::new(),
-                alve_label: Vec::new(),
-                pnode_corner: Vec::new(),
-                pnode_node: Vec::new(),
-                pnode_pedge_next: Vec::new(),
-                pnode_pedge_prev: Vec::new(),
-                pedge_corner: Vec::new(),
-                pedge_edge: Vec::new(),
-                pedge_pnode: Vec::new(),
-                pedge_palve: Vec::new(),
-                pedge_neigh: Vec::new(),
-                pedge_opp: Vec::new(),
-                palve_corner: Vec::new(),
-                palve_alve: Vec::new(),
-                palve_pedge: Vec::new(),
-                palve_opp: Vec::new(),
-            })
+    pub fn init(
+        mesh: &'a mut ManifoldMesh3D,
+        faces: HashMap<[usize; 3], Vec<[usize; 4]>>,
+    ) -> SkeletonInterface3D<'a> {
+        SkeletonInterface3D {
+            mesh,
+            skeleton: Skeleton3D::new(),
+            debug_meshes: Vec::new(),
+            out_vert_per_face: HashMap::new(),
+            faces,
+            del_tet: HashMap::new(),
+            del_tri: HashMap::new(),
+            del_seg: HashMap::new(),
+            node_tet: Vec::new(),
+            node_pnode: Vec::new(),
+            node_edge: Vec::new(),
+            edge_tri: Vec::new(),
+            edge_pedge_dir: Vec::new(),
+            edge_pedge_opp: Vec::new(),
+            edge_node: Vec::new(),
+            edge_alve: Vec::new(),
+            edge_set_sing: Vec::new(),
+            alve_seg: Vec::new(),
+            alve_palve: Vec::new(),
+            alve_edge: Vec::new(),
+            alve_label: Vec::new(),
+            pnode_corner: Vec::new(),
+            pnode_node: Vec::new(),
+            pnode_pedge_next: Vec::new(),
+            pnode_pedge_prev: Vec::new(),
+            pedge_corner: Vec::new(),
+            pedge_edge: Vec::new(),
+            pedge_pnode: Vec::new(),
+            pedge_palve: Vec::new(),
+            pedge_neigh: Vec::new(),
+            pedge_opp: Vec::new(),
+            palve_corner: Vec::new(),
+            palve_alve: Vec::new(),
+            palve_pedge: Vec::new(),
+            palve_opp: Vec::new(),
         }
     }
 

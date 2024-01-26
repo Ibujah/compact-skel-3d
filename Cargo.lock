@@ -459,7 +459,7 @@ dependencies = [
 [[package]]
 name = "simple_delaunay_lib"
 version = "0.1.0"
-source = "git+https://github.com/Ibujah/simple_delaunay_lib.git#57e125c320a50b489aa321a207768f8dd8086295"
+source = "git+https://github.com/Ibujah/simple_delaunay_lib.git#0f664c28fbd7348fa60be0855639e51279d28405"
 dependencies = [
  "anyhow",
  "log",

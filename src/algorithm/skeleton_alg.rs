@@ -1,6 +1,7 @@
 use anyhow::Result;
 use std::collections::HashMap;
 
+use crate::algorithm::delaunay_alg;
 use crate::algorithm::sub_algorithms::SkeletonSeparation;
 use crate::mesh3d::GenericMesh3D;
 use crate::mesh3d::ManifoldMesh3D;
@@ -11,8 +12,12 @@ use super::sub_algorithms::SkeletonInterface3D;
 
 /// Computes the full skeletonization of a delaunay mesh
 pub fn full_skeletonization(mesh: &mut ManifoldMesh3D) -> Result<Skeleton3D> {
+    println!("Mesh to delaunay");
+    let faces = delaunay_alg::to_delaunay(mesh, Some(std::f64::consts::PI * 20.0 / 180.0))?;
+    println!("");
+
     println!("Init skeleton interface");
-    let mut skeleton_interface = SkeletonInterface3D::init(mesh)?;
+    let mut skeleton_interface = SkeletonInterface3D::init(mesh, faces);
 
     println!("Finding some first alveola");
     let ind_first_alveola = skeleton_operations::first_alveola_in(&mut skeleton_interface)?;
@@ -286,9 +291,14 @@ pub fn sheet_skeletonization(
     mesh: &mut ManifoldMesh3D,
     opt_epsilon: Option<f64>,
 ) -> Result<(Skeleton3D, ManifoldMesh3D, Vec<GenericMesh3D>)> {
-    println!("Init skeleton interface");
     let mut mesh_cl = mesh.clone();
-    let mut skeleton_interface = SkeletonInterface3D::init(&mut mesh_cl)?;
+
+    println!("Mesh to delaunay");
+    let faces = delaunay_alg::to_delaunay(&mut mesh_cl, Some(std::f64::consts::PI * 20.0 / 180.0))?;
+    println!("");
+
+    println!("Init skeleton interface");
+    let mut skeleton_interface = SkeletonInterface3D::init(&mut mesh_cl, faces);
     skeleton_interface.check()?;
 
     if let Some(err) = loop_skeletonization(&mut skeleton_interface, opt_epsilon).err() {
