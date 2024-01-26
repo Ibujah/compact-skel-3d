@@ -256,24 +256,31 @@ fn loop_skeletonization(
     println!("Problematic edges correction");
     let mut problematics = skeleton_operations::problematic_partial_edges(skeleton_interface);
     loop {
-        print!(
-            "\r{} problematic pedges remaining                                   ",
-            problematics.len()
-        );
-        if let Some(ind_pedge) = problematics.pop() {
-            let pedge = skeleton_interface.get_partial_edge(ind_pedge)?;
-            if !pedge.edge().is_non_manifold() {
-                continue;
+        let nb_pb = problematics.len();
+        loop {
+            print!(
+                "\r{} problematic pedges remaining                                   ",
+                problematics.len()
+            );
+            if let Some(ind_pedge) = problematics.pop() {
+                let pedge = skeleton_interface.get_partial_edge(ind_pedge)?;
+                if !pedge.edge().is_non_manifold() {
+                    continue;
+                }
+                if pedge.partial_alveola().alveola().label().is_none() {
+                    continue;
+                }
+                label = skeleton_operations::handle_problematic_pedge(
+                    ind_pedge,
+                    skeleton_interface,
+                    label,
+                )?;
+            } else {
+                break;
             }
-            if pedge.partial_alveola().alveola().label().is_none() {
-                continue;
-            }
-            label = skeleton_operations::handle_problematic_pedge(
-                ind_pedge,
-                skeleton_interface,
-                label,
-            )?;
-        } else {
+        }
+        problematics = skeleton_operations::problematic_partial_edges(skeleton_interface);
+        if nb_pb == problematics.len() {
             break;
         }
     }
@@ -290,7 +297,7 @@ fn loop_skeletonization(
 pub fn sheet_skeletonization(
     mesh: &mut ManifoldMesh3D,
     opt_epsilon: Option<f64>,
-) -> Result<(Skeleton3D, ManifoldMesh3D, Vec<GenericMesh3D>)> {
+) -> Result<(Skeleton3D, ManifoldMesh3D, Vec<GenericMesh3D>, usize)> {
     let mut mesh_cl = mesh.clone();
 
     println!("Mesh to delaunay");
@@ -304,6 +311,7 @@ pub fn sheet_skeletonization(
     if let Some(err) = loop_skeletonization(&mut skeleton_interface, opt_epsilon).err() {
         println!("{}", err);
     }
+    let nb_pb = skeleton_operations::problematic_partial_edges(&skeleton_interface).len();
 
     println!("Computing labels");
     let label_per_vertex = skeleton_interface.get_label_per_vertex()?;
@@ -345,5 +353,6 @@ pub fn sheet_skeletonization(
         skeleton_interface.get_skeleton().clone(),
         skeleton_interface.get_mesh().clone(),
         skeleton_interface.get_debug_meshes().clone(),
+        nb_pb,
     ))
 }
