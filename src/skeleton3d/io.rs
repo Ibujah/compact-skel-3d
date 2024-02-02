@@ -279,3 +279,66 @@ pub fn save_ply(
 
     Ok(vec_col)
 }
+
+/// Save problematic edges as .ply file
+pub fn save_problematics_ply(
+    filename: &str,
+    skeleton: &Skeleton3D,
+    problematic_edge: &Vec<usize>,
+) -> Result<()> {
+    let mut file = File::create(filename)?;
+
+    writeln!(file, "ply")?;
+    writeln!(file, "format ascii 1.0")?;
+
+    writeln!(file, "element vertex {}", skeleton.nodes.len())?;
+    writeln!(file, "property float x")?;
+    writeln!(file, "property float y")?;
+    writeln!(file, "property float z")?;
+    writeln!(file, "property uchar red")?;
+    writeln!(file, "property uchar green")?;
+    writeln!(file, "property uchar blue")?;
+
+    writeln!(file, "element edge {}", problematic_edge.len())?;
+    writeln!(file, "property int vertex1")?;
+    writeln!(file, "property int vertex2")?;
+
+    writeln!(file, "end_header")?;
+
+    let mut min_rad = -1.0;
+    let mut max_rad = -1.0;
+    for (_, sph) in skeleton.nodes.iter() {
+        let rad = sph.radius;
+        if min_rad < 0.0 || min_rad < rad {
+            min_rad = rad;
+        }
+        if max_rad < 0.0 || max_rad > rad {
+            max_rad = rad;
+        }
+    }
+
+    let mut skel_ind_to_ind = HashMap::new();
+    let mut ind = 0;
+    for (skel_ind, sph) in skeleton.nodes.iter() {
+        let vert = sph.center;
+
+        writeln!(
+            file,
+            "{} {} {} {} {} {}",
+            vert[0], vert[1], vert[2], 255, 0, 0,
+        )?;
+        skel_ind_to_ind.insert(skel_ind, ind);
+        ind = ind + 1;
+    }
+
+    for ind_edge in problematic_edge.iter() {
+        let edge = skeleton.edges[ind_edge];
+        writeln!(
+            file,
+            "{} {}",
+            skel_ind_to_ind[&edge[0]], skel_ind_to_ind[&edge[1]]
+        )?;
+    }
+
+    Ok(())
+}

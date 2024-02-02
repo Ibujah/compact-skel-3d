@@ -297,7 +297,7 @@ fn loop_skeletonization(
 pub fn sheet_skeletonization(
     mesh: &mut ManifoldMesh3D,
     opt_epsilon: Option<f64>,
-) -> Result<(Skeleton3D, ManifoldMesh3D, Vec<GenericMesh3D>, usize)> {
+) -> Result<(Skeleton3D, ManifoldMesh3D, Vec<GenericMesh3D>, Vec<usize>)> {
     let mut mesh_cl = mesh.clone();
 
     println!("Mesh to delaunay");
@@ -311,7 +311,7 @@ pub fn sheet_skeletonization(
     if let Some(err) = loop_skeletonization(&mut skeleton_interface, opt_epsilon).err() {
         println!("{}", err);
     }
-    let nb_pb = skeleton_operations::problematic_partial_edges(&skeleton_interface).len();
+    let problematic_edges = skeleton_operations::problematic_edges(&skeleton_interface);
 
     println!("Computing labels");
     let label_per_vertex = skeleton_interface.get_label_per_vertex()?;
@@ -353,6 +353,6 @@ pub fn sheet_skeletonization(
         skeleton_interface.get_skeleton().clone(),
         skeleton_interface.get_mesh().clone(),
         skeleton_interface.get_debug_meshes().clone(),
-        nb_pb,
+        problematic_edges,
     ))
 }

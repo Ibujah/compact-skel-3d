@@ -119,7 +119,7 @@ fn main() -> Result<()> {
 
     let now = Instant::now();
     println!("Sheet skeletonization");
-    let (skeleton, _work_mesh, vec_debug_meshes, nb_pb) =
+    let (skeleton, _work_mesh, vec_debug_meshes, problematic_edges) =
         skeleton_alg::sheet_skeletonization(&mut mesh, epsilon)?;
     let duration = now.elapsed();
     let sec_all = duration.as_secs();
@@ -146,9 +146,14 @@ fn main() -> Result<()> {
         &mesh,
         Some(vec_col),
     )?;
+    skeleton3d::io::save_problematics_ply(
+        &format!("{}problematics.ply", out_path_str),
+        &skeleton,
+        &problematic_edges,
+    )?;
 
     let mut file_pb = File::create(&format!("{}problematics.txt", out_path_str))?;
-    writeln!(file_pb, "{}", nb_pb)?;
+    writeln!(file_pb, "{}", problematic_edges.len())?;
 
     let mut file_time = File::create(&format!("{}time.txt", out_path_str))?;
     writeln!(file_time, "{}", sec_all)?;
