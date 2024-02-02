@@ -259,7 +259,7 @@ pub fn boundary_partial_edges(skeleton_interface: &SkeletonInterface3D) -> Vec<u
     vec_pedges
 }
 
-/// Returns problematic edges on skeleton
+/// Returns problematic partial edges on skeleton
 pub fn problematic_partial_edges(skeleton_interface: &SkeletonInterface3D) -> Vec<usize> {
     let mut vec_pedges = Vec::new();
     for ind_pedge in 0..skeleton_interface.pedge_edge.len() {
@@ -269,6 +269,18 @@ pub fn problematic_partial_edges(skeleton_interface: &SkeletonInterface3D) -> Ve
         }
     }
     vec_pedges
+}
+
+/// Returns problematic edges on skeleton
+pub fn problematic_edges(skeleton_interface: &SkeletonInterface3D) -> Vec<usize> {
+    let mut set_edges = HashSet::new();
+    for ind_pedge in 0..skeleton_interface.pedge_edge.len() {
+        let pedge = skeleton_interface.get_partial_edge_uncheck(ind_pedge);
+        if pedge.edge().is_non_manifold() && pedge.partial_alveola().alveola().label().is_some() {
+            set_edges.insert(pedge.edge().ind());
+        }
+    }
+    set_edges.into_iter().collect()
 }
 
 /// For each partial edge, computes its saliency
