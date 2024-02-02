@@ -9,7 +9,7 @@ edition = "2021"
 clap = {version = "4.0.18", features = ["derive"]}
 anyhow = "1.0.66"
 nalgebra = "0.31.3"
-simple_delaunay_lib = { git = "https://github.com/Ibujah/simple_delaunay_lib.git" }
+simple_delaunay_lib = "0.2.0"
 rand = "0.8.5"
 env_logger="0.10.0"
 log="0.4.20"
