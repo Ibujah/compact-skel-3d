@@ -1081,11 +1081,9 @@ pub fn try_solve_problematic_path(
     } else if skel_prob.follow_boundary_path_from_last(skeleton_interface)? {
         first_to_boundary(skel_prob, skeleton_interface, label_pedge)?
     } else {
-        Vec::new()
-    };
-    if vec_edges.len() == 0 {
+        log::debug!("No path to from problematic path to boundary");
         return Ok(false);
-    }
+    };
 
     for &ind_edge in vec_edges.iter() {
         skeleton_interface.set_edge_sing(ind_edge)?;
