@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use anyhow::Result;
 use nalgebra::base::*;
@@ -11,7 +11,9 @@ pub enum State {
 }
 
 pub struct SkeletonProblematicPath {
+    /// problematic path
     components_non_manifold: Vec<usize>,
+    /// path on boundary starting from an extremity
     components_boundary: Vec<usize>,
     opt_ind_pedge_first: Option<usize>,
     opt_ind_pedge_last: Option<usize>,
@@ -353,16 +355,19 @@ impl SkeletonProblematicPath {
     pub fn rotate_after_last(&mut self, skeleton_interface: &SkeletonInterface3D) -> Result<State> {
         if let Some(ind_pedge_after_last) = self.opt_ind_pedge_after_last {
             let pedge = skeleton_interface.get_partial_edge_uncheck(ind_pedge_after_last);
-            let pedge_neigh = pedge.partial_edge_neighbor();
+            let mut pedge_neigh = pedge.partial_edge_neighbor();
 
-            let alve = pedge_neigh.partial_alveola().alveola();
-            let pedge_next = if alve.is_full() {
-                pedge_neigh
-                    .partial_edge_next()
-                    .ok_or(anyhow::Error::msg("No next partial edge"))?
-            } else {
-                pedge_neigh.partial_edge_opposite()
-            };
+            loop {
+                let alve = pedge_neigh.partial_alveola().alveola();
+                if alve.is_full() {
+                    break;
+                }
+                pedge_neigh = pedge_neigh.partial_edge_opposite();
+                pedge_neigh = pedge_neigh.partial_edge_neighbor();
+            }
+
+            let pedge_next = pedge_neigh.partial_edge_next().unwrap();
+
             let ind_pedge_new = pedge_next.ind();
             self.opt_ind_pedge_after_last = Some(ind_pedge_new);
             self.check_after_end(skeleton_interface)
@@ -377,16 +382,18 @@ impl SkeletonProblematicPath {
     ) -> Result<State> {
         if let Some(ind_pedge_before_first) = self.opt_ind_pedge_before_first {
             let pedge = skeleton_interface.get_partial_edge_uncheck(ind_pedge_before_first);
-            let pedge_neigh = pedge.partial_edge_neighbor();
+            let mut pedge_neigh = pedge.partial_edge_neighbor();
 
-            let alve = pedge_neigh.partial_alveola().alveola();
-            let pedge_prev = if alve.is_full() {
-                pedge_neigh
-                    .partial_edge_prev()
-                    .ok_or(anyhow::Error::msg("No next partial edge"))?
-            } else {
-                pedge_neigh.partial_edge_opposite()
-            };
+            loop {
+                let alve = pedge_neigh.partial_alveola().alveola();
+                if alve.is_full() {
+                    break;
+                }
+                pedge_neigh = pedge_neigh.partial_edge_opposite();
+                pedge_neigh = pedge_neigh.partial_edge_neighbor();
+            }
+
+            let pedge_prev = pedge_neigh.partial_edge_prev().unwrap();
             let ind_pedge_new = pedge_prev.ind();
             self.opt_ind_pedge_before_first = Some(ind_pedge_new);
             self.check_before_beg(skeleton_interface)
@@ -534,12 +541,18 @@ pub(super) fn last_to_boundary(
             node.center_and_radius().unwrap().0
         })
         .collect();
+    let mut inds_on_path = HashSet::new();
+    for &ind_pedge in skel_prob.components_non_manifold.iter() {
+        let pedge = skeleton_interface.get_partial_edge_uncheck(ind_pedge);
+        inds_on_path.insert(pedge.partial_node_first().unwrap().node().ind());
+        inds_on_path.insert(pedge.partial_node_last().unwrap().node().ind());
+    }
 
     let mut map_nodes_dist = HashMap::new();
     let mut map_nodes_prev = HashMap::new();
     let mut map_nodes_next_to_eval = HashMap::new();
     let mut map_nodes_ctr = HashMap::new();
-    let mut map_nodes_dist_to_bnd = HashMap::new();
+    let mut map_nodes_dist_to_bnd = HashMap::new(); // heuristic
 
     let pedge_last =
         skeleton_interface.get_partial_edge(*skel_prob.components().last().unwrap())?;
@@ -588,6 +601,9 @@ pub(super) fn last_to_boundary(
                 let pedge = skeleton_interface.get_partial_edge_uncheck(ind_pedge);
                 let node_aft = pedge.partial_node_last().unwrap().node();
                 let ind_node_aft = node_aft.ind();
+                if inds_on_path.contains(&ind_node_aft) {
+                    continue;
+                }
                 let ctr_aft = node_aft.center_and_radius().unwrap().0;
                 let dist_aft = dist_cur + (ctr_aft - ctr_cur).norm();
                 let should_add = if let Some(&dist) = map_nodes_dist.get(&ind_node_aft) {
@@ -607,6 +623,7 @@ pub(super) fn last_to_boundary(
                 }
             }
         } else {
+            log::debug!("Boundary not reached");
             break;
         }
     }
@@ -655,6 +672,12 @@ pub(super) fn first_to_boundary(
             node.center_and_radius().unwrap().0
         })
         .collect();
+    let mut inds_on_path = HashSet::new();
+    for &ind_pedge in skel_prob.components_non_manifold.iter() {
+        let pedge = skeleton_interface.get_partial_edge_uncheck(ind_pedge);
+        inds_on_path.insert(pedge.partial_node_first().unwrap().node().ind());
+        inds_on_path.insert(pedge.partial_node_last().unwrap().node().ind());
+    }
 
     let mut map_nodes_dist = HashMap::new();
     let mut map_nodes_prev = HashMap::new();
@@ -709,6 +732,9 @@ pub(super) fn first_to_boundary(
                 let pedge = skeleton_interface.get_partial_edge_uncheck(ind_pedge);
                 let node_aft = pedge.partial_node_last().unwrap().node();
                 let ind_node_aft = node_aft.ind();
+                if inds_on_path.contains(&ind_node_aft) {
+                    continue;
+                }
                 let ctr_aft = node_aft.center_and_radius().unwrap().0;
                 let dist_aft = dist_cur + (ctr_aft - ctr_cur).norm();
                 let should_add = if let Some(&dist) = map_nodes_dist.get(&ind_node_aft) {
@@ -728,6 +754,7 @@ pub(super) fn first_to_boundary(
                 }
             }
         } else {
+            log::debug!("Boundary not reached");
             break;
         }
     }
