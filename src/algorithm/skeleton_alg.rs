@@ -254,40 +254,50 @@ fn loop_skeletonization(
         );
     }
     println!("Problematic edges correction");
-    let mut problematics = skeleton_operations::problematic_partial_edges(skeleton_interface);
-    loop {
-        let nb_pb = problematics.len();
-        loop {
-            print!(
-                "\r{} problematic pedges remaining                                   ",
-                problematics.len()
-            );
-            if let Some(ind_pedge) = problematics.pop() {
-                let pedge = skeleton_interface.get_partial_edge(ind_pedge)?;
-                if !pedge.edge().is_non_manifold() {
-                    continue;
-                }
-                if pedge.partial_alveola().alveola().label().is_none() {
-                    continue;
-                }
-                label = skeleton_operations::handle_problematic_pedge(
-                    ind_pedge,
-                    skeleton_interface,
-                    label,
-                )?;
-            } else {
-                break;
-            }
-        }
-        problematics = skeleton_operations::problematic_partial_edges(skeleton_interface);
-        if nb_pb == problematics.len() {
-            break;
-        }
-    }
-    println!(
-        "\r{} problematic pedges remaining                                   ",
-        problematics.len()
-    );
+
+    let problematics = skeleton_operations::problematic_partial_edges(skeleton_interface);
+    println!("{} problematic pedges", problematics.len());
+    label = skeleton_operations::handle_all_problematic_pedge_by_region_growing(
+        &problematics,
+        skeleton_interface,
+        label,
+    )?;
+    println!("{} Sheets", label,);
+    let problematics = skeleton_operations::problematic_partial_edges(skeleton_interface);
+    println!("{} problematic pedges", problematics.len());
+    // loop {
+    //     let nb_pb = problematics.len();
+    //     loop {
+    //         print!(
+    //             "\r{} problematic pedges remaining                                   ",
+    //             problematics.len()
+    //         );
+    //         if let Some(ind_pedge) = problematics.pop() {
+    //             let pedge = skeleton_interface.get_partial_edge(ind_pedge)?;
+    //             if !pedge.edge().is_non_manifold() {
+    //                 continue;
+    //             }
+    //             if pedge.partial_alveola().alveola().label().is_none() {
+    //                 continue;
+    //             }
+    //             label = skeleton_operations::handle_problematic_pedge(
+    //                 ind_pedge,
+    //                 skeleton_interface,
+    //                 label,
+    //             )?;
+    //         } else {
+    //             break;
+    //         }
+    //     }
+    //     problematics = skeleton_operations::problematic_partial_edges(skeleton_interface);
+    //     if nb_pb == problematics.len() {
+    //         break;
+    //     }
+    // }
+    // println!(
+    //     "\r{} problematic pedges remaining                                   ",
+    //     problematics.len()
+    // );
     println!("Checking skeleton");
     skeleton_interface.check()?;
     Ok(())
