@@ -6,6 +6,7 @@ mod movable_delaunay_path;
 mod skeleton_boundary_path;
 mod skeleton_interface;
 mod skeleton_problematic_path;
+mod skeleton_region_growing;
 mod skeleton_separation;
 mod skeleton_singular_path;
 

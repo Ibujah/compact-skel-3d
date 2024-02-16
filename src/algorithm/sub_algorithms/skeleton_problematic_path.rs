@@ -210,28 +210,20 @@ impl SkeletonProblematicPath {
         &mut self,
         skeleton_interface: &mut SkeletonInterface3D,
     ) -> Result<()> {
-        loop {
-            if let Some(ind_pedge_last) = self.ind_last_partial_edge() {
-                let pedge = skeleton_interface.get_partial_edge_uncheck(ind_pedge_last);
-                if pedge.edge().is_non_manifold() {
-                    self.append_last(skeleton_interface)?;
-                } else {
-                    self.rotate_last(skeleton_interface)?;
-                }
+        while let Some(ind_pedge_last) = self.ind_last_partial_edge() {
+            let pedge = skeleton_interface.get_partial_edge_uncheck(ind_pedge_last);
+            if pedge.edge().is_non_manifold() {
+                self.append_last(skeleton_interface)?;
             } else {
-                break;
+                self.rotate_last(skeleton_interface)?;
             }
         }
-        loop {
-            if let Some(ind_pedge_first) = self.ind_first_partial_edge() {
-                let pedge = skeleton_interface.get_partial_edge_uncheck(ind_pedge_first);
-                if pedge.edge().is_non_manifold() {
-                    self.append_first(skeleton_interface)?;
-                } else {
-                    self.rotate_first(skeleton_interface)?;
-                }
+        while let Some(ind_pedge_first) = self.ind_first_partial_edge() {
+            let pedge = skeleton_interface.get_partial_edge_uncheck(ind_pedge_first);
+            if pedge.edge().is_non_manifold() {
+                self.append_first(skeleton_interface)?;
             } else {
-                break;
+                self.rotate_first(skeleton_interface)?;
             }
         }
         Ok(())
@@ -460,6 +452,50 @@ impl SkeletonProblematicPath {
             }
         }
         Ok(self.components_boundary.len() != 0)
+    }
+
+    ///Gets all the edges from components_non_manifold of the problematic path, replace them by their neighbor (on opposite
+    ///alveola), then their opposite() (on the same alveola)
+    pub fn rotated_problematic_path(
+        self: &SkeletonProblematicPath,
+        skeleton_interface: &SkeletonInterface3D,
+    ) -> SkeletonProblematicPath {
+        let non_manifold_rotated: Vec<usize> = self
+            .components_non_manifold
+            .iter()
+            .map(|&ind_pedge| {
+                skeleton_interface
+                    .get_partial_edge_uncheck(ind_pedge)
+                    .partial_edge_neighbor()
+                    .partial_edge_opposite()
+                    .ind()
+            })
+            .collect();
+        SkeletonProblematicPath {
+            components_non_manifold: non_manifold_rotated,
+            components_boundary: Vec::new(),
+            opt_ind_pedge_first: None,
+            opt_ind_pedge_last: None,
+            opt_ind_pedge_before_first: None,
+            opt_ind_pedge_after_last: None,
+        }
+    }
+
+    /// Gets alveolae supporting problematic path
+    pub fn supporting_alveolae(
+        self: &SkeletonProblematicPath,
+        skeleton_interface: &SkeletonInterface3D,
+    ) -> Vec<usize> {
+        self.components_non_manifold
+            .iter()
+            .map(|&ind_pedge| {
+                skeleton_interface
+                    .get_partial_edge_uncheck(ind_pedge)
+                    .partial_alveola()
+                    .alveola()
+                    .ind()
+            })
+            .collect()
     }
 
     // pub fn print(&self, skeleton_interface: &SkeletonInterface3D) -> () {

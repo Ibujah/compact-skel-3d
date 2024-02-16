@@ -10,6 +10,7 @@ use crate::mesh3d::GenericMesh3D;
 
 use super::skeleton_boundary_path;
 use super::skeleton_problematic_path;
+use super::skeleton_region_growing::{self, init_near_alveolae, region_grow};
 use super::skeleton_singular_path::{PathPart, SkeletonSingularPath};
 use super::MovableDelaunayPath;
 use super::SkeletonInterface3D;
@@ -1124,4 +1125,84 @@ pub fn handle_problematic_pedge(
     }
 
     Ok(label)
+}
+
+// pub fn handle_problematic_pedge_by_region_growing(
+//     ind_pedge: usize,
+//     skeleton_interface: &mut SkeletonInterface3D,
+//     label: usize,
+// ) -> Result<usize> {
+//     // Create a new instance of the SkeletonProblematicPath struct for the given problematic edge
+//     let mut skel_prob0 =
+//         skeleton_problematic_path::SkeletonProblematicPath::create(ind_pedge, skeleton_interface)?;
+//
+//     // Follow the problematic path from the starting edge to its end
+//     skel_prob0.follow_problematic_path(skeleton_interface)?;
+//
+//     // Create a rotated version of the problematic path for each rotation
+//     let skel_prob1 = skel_prob0.rotated_problematic_path(skeleton_interface);
+//     let skel_prob2 = skel_prob1.rotated_problematic_path(skeleton_interface);
+//
+//     // Get the indices of the supporting alveolae for each rotation
+//     let region0 = skel_prob0.supporting_alveolae(skeleton_interface);
+//     let region1 = skel_prob1.supporting_alveolae(skeleton_interface);
+//     let region2 = skel_prob2.supporting_alveolae(skeleton_interface);
+//
+//     // Create a hash map to keep track of the proximity of each alveola to the current location along the problematic edge
+//     let mut passed_alveolae: HashMap<usize, usize> = HashMap::new();
+//
+//     // Add the indices of the supporting alveoli for each rotation to the hash map
+//     for &ind_alveola in region0.iter() {
+//         passed_alveolae.insert(ind_alveola, 0);
+//     }
+//     for &ind_alveola in region1.iter() {
+//         passed_alveolae.insert(ind_alveola, 1);
+//     }
+//     for &ind_alveola in region2.iter() {
+//         passed_alveolae.insert(ind_alveola, 2);
+//     }
+//
+//     // Initialize a new instance of the NearAlveolae struct using the skeleton interface and the hash map of passed alveoli
+//     let near_alveolae = init_near_alveolae(skeleton_interface, &passed_alveolae)?;
+//
+//     Ok(label)
+// }
+
+pub fn handle_all_problematic_pedge_by_region_growing(
+    ind_problematics: &Vec<usize>,
+    skeleton_interface: &mut SkeletonInterface3D,
+    last_label: usize,
+) -> Result<usize> {
+    let mut seeds: Vec<usize> = ind_problematics
+        .iter()
+        .map(|&ind_pedge| {
+            skeleton_interface
+                .get_partial_edge_uncheck(ind_pedge)
+                .partial_alveola()
+                .alveola()
+                .ind()
+        })
+        .collect();
+    seeds.sort();
+    seeds.dedup();
+
+    let mut passed_alveolae = HashMap::new();
+    seeds
+        .iter()
+        .enumerate()
+        .for_each(|(ind_region, &ind_alveola)| {
+            passed_alveolae.insert(ind_alveola, ind_region);
+        });
+
+    let mut near_alveolae = init_near_alveolae(skeleton_interface, &passed_alveolae)?;
+    region_grow(skeleton_interface, &mut passed_alveolae, &mut near_alveolae)?;
+
+    for (&ind_alveola, &ind_region) in passed_alveolae.iter() {
+        skeleton_interface.set_alveola_label(ind_alveola, Some(ind_region + last_label + 1))?;
+        skeleton_interface
+            .skeleton
+            .set_label(ind_alveola, ind_region + last_label + 1);
+    }
+
+    Ok(last_label + seeds.len())
 }
