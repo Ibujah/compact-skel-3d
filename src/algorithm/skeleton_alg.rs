@@ -2,6 +2,7 @@ use anyhow::Result;
 use std::collections::HashMap;
 
 use crate::algorithm::delaunay_alg;
+use crate::algorithm::sub_algorithms::skeleton_operations::remap_sheet_indices;
 use crate::algorithm::sub_algorithms::SkeletonSeparation;
 use crate::mesh3d::GenericMesh3D;
 use crate::mesh3d::ManifoldMesh3D;
@@ -261,7 +262,8 @@ fn loop_skeletonization(
         skeleton_interface,
         label,
     )?;
-    println!("{} Sheets", label,);
+    let nb_sheets = remap_sheet_indices(skeleton_interface);
+    println!("{} Sheets", nb_sheets,);
     let problematics = skeleton_operations::problematic_partial_edges(skeleton_interface);
     println!("{} problematic pedges", problematics.len());
     // loop {
