@@ -258,7 +258,6 @@ fn loop_skeletonization(
     let problematics = skeleton_operations::problematic_partial_edges(skeleton_interface);
     println!("{} problematic pedges", problematics.len());
     label = skeleton_operations::handle_all_problematic_pedge_by_region_growing(
-        &problematics,
         skeleton_interface,
         label,
     )?;

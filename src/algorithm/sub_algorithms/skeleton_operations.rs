@@ -10,7 +10,7 @@ use crate::mesh3d::GenericMesh3D;
 
 use super::skeleton_boundary_path;
 use super::skeleton_problematic_path;
-use super::skeleton_region_growing::{self, init_near_alveolae, region_grow};
+use super::skeleton_region_growing::{alveola_regular_perimeter, region_grow};
 use super::skeleton_singular_path::{PathPart, SkeletonSingularPath};
 use super::MovableDelaunayPath;
 use super::SkeletonInterface3D;
@@ -1168,12 +1168,14 @@ pub fn handle_problematic_pedge(
 //     Ok(label)
 // }
 
+/// handles all the problematic edges of the skeleton
 pub fn handle_all_problematic_pedge_by_region_growing(
-    ind_problematics: &Vec<usize>,
     skeleton_interface: &mut SkeletonInterface3D,
     last_label: usize,
 ) -> Result<usize> {
-    let mut seeds: Vec<usize> = ind_problematics
+    let problematics = problematic_partial_edges(skeleton_interface);
+
+    let mut seeds: Vec<usize> = problematics
         .iter()
         .map(|&ind_pedge| {
             skeleton_interface
@@ -1187,14 +1189,15 @@ pub fn handle_all_problematic_pedge_by_region_growing(
     seeds.dedup();
 
     let mut passed_alveolae = HashMap::new();
+    let mut near_alveolae = Vec::new();
     seeds
         .iter()
         .enumerate()
         .for_each(|(ind_region, &ind_alveola)| {
-            passed_alveolae.insert(ind_alveola, ind_region);
+            let perimeter = alveola_regular_perimeter(skeleton_interface, ind_alveola).unwrap();
+            near_alveolae.push((ind_alveola, ind_region, -perimeter));
         });
 
-    let mut near_alveolae = init_near_alveolae(skeleton_interface, &passed_alveolae)?;
     region_grow(skeleton_interface, &mut passed_alveolae, &mut near_alveolae)?;
 
     for (&ind_alveola, &ind_region) in passed_alveolae.iter() {
@@ -1205,4 +1208,14 @@ pub fn handle_all_problematic_pedge_by_region_growing(
     }
 
     Ok(last_label + seeds.len())
+}
+
+pub fn remap_sheet_indices(skeleton_interface: &mut SkeletonInterface3D) -> () {
+    let mut remap_sheet: HashMap<usize, usize> = HashMap::new();
+    let mut nb_sheets: usize = 0;
+    for &opt_label in skeleton_interface.alve_label.iter() {
+        if let Some(label) = opt_label {
+            remap_sheet.entry(label).or_insert(nb_sheets);
+        }
+    }
 }
