@@ -1210,12 +1210,15 @@ pub fn handle_all_problematic_pedge_by_region_growing(
     Ok(last_label + seeds.len())
 }
 
-pub fn remap_sheet_indices(skeleton_interface: &mut SkeletonInterface3D) -> () {
+/// Remap sheet indices to remove unused
+pub fn remap_sheet_indices(skeleton_interface: &mut SkeletonInterface3D) -> usize {
     let mut remap_sheet: HashMap<usize, usize> = HashMap::new();
-    let mut nb_sheets: usize = 0;
     for &opt_label in skeleton_interface.alve_label.iter() {
+        let nb_sheets: usize = remap_sheet.len();
         if let Some(label) = opt_label {
             remap_sheet.entry(label).or_insert(nb_sheets);
         }
     }
+
+    remap_sheet.len()
 }
