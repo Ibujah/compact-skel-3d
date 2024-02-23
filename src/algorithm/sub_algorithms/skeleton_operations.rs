@@ -10,7 +10,7 @@ use crate::mesh3d::GenericMesh3D;
 
 use super::skeleton_boundary_path;
 use super::skeleton_problematic_path;
-use super::skeleton_region_growing::{alveola_regular_perimeter, region_grow};
+use super::skeleton_region_growing::{alveola_regular_perimeter, region_grow, region_merge};
 use super::skeleton_singular_path::{PathPart, SkeletonSingularPath};
 use super::MovableDelaunayPath;
 use super::SkeletonInterface3D;
@@ -1198,7 +1198,11 @@ pub fn handle_all_problematic_pedge_by_region_growing(
             near_alveolae.push((ind_alveola, ind_region, -perimeter));
         });
 
+    println!("region grow");
     region_grow(skeleton_interface, &mut passed_alveolae, &mut near_alveolae)?;
+
+    println!("region merge");
+    region_merge(skeleton_interface, &mut passed_alveolae);
 
     for (&ind_alveola, &ind_region) in passed_alveolae.iter() {
         skeleton_interface.set_alveola_label(ind_alveola, Some(ind_region + last_label + 1))?;

@@ -62,6 +62,158 @@ pub fn region_grow(
     Ok(())
 }
 
+pub fn region_merge(
+    skeleton_interface: &SkeletonInterface3D,
+    passed_alveolae: &mut HashMap<usize, usize>,
+) -> () {
+    let mut neighboring_score: HashMap<(usize, usize), (f64, usize)> = HashMap::new();
+
+    init_neighboring_score(
+        skeleton_interface,
+        passed_alveolae,
+        &mut neighboring_score,
+        None,
+    );
+
+    // get minimum score
+    while let Some((&(ind_region1, ind_region2), _)) =
+        neighboring_score
+            .iter()
+            .fold(None, |curr_min, (ind, &(score_sum_tst, nb_tst))| {
+                // If a current minimum is found, check if the current score is greater than the current minimum
+                let score_tst = score_sum_tst / nb_tst as f64;
+                if let Some((_, score_curr)) = curr_min {
+                    if score_curr < score_tst {
+                        Some((ind, score_tst))
+                    } else {
+                        curr_min
+                    }
+                // If no current minimum is found, set the index and score as the current minimum
+                } else {
+                    Some((ind, score_tst))
+                }
+            })
+    {
+        let (score_sum, nb) = neighboring_score
+            .remove(&(ind_region1, ind_region2))
+            .unwrap();
+        // let score = score_sum / nb as f64;
+        // if score < 0.707 {
+        //     break;
+        // }
+        if !can_merge_region(
+            skeleton_interface,
+            passed_alveolae,
+            ind_region1,
+            ind_region2,
+        ) {
+            continue;
+        }
+        // merge regions
+        passed_alveolae.iter_mut().for_each(|(_, ind_reg)| {
+            if *ind_reg == ind_region2 {
+                *ind_reg = ind_region1
+            }
+        });
+
+        let (no_region2, with_region2): (
+            HashMap<(usize, usize), (f64, usize)>,
+            HashMap<(usize, usize), (f64, usize)>,
+        ) = neighboring_score
+            .into_iter()
+            .partition(|((ind_r1, ind_r2), _)| *ind_r1 != ind_region2 && *ind_r2 != ind_region2);
+
+        neighboring_score = no_region2;
+
+        let mut with_region2: HashMap<usize, (f64, usize)> = with_region2
+            .iter()
+            .map(|(&(ind_r1, ind_r2), &(sc, nb))| {
+                if ind_r1 == ind_region2 {
+                    (ind_r2, (sc, nb))
+                } else {
+                    (ind_r1, (sc, nb))
+                }
+            })
+            .collect();
+
+        // update region1 existing neighborhood
+        for (&(ind_r1, ind_r2), (sc, nb)) in neighboring_score.iter_mut() {
+            if ind_r1 == ind_region1 || ind_r2 == ind_region1 {
+                let ind_reg_near = if ind_r1 == ind_region1 {
+                    ind_r2
+                } else {
+                    ind_r1
+                };
+                if let Some((sc_up, nb_up)) = with_region2.remove(&ind_reg_near) {
+                    *sc += sc_up;
+                    *nb += nb_up;
+                }
+            }
+        }
+
+        // include new region1 neighborhood
+        for (&ind_reg_near, &(sc, nb)) in with_region2.iter() {
+            if ind_reg_near < ind_region1 {
+                neighboring_score.insert((ind_reg_near, ind_region1), (sc, nb));
+            } else {
+                neighboring_score.insert((ind_region1, ind_reg_near), (sc, nb));
+            }
+        }
+    }
+}
+
+pub fn init_neighboring_score(
+    skeleton_interface: &SkeletonInterface3D,
+    passed_alveolae: &HashMap<usize, usize>,
+    neighboring_score: &mut HashMap<(usize, usize), (f64, usize)>,
+    only_region: Option<usize>,
+) -> () {
+    for (&ind_alveola, &ind_region) in passed_alveolae.iter() {
+        let alveola = skeleton_interface.get_alveola_uncheck(ind_alveola);
+        let palveola = alveola.partial_alveolae()[0];
+        for pedge in palveola.partial_edges() {
+            if !pedge.edge().is_regular() {
+                continue;
+            }
+
+            let mut pedge_opp = pedge.partial_edge_neighbor().partial_edge_opposite();
+            while !pedge_opp.partial_alveola().alveola().is_full() {
+                pedge_opp = pedge_opp.partial_edge_neighbor().partial_edge_opposite();
+            }
+            let alveola_near = pedge_opp.partial_alveola().alveola();
+            let ind_alveola_near = alveola_near.ind();
+            let ind_region_near = passed_alveolae[&ind_alveola_near];
+            if let Some(ind_only) = only_region {
+                if ind_region != ind_only && ind_region_near != ind_only {
+                    continue;
+                }
+            }
+            if ind_region > ind_region_near {
+                continue;
+            }
+
+            let seg = palveola.alveola().delaunay_segment();
+            let v1 = skeleton_interface.get_mesh().vertices()[&seg[0]];
+            let v2 = skeleton_interface.get_mesh().vertices()[&seg[1]];
+            let normal = (v2 - v1).normalize();
+
+            let seg_near = palveola.alveola().delaunay_segment();
+            let v1_near = skeleton_interface.get_mesh().vertices()[&seg_near[0]];
+            let v2_near = skeleton_interface.get_mesh().vertices()[&seg_near[1]];
+            let normal_near = (v2_near - v1_near).normalize();
+
+            let cos_ang = normal.dot(&normal_near).abs();
+            neighboring_score
+                .entry((ind_region, ind_region_near))
+                .and_modify(|(v, nb)| {
+                    *v += cos_ang;
+                    *nb += 1
+                })
+                .or_insert((cos_ang, 1));
+        }
+    }
+}
+
 pub fn next_to_add(
     passed_alveolae: &HashMap<usize, usize>,
     near_alveolae: &mut Vec<(usize, usize, f64)>,
