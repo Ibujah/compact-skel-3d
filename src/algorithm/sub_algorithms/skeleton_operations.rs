@@ -1202,7 +1202,7 @@ pub fn handle_all_problematic_pedge_by_region_growing(
     region_grow(skeleton_interface, &mut passed_alveolae, &mut near_alveolae)?;
 
     println!("region merge");
-    region_merge(skeleton_interface, &mut passed_alveolae);
+    region_merge(skeleton_interface, &mut passed_alveolae)?;
 
     for (&ind_alveola, &ind_region) in passed_alveolae.iter() {
         skeleton_interface.set_alveola_label(ind_alveola, Some(ind_region + last_label + 1))?;
