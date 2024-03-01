@@ -65,7 +65,7 @@ pub fn region_grow(
 pub fn region_merge(
     skeleton_interface: &SkeletonInterface3D,
     passed_alveolae: &mut HashMap<usize, usize>,
-) -> () {
+) -> Result<()> {
     let mut neighboring_score: HashMap<(usize, usize), (f64, usize)> = HashMap::new();
 
     init_neighboring_score(
@@ -73,15 +73,15 @@ pub fn region_merge(
         passed_alveolae,
         &mut neighboring_score,
         None,
-    );
+    )?;
 
-    // get minimum score
+    // get mimimum score
     while let Some((&(ind_region1, ind_region2), _)) =
         neighboring_score
             .iter()
             .fold(None, |curr_min, (ind, &(score_sum_tst, nb_tst))| {
                 // If a current minimum is found, check if the current score is greater than the current minimum
-                let score_tst = score_sum_tst / nb_tst as f64;
+                let score_tst = score_sum_tst; // / nb_tst as f64;
                 if let Some((_, score_curr)) = curr_min {
                     if score_curr < score_tst {
                         Some((ind, score_tst))
@@ -94,11 +94,12 @@ pub fn region_merge(
                 }
             })
     {
-        let (score_sum, nb) = neighboring_score
+        // let (score_sum, nb) =
+        neighboring_score
             .remove(&(ind_region1, ind_region2))
             .unwrap();
         // let score = score_sum / nb as f64;
-        // if score < 0.707 {
+        // if score < 0.8 {
         //     break;
         // }
         if !can_merge_region(
@@ -160,6 +161,7 @@ pub fn region_merge(
             }
         }
     }
+    Ok(())
 }
 
 pub fn init_neighboring_score(
@@ -167,7 +169,7 @@ pub fn init_neighboring_score(
     passed_alveolae: &HashMap<usize, usize>,
     neighboring_score: &mut HashMap<(usize, usize), (f64, usize)>,
     only_region: Option<usize>,
-) -> () {
+) -> Result<()> {
     for (&ind_alveola, &ind_region) in passed_alveolae.iter() {
         let alveola = skeleton_interface.get_alveola_uncheck(ind_alveola);
         let palveola = alveola.partial_alveolae()[0];
@@ -192,26 +194,43 @@ pub fn init_neighboring_score(
                 continue;
             }
 
-            let seg = palveola.alveola().delaunay_segment();
-            let v1 = skeleton_interface.get_mesh().vertices()[&seg[0]];
-            let v2 = skeleton_interface.get_mesh().vertices()[&seg[1]];
-            let normal = (v2 - v1).normalize();
+            // let seg = palveola.alveola().delaunay_segment();
+            // let v1 = skeleton_interface.get_mesh().vertices()[&seg[0]];
+            // let v2 = skeleton_interface.get_mesh().vertices()[&seg[1]];
+            // let normal = (v2 - v1).normalize();
 
-            let seg_near = palveola.alveola().delaunay_segment();
-            let v1_near = skeleton_interface.get_mesh().vertices()[&seg_near[0]];
-            let v2_near = skeleton_interface.get_mesh().vertices()[&seg_near[1]];
-            let normal_near = (v2_near - v1_near).normalize();
+            // let seg_near = palveola.alveola().delaunay_segment();
+            // let v1_near = skeleton_interface.get_mesh().vertices()[&seg_near[0]];
+            // let v2_near = skeleton_interface.get_mesh().vertices()[&seg_near[1]];
+            // let normal_near = (v2_near - v1_near).normalize();
 
-            let cos_ang = normal.dot(&normal_near).abs();
+            // let cos_ang = normal.dot(&normal_near).abs();
+
+            let v1 = pedge
+                .partial_node_first()
+                .unwrap()
+                .node()
+                .center_and_radius()?
+                .0;
+            let v2 = pedge
+                .partial_node_last()
+                .unwrap()
+                .node()
+                .center_and_radius()?
+                .0;
+
+            let length = (v1 - v2).norm();
+
             neighboring_score
                 .entry((ind_region, ind_region_near))
                 .and_modify(|(v, nb)| {
-                    *v += cos_ang;
+                    *v += length;
                     *nb += 1
                 })
-                .or_insert((cos_ang, 1));
+                .or_insert((length, 1));
         }
     }
+    Ok(())
 }
 
 pub fn next_to_add(
