@@ -119,7 +119,7 @@ fn main() -> Result<()> {
 
     let now = Instant::now();
     println!("Sheet skeletonization");
-    let (skeleton, _work_mesh, vec_debug_meshes, problematic_edges) =
+    let (skeleton, _work_mesh, vec_debug_meshes, problematic_edges, del_time, skel_time) =
         skeleton_alg::sheet_skeletonization(&mut mesh, epsilon)?;
     let duration = now.elapsed();
     let sec_all = duration.as_secs();
@@ -157,9 +157,10 @@ fn main() -> Result<()> {
 
     let mut file_time = File::create(&format!("{}time.txt", out_path_str))?;
     writeln!(file_time, "{}", sec_all)?;
-
-    let mut file_vert = File::create(&format!("{}nb_vert.txt", out_path_str))?;
-    writeln!(file_vert, "{}", nb_vert)?;
+    let mut file_del_time = File::create(&format!("{}del_time.txt", out_path_str))?;
+    writeln!(file_del_time, "{}", del_time)?;
+    let mut file_skel_time = File::create(&format!("{}skel_time.txt", out_path_str))?;
+    writeln!(file_skel_time, "{}", skel_time)?;
 
     Ok(())
 }

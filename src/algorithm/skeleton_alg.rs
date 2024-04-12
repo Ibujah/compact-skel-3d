@@ -1,5 +1,6 @@
 use anyhow::Result;
 use std::collections::HashMap;
+use std::time::Instant;
 
 use crate::algorithm::delaunay_alg;
 use crate::algorithm::sub_algorithms::skeleton_operations::remap_sheet_indices;
@@ -405,15 +406,26 @@ fn loop_skeletonization(
 pub fn sheet_skeletonization(
     mesh: &mut ManifoldMesh3D,
     opt_epsilon: Option<f64>,
-) -> Result<(Skeleton3D, ManifoldMesh3D, Vec<GenericMesh3D>, Vec<usize>)> {
+) -> Result<(
+    Skeleton3D,
+    ManifoldMesh3D,
+    Vec<GenericMesh3D>,
+    Vec<usize>,
+    u64,
+    u64,
+)> {
     let mut mesh_cl = mesh.clone();
 
     println!("Mesh to delaunay");
+    let now = Instant::now();
     let (faces, tetras_in) =
         delaunay_alg::to_delaunay(&mut mesh_cl, Some(std::f64::consts::PI * 60.0 / 180.0))?;
+    let duration = now.elapsed();
+    let del_sec = duration.as_secs();
     println!();
 
     println!("Init skeleton interface");
+    let now = Instant::now();
     let mut skeleton_interface = SkeletonInterface3D::init(&mut mesh_cl, faces, tetras_in);
     skeleton_interface.check()?;
 
@@ -457,11 +469,15 @@ pub fn sheet_skeletonization(
     for (ind_face, lab) in assignment.iter() {
         mesh.set_face_in_group(*ind_face, *lab);
     }
+    let duration = now.elapsed();
+    let skel_sec = duration.as_secs();
 
     Ok((
         skeleton_interface.get_skeleton().clone(),
         skeleton_interface.get_mesh().clone(),
         skeleton_interface.get_debug_meshes().clone(),
         problematic_edges,
+        del_sec,
+        skel_sec,
     ))
 }

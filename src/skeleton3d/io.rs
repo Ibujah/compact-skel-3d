@@ -1,10 +1,13 @@
 use anyhow::Result;
+use nalgebra::base::*;
 use rand::Rng;
 use std::collections::HashMap;
 use std::fs::File;
-use std::io::Write;
+use std::io::{self, BufRead, Write};
 
 use crate::skeleton3d::Skeleton3D;
+
+use super::skeleton3d::Sphere;
 
 fn write_alveola(
     file: &mut File,
@@ -350,4 +353,172 @@ pub fn save_problematics_ply(
     }
 
     Ok(())
+}
+
+pub fn load_voxel_core(filename_ply: &str, filename_rad: &str) -> Result<Skeleton3D> {
+    let mut vec_vert = Vec::new();
+    let mut vec_rad = Vec::new();
+    let mut vec_face = Vec::new();
+
+    let file_ply = File::open(filename_ply)?;
+    let lines_ply = io::BufReader::new(file_ply).lines();
+    let mut opt_nb_vert = None;
+    let mut opt_nb_face = None;
+    let mut cur_vert = 0;
+    let mut cur_face = 0;
+    let mut header = true;
+    for line_ in lines_ply {
+        if let Ok(line) = line_ {
+            if header {
+                if line.len() > 15 && line[0..15].eq("element vertex ") {
+                    opt_nb_vert = Some(line[15..].parse::<usize>()?);
+                }
+                if line.len() > 13 && line[0..13].eq("element face ") {
+                    opt_nb_face = Some(line[13..].parse::<usize>()?);
+                }
+                if line.eq("end_header") {
+                    header = false;
+                }
+            } else if cur_vert < opt_nb_vert.unwrap() {
+                let mut line_split = line.split_whitespace();
+                let mut vert: Vector3<f64> = Vector3::new(0.0, 0.0, 0.0);
+                for i in 0..3 {
+                    let ind = line_split
+                        .next()
+                        .ok_or(anyhow::Error::msg("Expected value3"))?
+                        .parse::<f64>()?;
+                    vert[i] = ind;
+                }
+                vec_vert.push(vert);
+                cur_vert += 1;
+            } else if cur_face < opt_nb_face.unwrap() {
+                let line_split: Vec<&str> = line.split_whitespace().collect();
+                let mut face: Vec<usize> = vec![0 as usize; 3];
+                for i in 0..3 {
+                    let ind = line_split[line_split.len() - 3 + i].parse::<usize>()?;
+                    face[i] = ind;
+                }
+                vec_face.push(face);
+                cur_face += 1;
+            } else {
+                break;
+            }
+        }
+    }
+    let file_rad = File::open(filename_rad)?;
+    let lines_rad = io::BufReader::new(file_rad).lines();
+    let mut header = true;
+    for line_ in lines_rad {
+        if let Ok(line) = line_ {
+            if header {
+                header = false;
+            } else {
+                let line_split: Vec<&str> = line.split_whitespace().collect();
+                let rad = line_split[3].parse::<f64>()?;
+                vec_rad.push(rad);
+            }
+        }
+    }
+
+    let mut skel = Skeleton3D::new();
+    for i in 0..vec_vert.len() {
+        let sphere = Sphere {
+            center: vec_vert[i],
+            radius: vec_rad[i],
+        };
+        skel.add_sphere(i, sphere)?;
+    }
+    for i in 0..vec_face.len() {
+        skel.add_alveola(i, vec_face[i].clone());
+    }
+
+    Ok(skel)
+}
+
+pub fn load_sat(filename_moff: &str) -> Result<Skeleton3D> {
+    let mut vec_vert = Vec::new();
+    let mut vec_rad = Vec::new();
+    let mut vec_face = Vec::new();
+
+    let file = File::open(filename_moff)?;
+    let lines = io::BufReader::new(file).lines();
+    let mut opt_nb_vert = None;
+    let mut opt_nb_face = None;
+    let mut cur_vert = 0;
+    let mut cur_face = 0;
+    for line_ in lines {
+        if let Ok(line) = line_ {
+            if opt_nb_vert.is_none() {
+                let mut line_split = line.split_whitespace();
+                let moff = line_split
+                    .next()
+                    .ok_or(anyhow::Error::msg("Expected value1"))?;
+                if moff != "MOFF" {
+                    return Err(anyhow::Error::msg("Expected MOFF string"));
+                }
+                let nb_vert = line_split
+                    .next()
+                    .ok_or(anyhow::Error::msg("Expected value1"))?
+                    .parse::<usize>()?;
+                opt_nb_vert = Some(nb_vert);
+                let nb_face = line_split
+                    .next()
+                    .ok_or(anyhow::Error::msg("Expected value2"))?
+                    .parse::<usize>()?;
+                opt_nb_face = Some(nb_face);
+            } else {
+                let nb_vert = opt_nb_vert.unwrap();
+                let nb_face = opt_nb_face.unwrap();
+                if cur_vert < nb_vert {
+                    let mut line_split = line.split_whitespace();
+                    let mut vert: Vector3<f64> = Vector3::new(0.0, 0.0, 0.0);
+                    for i in 0..3 {
+                        let ind = line_split
+                            .next()
+                            .ok_or(anyhow::Error::msg("Expected value3"))?
+                            .parse::<f64>()?;
+                        vert[i] = ind;
+                    }
+                    let rad = line_split
+                        .next()
+                        .ok_or(anyhow::Error::msg("Expected value3"))?
+                        .parse::<f64>()?;
+                    vec_vert.push(vert);
+                    vec_rad.push(rad);
+
+                    cur_vert = cur_vert + 1;
+                } else if cur_vert < nb_face {
+                    let mut line_split = line.split_whitespace();
+                    let mut face = Vec::new();
+                    let nbv = line_split
+                        .next()
+                        .ok_or(anyhow::Error::msg("Expected value4"))?
+                        .parse::<usize>()?;
+                    for _ in 0..nbv {
+                        let ind = line_split
+                            .next()
+                            .ok_or(anyhow::Error::msg("Expected value5"))?
+                            .parse::<usize>()?;
+                        face.push(ind);
+                    }
+                    vec_face.push(face);
+                    cur_face = cur_face + 1;
+                }
+            }
+        }
+    }
+
+    let mut skel = Skeleton3D::new();
+    for i in 0..vec_vert.len() {
+        let sphere = Sphere {
+            center: vec_vert[i],
+            radius: vec_rad[i],
+        };
+        skel.add_sphere(i, sphere)?;
+    }
+    for i in 0..vec_face.len() {
+        skel.add_alveola(i, vec_face[i].clone());
+    }
+
+    Ok(skel)
 }
