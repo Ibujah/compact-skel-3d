@@ -8,7 +8,7 @@ pub fn hausdorff_distance(mesh: &ManifoldMesh3D, skel: &Skeleton3D) -> f64 {
     let mut dmax = 0.0;
     let mut min_vert: Option<Vector3<f64>> = None;
     let mut max_vert: Option<Vector3<f64>> = None;
-    for (_, vert) in mesh.vertices().iter() {
+    for vert in mesh.vertices().iter() {
         min_vert = if let Some(v) = min_vert {
             let x = if v[0] < vert[0] { v[0] } else { vert[0] };
             let y = if v[1] < vert[1] { v[1] } else { vert[1] };

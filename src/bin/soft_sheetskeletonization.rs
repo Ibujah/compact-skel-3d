@@ -115,8 +115,6 @@ fn main() -> Result<()> {
         None
     };
 
-    let nb_vert = mesh.get_nb_vertices();
-
     let now = Instant::now();
     println!("Sheet skeletonization");
     let (skeleton, _work_mesh, vec_debug_meshes, problematic_edges, del_time, skel_time) =

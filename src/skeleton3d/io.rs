@@ -194,7 +194,7 @@ pub fn save_ply(
     writeln!(file, "property int vertex3")?;
     writeln!(file, "property int vertex4")?;
 
-    writeln!(file, "element edge {}", skeleton.edges.len())?;
+    writeln!(file, "element edge {}", skeleton.lone_edges.len())?;
     writeln!(file, "property int vertex1")?;
     writeln!(file, "property int vertex2")?;
 
@@ -274,7 +274,7 @@ pub fn save_ply(
         vec_col
     };
 
-    for (_, edge) in skeleton.edges.iter() {
+    for (_, edge) in skeleton.lone_edges.iter() {
         writeln!(
             file,
             "{} {}",
@@ -359,7 +359,7 @@ pub fn save_problematics_ply(
     }
 
     for ind_edge in problematic_edge.iter() {
-        let edge = skeleton.edges[ind_edge];
+        let edge = skeleton.lone_edges[ind_edge];
         writeln!(
             file,
             "{} {}",
@@ -370,6 +370,7 @@ pub fn save_problematics_ply(
     Ok(())
 }
 
+/// Loads voxel core skeleton
 pub fn load_voxel_core(filename_ply: &str, filename_rad: &str) -> Result<Skeleton3D> {
     let mut vec_vert = Vec::new();
     let mut vec_rad = Vec::new();
@@ -464,7 +465,7 @@ pub fn load_voxel_core(filename_ply: &str, filename_rad: &str) -> Result<Skeleto
         } else {
             [vec_edge[i][1], vec_edge[i][0]]
         };
-        skel.add_edge(i, edg);
+        skel.add_lone_edge(i, edg);
     }
     for i in 0..vec_face.len() {
         skel.add_alveola(i, vec_face[i].clone());
@@ -473,6 +474,7 @@ pub fn load_voxel_core(filename_ply: &str, filename_rad: &str) -> Result<Skeleto
     Ok(skel)
 }
 
+/// Loads scale axis transform skeleton
 pub fn load_sat(filename_moff: &str) -> Result<Skeleton3D> {
     let mut vec_vert = Vec::new();
     let mut vec_rad = Vec::new();
@@ -561,6 +563,7 @@ pub fn load_sat(filename_moff: &str) -> Result<Skeleton3D> {
     Ok(skel)
 }
 
+/// Loads Ply skeleton
 pub fn import_from_ply(file_path: &str) -> Result<Skeleton3D> {
     let mut f = std::fs::File::open(file_path).unwrap();
 

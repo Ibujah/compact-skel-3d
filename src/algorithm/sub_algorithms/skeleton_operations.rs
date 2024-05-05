@@ -197,9 +197,6 @@ pub fn include_alveola_in_skel(
             .skeleton
             .add_node(ind_nod, boundary_points, boundary_inds)?;
     }
-    for (ind_edge, ind_nodes) in edges_map {
-        skeleton_interface.skeleton.add_edge(ind_edge, ind_nodes);
-    }
     skeleton_interface
         .skeleton
         .add_alveola(ind_alveola, lis_nods);

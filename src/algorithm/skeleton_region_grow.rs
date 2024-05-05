@@ -6,7 +6,7 @@ use crate::skeleton3d::Skeleton3D;
 /// Returns singular edges on skeleton
 pub fn seeds(skeleton: &Skeleton3D) -> Vec<usize> {
     let mut vec_seeds = Vec::new();
-    for (&ind_edge, vec_alve) in skeleton.get_edges_alveolae().iter() {
+    for (_, vec_alve) in skeleton.get_edges_alveolae().iter() {
         if vec_alve.len() > 2 {
             for &i in vec_alve.iter() {
                 vec_seeds.push(i);
@@ -17,6 +17,7 @@ pub fn seeds(skeleton: &Skeleton3D) -> Vec<usize> {
     vec_seeds
 }
 
+/// Computes permeter of an alveola
 pub fn alveola_regular_perimeter(skeleton: &Skeleton3D, ind_alveola: usize) -> Result<f64> {
     let alveola_edges = skeleton.get_alveolae_edges().get(&ind_alveola).unwrap();
 
@@ -24,7 +25,7 @@ pub fn alveola_regular_perimeter(skeleton: &Skeleton3D, ind_alveola: usize) -> R
 
     for ind_edge in alveola_edges.iter() {
         // compute edge length
-        let [ind1, ind2] = skeleton.get_edges_alv().get(ind_edge).unwrap();
+        let [ind1, ind2] = skeleton.get_edges_on_alv().get(ind_edge).unwrap();
 
         let v1 = skeleton.get_nodes().get(ind1).unwrap().center;
         let v2 = skeleton.get_nodes().get(ind2).unwrap().center;
@@ -36,6 +37,7 @@ pub fn alveola_regular_perimeter(skeleton: &Skeleton3D, ind_alveola: usize) -> R
     Ok(regular_perimeter)
 }
 
+/// Finds next alveola to add for region growing
 pub fn next_to_add(
     passed_alveolae: &HashMap<usize, usize>,
     near_alveolae: &mut Vec<(usize, usize, f64)>,
@@ -76,6 +78,7 @@ pub fn next_to_add(
     }
 }
 
+/// Finds neighbors alveolae to add to given alveola
 pub fn neighbors_to_add(
     skeleton: &Skeleton3D,
     passed_alveolae: &HashMap<usize, usize>,
@@ -103,6 +106,8 @@ pub fn neighbors_to_add(
     Ok((to_add, in_region))
 }
 
+/// Computes score of ading a given alveola in a given region:
+/// difference between bonudary length after and before
 pub fn score_alveola(
     skeleton: &Skeleton3D,
     passed_alveolae: &HashMap<usize, usize>,
@@ -120,7 +125,7 @@ pub fn score_alveola(
         }
 
         // compute edge length
-        let [ind1, ind2] = skeleton.get_edges_alv().get(ind_edge).unwrap();
+        let [ind1, ind2] = skeleton.get_edges_on_alv().get(ind_edge).unwrap();
 
         let v1 = skeleton.get_nodes().get(ind1).unwrap().center;
         let v2 = skeleton.get_nodes().get(ind2).unwrap().center;
@@ -144,6 +149,7 @@ pub fn score_alveola(
     Ok(score)
 }
 
+/// Skeletal sheet region growing function
 pub fn region_grow_skel(
     skeleton: &Skeleton3D,
     passed_alveolae: &mut HashMap<usize, usize>,
@@ -151,8 +157,7 @@ pub fn region_grow_skel(
 ) -> Result<()> {
     while let Some((ind_alveola, ind_region)) = next_to_add(passed_alveolae, near_alveolae) {
         passed_alveolae.insert(ind_alveola, ind_region);
-        let (mut to_add_near, mut ind_region_near) =
-            neighbors_to_add(skeleton, passed_alveolae, ind_alveola)?;
+        let (to_add_near, _) = neighbors_to_add(skeleton, passed_alveolae, ind_alveola)?;
         for &ind_to_add in to_add_near.iter() {
             let score = score_alveola(skeleton, passed_alveolae, ind_to_add, ind_region)?;
             near_alveolae.push((ind_to_add, ind_region, score));
@@ -161,6 +166,7 @@ pub fn region_grow_skel(
     Ok(())
 }
 
+/// Inits region growing score
 pub fn init_neighboring_score(
     skeleton: &Skeleton3D,
     passed_alveolae: &HashMap<usize, usize>,
@@ -191,7 +197,7 @@ pub fn init_neighboring_score(
                 continue;
             }
 
-            let [ind1, ind2] = skeleton.get_edges_alv().get(ind_edge).unwrap();
+            let [ind1, ind2] = skeleton.get_edges_on_alv().get(ind_edge).unwrap();
 
             let v1 = skeleton.get_nodes().get(ind1).unwrap().center;
             let v2 = skeleton.get_nodes().get(ind2).unwrap().center;
@@ -210,6 +216,7 @@ pub fn init_neighboring_score(
     Ok(())
 }
 
+/// Check if two regions can be merged, i.e. if it does not create problematic edges
 pub fn can_merge_region(
     skeleton: &Skeleton3D,
     passed_alveolae: &HashMap<usize, usize>,
@@ -248,6 +255,7 @@ pub fn can_merge_region(
         })
 }
 
+/// Skeletal sheet region merging function
 pub fn region_merge(
     skeleton: &Skeleton3D,
     passed_alveolae: &mut HashMap<usize, usize>,
@@ -260,7 +268,7 @@ pub fn region_merge(
     while let Some((&(ind_region1, ind_region2), _)) =
         neighboring_score
             .iter()
-            .fold(None, |curr_min, (ind, &(score_sum_tst, nb_tst))| {
+            .fold(None, |curr_min, (ind, &(score_sum_tst, _))| {
                 // If a current minimum is found, check if the current score is greater than the current minimum
                 let score_tst = score_sum_tst; // / nb_tst as f64;
                 if let Some((_, score_curr)) = curr_min {
@@ -340,6 +348,7 @@ pub fn region_merge(
     Ok(())
 }
 
+/// Estimates regions on given skeleton
 pub fn compute_regions(skeleton: &mut Skeleton3D) -> Result<usize> {
     let mut seeds = seeds(skeleton);
     seeds.sort();

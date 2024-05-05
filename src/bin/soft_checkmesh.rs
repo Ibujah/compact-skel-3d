@@ -5,7 +5,7 @@ use env_logger;
 use std::fs::File;
 use std::io::Write;
 
-use compact_skel_3d::mesh3d::{self, ManifoldMesh3D};
+use compact_skel_3d::mesh3d;
 
 #[derive(Parser)]
 struct Cli {
