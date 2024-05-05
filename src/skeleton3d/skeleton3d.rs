@@ -19,6 +19,8 @@ pub struct Skeleton3D {
     pub(super) nodes: HashMap<usize, Sphere>,
     pub(super) boundary_inds: HashMap<usize, [usize; 4]>,
     pub(super) edges: HashMap<usize, [usize; 2]>, // connects two nodes
+    pub(super) edges_alv: HashMap<usize, [usize; 2]>, // connects two nodes
+    pub(super) edges_alv_rev: HashMap<[usize; 2], usize>, // connects two nodes
     pub(super) edges_alveolae: HashMap<usize, Vec<usize>>, // alveolae containing edges
     pub(super) alveolae: HashMap<usize, Vec<usize>>, // ordered list of nodes
     pub(super) alveolae_edges: HashMap<usize, Vec<usize>>, // edges composing alveola
@@ -33,6 +35,8 @@ impl Skeleton3D {
             nodes: HashMap::new(),
             boundary_inds: HashMap::new(),
             edges: HashMap::new(),
+            edges_alv: HashMap::new(),
+            edges_alv_rev: HashMap::new(),
             edges_alveolae: HashMap::new(),
             alveolae: HashMap::new(),
             alveolae_edges: HashMap::new(),
@@ -70,6 +74,10 @@ impl Skeleton3D {
         &self.edges
     }
 
+    pub fn get_edges_alv(&self) -> &HashMap<usize, [usize; 2]> {
+        &self.edges_alv
+    }
+
     pub fn get_edges_alveolae(&self) -> &HashMap<usize, Vec<usize>> {
         &self.edges_alveolae
     }
@@ -96,15 +104,12 @@ impl Skeleton3D {
 
     /// Adds an edge to the skeleton
     fn add_alv_edge(&mut self, ind_nodes: [usize; 2]) -> usize {
-        if let Some(&ind_edge) =
-            self.edges
-                .iter()
-                .find_map(|(key, &val)| if val == ind_nodes { Some(key) } else { None })
-        {
+        if let Some(&ind_edge) = self.edges_alv_rev.get(&ind_nodes) {
             ind_edge
         } else {
-            let ind_edge = self.edges.len();
-            self.edges.insert(ind_edge, ind_nodes);
+            let ind_edge = self.edges_alv.len();
+            self.edges_alv.insert(ind_edge, ind_nodes);
+            self.edges_alv_rev.insert(ind_nodes, ind_edge);
             self.edges_alveolae.insert(ind_edge, Vec::new());
             ind_edge
         }

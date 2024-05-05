@@ -24,7 +24,7 @@ pub fn alveola_regular_perimeter(skeleton: &Skeleton3D, ind_alveola: usize) -> R
 
     for ind_edge in alveola_edges.iter() {
         // compute edge length
-        let [ind1, ind2] = skeleton.get_edges().get(ind_edge).unwrap();
+        let [ind1, ind2] = skeleton.get_edges_alv().get(ind_edge).unwrap();
 
         let v1 = skeleton.get_nodes().get(ind1).unwrap().center;
         let v2 = skeleton.get_nodes().get(ind2).unwrap().center;
@@ -120,7 +120,7 @@ pub fn score_alveola(
         }
 
         // compute edge length
-        let [ind1, ind2] = skeleton.get_edges().get(ind_edge).unwrap();
+        let [ind1, ind2] = skeleton.get_edges_alv().get(ind_edge).unwrap();
 
         let v1 = skeleton.get_nodes().get(ind1).unwrap().center;
         let v2 = skeleton.get_nodes().get(ind2).unwrap().center;
@@ -191,7 +191,7 @@ pub fn init_neighboring_score(
                 continue;
             }
 
-            let [ind1, ind2] = skeleton.get_edges().get(ind_edge).unwrap();
+            let [ind1, ind2] = skeleton.get_edges_alv().get(ind_edge).unwrap();
 
             let v1 = skeleton.get_nodes().get(ind1).unwrap().center;
             let v2 = skeleton.get_nodes().get(ind2).unwrap().center;

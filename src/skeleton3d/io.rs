@@ -5,6 +5,9 @@ use std::collections::HashMap;
 use std::fs::File;
 use std::io::{self, BufRead, Write};
 
+use ply_rs::parser::Parser;
+use ply_rs::ply::{DefaultElement, Property};
+
 use crate::skeleton3d::Skeleton3D;
 
 use super::skeleton3d::Sphere;
@@ -191,6 +194,10 @@ pub fn save_ply(
     writeln!(file, "property int vertex3")?;
     writeln!(file, "property int vertex4")?;
 
+    writeln!(file, "element edge {}", skeleton.edges.len())?;
+    writeln!(file, "property int vertex1")?;
+    writeln!(file, "property int vertex2")?;
+
     writeln!(file, "element face {}", skeleton.alveolae.len())?;
     writeln!(file, "property list uchar int vertex_index")?;
     writeln!(file, "property int label")?;
@@ -266,6 +273,14 @@ pub fn save_ply(
         }
         vec_col
     };
+
+    for (_, edge) in skeleton.edges.iter() {
+        writeln!(
+            file,
+            "{} {}",
+            skel_ind_to_ind[&edge[0]], skel_ind_to_ind[&edge[1]]
+        )?;
+    }
 
     for (alv_ind, alv_nods) in skeleton.alveolae.iter() {
         let label = skeleton.labels[alv_ind];
@@ -358,13 +373,16 @@ pub fn save_problematics_ply(
 pub fn load_voxel_core(filename_ply: &str, filename_rad: &str) -> Result<Skeleton3D> {
     let mut vec_vert = Vec::new();
     let mut vec_rad = Vec::new();
+    let mut vec_edge = Vec::new();
     let mut vec_face = Vec::new();
 
     let file_ply = File::open(filename_ply)?;
     let lines_ply = io::BufReader::new(file_ply).lines();
     let mut opt_nb_vert = None;
+    let mut opt_nb_edge = None;
     let mut opt_nb_face = None;
     let mut cur_vert = 0;
+    let mut cur_edge = 0;
     let mut cur_face = 0;
     let mut header = true;
     for line_ in lines_ply {
@@ -372,6 +390,9 @@ pub fn load_voxel_core(filename_ply: &str, filename_rad: &str) -> Result<Skeleto
             if header {
                 if line.len() > 15 && line[0..15].eq("element vertex ") {
                     opt_nb_vert = Some(line[15..].parse::<usize>()?);
+                }
+                if line.len() > 13 && line[0..13].eq("element edge ") {
+                    opt_nb_edge = Some(line[13..].parse::<usize>()?);
                 }
                 if line.len() > 13 && line[0..13].eq("element face ") {
                     opt_nb_face = Some(line[13..].parse::<usize>()?);
@@ -391,11 +412,20 @@ pub fn load_voxel_core(filename_ply: &str, filename_rad: &str) -> Result<Skeleto
                 }
                 vec_vert.push(vert);
                 cur_vert += 1;
+            } else if cur_edge < opt_nb_edge.unwrap() {
+                let line_split: Vec<&str> = line.split_whitespace().collect();
+                let mut edge: Vec<usize> = vec![0 as usize; 2];
+                for i in 0..2 {
+                    let ind = line_split[i].parse::<usize>()?;
+                    edge[i] = ind;
+                }
+                vec_edge.push(edge);
+                cur_edge += 1;
             } else if cur_face < opt_nb_face.unwrap() {
                 let line_split: Vec<&str> = line.split_whitespace().collect();
                 let mut face: Vec<usize> = vec![0 as usize; 3];
                 for i in 0..3 {
-                    let ind = line_split[line_split.len() - 3 + i].parse::<usize>()?;
+                    let ind = line_split[line_split.len() + i - 3].parse::<usize>()?;
                     face[i] = ind;
                 }
                 vec_face.push(face);
@@ -427,6 +457,14 @@ pub fn load_voxel_core(filename_ply: &str, filename_rad: &str) -> Result<Skeleto
             radius: vec_rad[i],
         };
         skel.add_sphere(i, sphere)?;
+    }
+    for i in 0..vec_edge.len() {
+        let edg = if vec_edge[i][0] < vec_edge[i][1] {
+            [vec_edge[i][0], vec_edge[i][1]]
+        } else {
+            [vec_edge[i][1], vec_edge[i][0]]
+        };
+        skel.add_edge(i, edg);
     }
     for i in 0..vec_face.len() {
         skel.add_alveola(i, vec_face[i].clone());
@@ -518,6 +556,81 @@ pub fn load_sat(filename_moff: &str) -> Result<Skeleton3D> {
     }
     for i in 0..vec_face.len() {
         skel.add_alveola(i, vec_face[i].clone());
+    }
+
+    Ok(skel)
+}
+
+pub fn import_from_ply(file_path: &str) -> Result<Skeleton3D> {
+    let mut f = std::fs::File::open(file_path).unwrap();
+
+    let p = Parser::<DefaultElement>::new();
+    let ply = p.read_ply(&mut f)?;
+
+    let mut skel = Skeleton3D::new();
+
+    // load vertices
+    if !ply.payload.contains_key("vertex") {
+        return Err(anyhow::Error::msg("No vertex element in file"));
+    }
+    let mut ind_nod = 0;
+    for v in ply.payload["vertex"].iter() {
+        let mut x = None;
+        let mut y = None;
+        let mut z = None;
+        let mut radius = None;
+        let mut properties = HashMap::new();
+
+        for (key, prop) in v.into_iter() {
+            match (key.as_ref(), prop) {
+                ("x", Property::Float(val)) => x = Some(val),
+                ("y", Property::Float(val)) => y = Some(val),
+                ("z", Property::Float(val)) => z = Some(val),
+                ("radius", Property::Float(val)) => radius = Some(val),
+                (k, p) => {
+                    properties.insert(k.to_string(), p.clone());
+                    ()
+                }
+            }
+        }
+        let x = *x.ok_or(anyhow::Error::msg("No x property in vertex"))?;
+        let y = *y.ok_or(anyhow::Error::msg("No y property in vertex"))?;
+        let z = *z.ok_or(anyhow::Error::msg("No z property in vertex"))?;
+        let radius = *radius.ok_or(anyhow::Error::msg("No radius property in vertex"))?;
+        let sphere = Sphere {
+            center: Vector3::new(x.into(), y.into(), z.into()),
+            radius: radius.into(),
+        };
+        skel.add_sphere(ind_nod, sphere)?;
+        ind_nod = ind_nod + 1;
+    }
+
+    // load faces
+    if !ply.payload.contains_key("face") {
+        return Err(anyhow::Error::msg("No face element in file"));
+    }
+    let mut ind_alv = 0;
+    for f in ply.payload["face"].iter() {
+        let mut list_vertices = None;
+        let mut properties = HashMap::new();
+
+        for (key, prop) in f.into_iter() {
+            match (key.as_ref(), prop) {
+                ("vertex_index", Property::ListInt(val)) => {
+                    list_vertices = Some(val.iter().map(|&v| usize::try_from(v).unwrap()).collect())
+                }
+                (k, p) => {
+                    properties.insert(k.to_string(), p.clone());
+                    ()
+                }
+            }
+        }
+
+        let list_vertices: Vec<usize> =
+            list_vertices.ok_or(anyhow::Error::msg("No vertex_index property in face"))?;
+
+        skel.add_alveola(ind_alv, list_vertices);
+        ind_alv = ind_alv + 1;
     }
 
     Ok(skel)

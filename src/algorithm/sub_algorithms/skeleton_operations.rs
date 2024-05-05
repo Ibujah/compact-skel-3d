@@ -292,6 +292,7 @@ pub fn compute_sheet(
                     }
                 });
             }
+
             for pedge in skeleton_interface
                 .get_alveola_uncheck(ind_alveola)
                 .partial_alveolae()[0]

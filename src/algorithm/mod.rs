@@ -1,5 +1,7 @@
 /// Delaunay mesh algorihm
 pub mod delaunay_alg;
+/// Hausdorf distance computation
+pub mod hausdorff_distance;
 /// Skeleton algorithm
 pub mod skeleton_alg;
 /// Skeleton region grow
