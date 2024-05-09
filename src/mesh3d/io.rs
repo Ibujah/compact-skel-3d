@@ -136,19 +136,14 @@ pub fn save_obj_manifold(
         writeln!(file, "mtllib {}", material_file)?;
     }
 
-    let mut corresp: HashMap<usize, usize> = HashMap::new();
-    let mut cpt = 1;
-
-    for v in mesh.vertex_indices() {
+    for v in 0..mesh.get_nb_vertices() {
         let vert = mesh.get_vertex(v)?.vertex();
-        corresp.insert(v, cpt);
-        cpt = cpt + 1;
         writeln!(file, "v {} {} {}", vert[0], vert[1], vert[2])?;
     }
 
     let mut groups: HashMap<String, Vec<usize>> = HashMap::new();
     let mut non_grouped = Vec::new();
-    for (&ind_face, opt_lab) in mesh.groups.iter() {
+    for (ind_face, opt_lab) in mesh.face_groups.iter().enumerate() {
         if let Some(lab) = opt_lab {
             groups
                 .entry(format!("sheet{}", lab))
@@ -161,15 +156,9 @@ pub fn save_obj_manifold(
 
     for &f in non_grouped.iter() {
         let face = mesh.get_face(f)?.vertices_inds();
-        let ind0 = corresp.get(&face[0]).ok_or(anyhow::Error::msg(
-            "save_obj(): vertex face does not exists",
-        ))?;
-        let ind1 = corresp.get(&face[1]).ok_or(anyhow::Error::msg(
-            "save_obj(): vertex face does not exists",
-        ))?;
-        let ind2 = corresp.get(&face[2]).ok_or(anyhow::Error::msg(
-            "save_obj(): vertex face does not exists",
-        ))?;
+        let ind0 = face[0] + 1;
+        let ind1 = face[1] + 1;
+        let ind2 = face[2] + 1;
         writeln!(file, "f {}// {}// {}//", ind0, ind1, ind2)?;
     }
     for (lab, group) in groups {
@@ -179,15 +168,9 @@ pub fn save_obj_manifold(
         }
         for &f in group.iter() {
             let face = mesh.get_face(f)?.vertices_inds();
-            let ind0 = corresp.get(&face[0]).ok_or(anyhow::Error::msg(
-                "save_obj(): vertex face does not exists",
-            ))?;
-            let ind1 = corresp.get(&face[1]).ok_or(anyhow::Error::msg(
-                "save_obj(): vertex face does not exists",
-            ))?;
-            let ind2 = corresp.get(&face[2]).ok_or(anyhow::Error::msg(
-                "save_obj(): vertex face does not exists",
-            ))?;
+            let ind0 = face[0] + 1;
+            let ind1 = face[1] + 1;
+            let ind2 = face[2] + 1;
             writeln!(file, "f {}// {}// {}//", ind0, ind1, ind2)?;
         }
     }
@@ -234,7 +217,7 @@ pub fn save_ply_manifold(
     writeln!(file, "property float y")?;
     writeln!(file, "property float z")?;
 
-    writeln!(file, "element face {}", mesh.faces.len())?;
+    writeln!(file, "element face {}", mesh.get_nb_faces())?;
     writeln!(file, "property list uchar int vertex_index")?;
     writeln!(file, "property uchar label")?;
     writeln!(file, "property uchar red")?;
@@ -243,20 +226,15 @@ pub fn save_ply_manifold(
 
     writeln!(file, "end_header")?;
 
-    let mut corresp: HashMap<usize, usize> = HashMap::new();
-    let mut cpt = 0;
-
-    for v in mesh.vertex_indices() {
+    for v in 0..mesh.get_nb_vertices() {
         let vert = mesh.get_vertex(v)?.vertex();
-        corresp.insert(v, cpt);
-        cpt = cpt + 1;
         writeln!(file, "{} {} {}", vert[0], vert[1], vert[2])?;
     }
 
     let vec_col = if let Some(col) = colors {
         col
     } else {
-        let lab_max = mesh.groups.iter().fold(0, |lm, (_, opt_lab)| {
+        let lab_max = mesh.face_groups.iter().fold(0, |lm, opt_lab| {
             if let &Some(lab) = opt_lab {
                 if lm > lab {
                     lm
@@ -281,12 +259,12 @@ pub fn save_ply_manifold(
         vec_col
     };
 
-    for (&fac_ind, _) in mesh.faces.iter() {
+    for fac_ind in 0..mesh.get_nb_faces() {
         let face = mesh.get_face(fac_ind)?.vertices_inds();
-        let label = mesh.groups[&fac_ind];
+        let label = mesh.face_groups[fac_ind];
         write!(file, "{} ", face.len())?;
         for i in face {
-            write!(file, "{} ", corresp[&i])?;
+            write!(file, "{} ", i)?;
         }
         if let Some(lab) = label {
             writeln!(
