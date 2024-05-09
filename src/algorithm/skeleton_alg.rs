@@ -327,7 +327,7 @@ pub fn sheet_skeletonization(
     println!("Computing labels");
     let label_per_vertex = skeleton_interface.get_label_per_vertex()?;
     let mut assignment: Vec<(usize, usize)> = Vec::new();
-    for (&ind_face, _) in mesh.faces() {
+    for ind_face in 0..mesh.get_nb_faces() {
         let vert_inds = mesh.get_face(ind_face)?.vertices_inds();
         let mut nb_vote_per_lab = HashMap::new();
         for ind_v in vert_inds.iter() {

@@ -14,7 +14,7 @@ fn extract_physical_edges(
 
     let mut physical: HashSet<manifold_mesh3d::HalfEdge> = HashSet::new();
     // set physical edges
-    for (&ind_he, _) in mesh.halfedges().iter() {
+    for ind_he in 0..mesh.get_nb_halfedges() {
         let he = mesh.get_halfedge(ind_he)?;
         if he.halfedge()[0] > he.halfedge()[1] {
             continue;
@@ -25,18 +25,8 @@ fn extract_physical_edges(
         }
 
         // compute angles between adjacent faces
-        let face_a = he.face().ok_or(anyhow::Error::msg(
-            "extract_physical_edges(): Halfedge should be linked to a face",
-        ))?;
-        let face_b = he
-            .opposite_halfedge()
-            .ok_or(anyhow::Error::msg(
-                "extract_physical_edges(): Halfedge should have opposite halfedge",
-            ))?
-            .face()
-            .ok_or(anyhow::Error::msg(
-                "extract_physical_edges(): Opposite halfedge should be connected to face",
-            ))?;
+        let face_a = he.face();
+        let face_b = he.opposite_halfedge().unwrap().face();
 
         // getting vertices
         let [vert_a_1, vert_a_2, vert_a_3] = face_a.vertices();
@@ -54,13 +44,13 @@ fn extract_physical_edges(
         let vec_v_1 = pt_a_3 - pt_a_1;
         let vec_v_2 = pt_b_3 - pt_b_1;
 
-        let nor_1 = vec_u_1.cross(&vec_v_1);
-        let nor_2 = vec_u_2.cross(&vec_v_2);
+        let nor_1 = vec_u_1.cross(&vec_v_1).normalize();
+        let nor_2 = vec_u_2.cross(&vec_v_2).normalize();
 
         // cosinus between normals
         let cos_cur = nor_1.dot(&nor_2).abs();
 
-        if cos_cur > cos_min {
+        if cos_cur < cos_min {
             physical.insert(he.halfedge());
         }
     }
@@ -120,8 +110,10 @@ pub fn to_delaunay(
     mesh: &mut ManifoldMesh3D,
     ang_max: Option<f64>,
 ) -> Result<HashMap<[usize; 3], Vec<[usize; 4]>>> {
+    println!("Compute delaunay graph from mesh vertices");
     let mut deltet = DelaunayInterface::from_mesh(mesh)?;
 
+    println!("Physical (i.e. non flippable) edges computation");
     let physical = extract_physical_edges(deltet.get_mesh(), ang_max)?;
 
     let nb_non_del_hedges_init = deltet.count_non_del_halfedges();
@@ -158,19 +150,19 @@ pub fn to_delaunay(
                 false
             };
             if flipped {
-                num_flip = num_flip + 1;
-                cpt_force_split = cpt_force_split + 1;
+                num_flip += 1;
+                cpt_force_split += 1;
             } else {
                 let vert_split = compute_halfedge_split_vertex(&deltet, he_inds)?;
                 deltet.split_halfedge(&vert_split, index_he)?;
-                num_split_edge = num_split_edge + 1;
+                num_split_edge += 1;
                 cpt_force_split = 0;
             }
         } else if let Some(face) = deltet.get_non_del_face()? {
             let vert_split = compute_face_split_vertex(face)?;
             let ind_face = face.ind();
             deltet.split_face(&vert_split, ind_face)?;
-            num_split_face = num_split_face + 1;
+            num_split_face += 1;
         } else if deltet.count_non_del_faces() == 0 && deltet.count_non_del_halfedges() == 0 {
             break;
         }
@@ -180,14 +172,13 @@ pub fn to_delaunay(
             print!("\r{} non del edges, {} non del faces, {} flip(s), {} edge split(s), {} face split(s)    ",
                nb_non_del_hedges >> 1, nb_non_del_faces, num_flip, num_split_edge, num_split_face);
         }
-        step = step + 1;
+        step += 1;
         if nb_non_del_hedges > nb_non_del_hedges_init || nb_non_del_faces > nb_non_del_faces_init {
             break;
         }
     }
 
-    print!("\r{} flip(s), {} edge split(s), {} face split(s)                                                                          ", num_flip, num_split_edge, num_split_face);
-    println!("");
+    println!("\r{} flip(s), {} edge split(s), {} face split(s)                                                                          ", num_flip, num_split_edge, num_split_face);
 
     nb_non_del_hedges = deltet.count_non_del_halfedges();
     nb_non_del_faces = deltet.count_non_del_faces();
@@ -202,6 +193,7 @@ pub fn to_delaunay(
         nb_non_del_faces,
         deltet.get_mesh().get_nb_faces()
     );
+    deltet.get_mesh().check_mesh()?;
 
     Ok(deltet.get_faces())
 }

@@ -24,10 +24,10 @@ pub fn first_node_in(skeleton_interface: &mut SkeletonInterface3D) -> Result<usi
 
     let mut cpt = 0;
     let mut ind_face = 0;
-    for fac in skeleton_interface.get_mesh().faces() {
+    for fac in 0..skeleton_interface.get_mesh().get_nb_faces() {
         cpt = cpt + 1;
         if cpt >= rand_fac {
-            ind_face = *fac.0;
+            ind_face = fac;
             break;
         }
     }
@@ -301,7 +301,7 @@ pub fn estimate_saliencies(
 }
 
 /// Sorts saliency map
-pub fn sort_saliencies(saliencies: &mut Vec<(usize, f64)>) -> () {
+pub fn sort_saliencies(saliencies: &mut Vec<(usize, f64)>) {
     saliencies.sort_by(|&(_, s1), &(_, s2)| (-s1).partial_cmp(&(-s2)).unwrap());
 }
 
@@ -362,34 +362,36 @@ pub fn extract_skeleton_separation<'a, 'b>(
 /// If operation fails, leaves mesh unchanged
 pub fn try_remove_and_add<'a, 'b>(
     skeleton_interface: &'b mut SkeletonInterface3D<'a>,
-    vec_rem_faces: &Vec<usize>,
+    vec_rem_faces: &Vec<[usize; 3]>,
     vec_add_faces: &Vec<[usize; 3]>,
 ) -> Result<bool> {
-    let mut vec_fac = HashMap::new();
+    // save vertices associated to face that will be deleted
     let mut free_vert_save = HashMap::new();
-    let mut vec_free_vert = Vec::new();
-    for &ind_face in vec_rem_faces {
-        let vert_inds = skeleton_interface
-            .mesh
-            .get_face(ind_face)
-            .unwrap()
-            .vertices_inds();
-        vec_fac.insert(ind_face, vert_inds);
-        let opt_vec_face_vert = skeleton_interface.remove_mesh_face(ind_face)?;
-        if let Some(vec_face_vert) = opt_vec_face_vert {
-            vec_free_vert.append(&mut vec_face_vert.clone());
-            free_vert_save.insert(ind_face, vec_face_vert);
+
+    // set of vertices that won't be on any edge after face deletion
+    let mut set_free_vert = HashSet::new();
+
+    // collect vertices associated to face that will be deleted
+    for &[ind_v1, ind_v2, ind_v3] in vec_rem_faces {
+        if let Some(vec_face_vert) = skeleton_interface.remove_mesh_face(ind_v1, ind_v2, ind_v3)? {
+            vec_face_vert.iter().for_each(|&ind| {
+                set_free_vert.insert(ind);
+            });
+            free_vert_save.insert([ind_v1, ind_v2, ind_v3], vec_face_vert);
+        } else {
+            free_vert_save.insert([ind_v1, ind_v2, ind_v3], Vec::new());
         }
-        vec_free_vert.push(vert_inds[0]);
-        vec_free_vert.push(vert_inds[1]);
-        vec_free_vert.push(vert_inds[2]);
+        set_free_vert.insert(ind_v1);
+        set_free_vert.insert(ind_v2);
+        set_free_vert.insert(ind_v3);
     }
-    let mut set_free_vert: HashSet<usize> = HashSet::from_iter(vec_free_vert);
     for &[ind_v1, ind_v2, ind_v3] in vec_add_faces {
         set_free_vert.remove(&ind_v1);
         set_free_vert.remove(&ind_v2);
         set_free_vert.remove(&ind_v3);
     }
+
+    // computes mid vertices per face
     let vec_vert_mid: Vec<Vector3<f64>> = vec_add_faces
         .iter()
         .map(|&[ind_v1, ind_v2, ind_v3]| {
@@ -412,7 +414,8 @@ pub fn try_remove_and_add<'a, 'b>(
         })
         .collect();
 
-    let mut free_vert_new: HashMap<usize, Vec<usize>> = HashMap::new();
+    // new array of free vertices per face
+    let mut free_vert_new: Vec<Vec<usize>> = vec![Vec::new(); vec_add_faces.len()];
     for &ind_vertex in set_free_vert.iter() {
         let vert = skeleton_interface
             .get_mesh()
@@ -435,30 +438,27 @@ pub fn try_remove_and_add<'a, 'b>(
                 }
             })
             .unwrap();
-        if let Some(free_vert) = free_vert_new.get_mut(&ind_min) {
-            free_vert.push(ind_vertex);
-        } else {
-            free_vert_new.insert(ind_min, vec![ind_vertex]);
-        }
+        free_vert_new[ind_min].push(ind_vertex);
     }
 
+    // currently added faces
     let mut vec_added = Vec::new();
     for i in 0..vec_add_faces.len() {
         let [ind_v1, ind_v2, ind_v3] = vec_add_faces[i];
         let res =
-            skeleton_interface.add_mesh_face(ind_v1, ind_v2, ind_v3, free_vert_new.remove(&i));
+            skeleton_interface.add_mesh_face(ind_v1, ind_v2, ind_v3, free_vert_new[i].clone());
         match res {
             Ok(o) => vec_added.push(o),
             Err(_) => {
-                for &f in vec_added.iter() {
-                    skeleton_interface.remove_mesh_face(f)?;
+                for &[ind_v1, ind_v2, ind_v3] in vec_added.iter() {
+                    skeleton_interface.remove_mesh_face(ind_v1, ind_v2, ind_v3)?;
                 }
-                for (ind_face, &[v1, v2, v3]) in vec_fac.iter() {
+                for &[v1, v2, v3] in vec_rem_faces.iter() {
                     skeleton_interface.add_mesh_face(
                         v1,
                         v2,
                         v3,
-                        free_vert_save.remove(ind_face),
+                        free_vert_save[&[v1, v2, v3]].clone(),
                     )?;
                 }
                 return Ok(false);
@@ -473,7 +473,7 @@ pub fn try_remove_and_add<'a, 'b>(
 pub fn collect_mesh_faces_index(
     skeleton_separation: &SkeletonSeparation,
     epsilon: f64,
-) -> Result<Option<Vec<usize>>> {
+) -> Result<Option<Vec<[usize; 3]>>> {
     fn last_hedge_deletion(
         mesh_paths_external: &mut Vec<Vec<usize>>,
         skeleton_separation: &SkeletonSeparation,
@@ -552,7 +552,7 @@ pub fn collect_mesh_faces_index(
         center_mat: &MatrixXx3<f64>,
         radius_mat: &MatrixXx1<f64>,
         epsilon: f64,
-        faces: &mut Vec<usize>,
+        faces: &mut Vec<[usize; 3]>,
     ) -> Result<bool> {
         if let Some(mut mesh_path_external) = mesh_paths_external.pop() {
             if let Some(ind_hedge) = mesh_path_external.pop() {
@@ -560,13 +560,8 @@ pub fn collect_mesh_faces_index(
                     .skeleton_interface()
                     .get_mesh()
                     .get_halfedge(ind_hedge)?;
-                let ind_face = hedge.face().unwrap().ind();
-                let vert_test = hedge
-                    .next_halfedge()
-                    .unwrap()
-                    .last_vertex()
-                    .vertex()
-                    .transpose();
+                let ind_face = hedge.face().vertices_inds();
+                let vert_test = hedge.next_halfedge().last_vertex().vertex().transpose();
 
                 if center_mat
                     .row_iter()
@@ -608,11 +603,11 @@ pub fn collect_mesh_faces_index(
                     }
                 }
 
-                let face = hedge.face().unwrap();
+                let face = hedge.face();
 
-                faces.push(face.ind());
-                let hedge_rep1 = hedge.prev_halfedge().unwrap().opposite_halfedge().unwrap();
-                let hedge_rep2 = hedge.next_halfedge().unwrap().opposite_halfedge().unwrap();
+                faces.push(face.vertices_inds());
+                let hedge_rep1 = hedge.prev_halfedge().opposite_halfedge().unwrap();
+                let hedge_rep2 = hedge.next_halfedge().opposite_halfedge().unwrap();
                 mesh_path_external.push(hedge_rep1.ind());
                 mesh_path_external.push(hedge_rep2.ind());
                 mesh_paths_external.push(mesh_path_external.clone());
@@ -640,20 +635,6 @@ pub fn collect_mesh_faces_index(
 
     let mut faces = Vec::new();
     loop {
-        // println!("new iter");
-        // for path in mesh_paths_hedge.iter() {
-        //     for &ind_he in path.iter() {
-        //         let hedge = skeleton_separation.skeleton_interface.get_mesh().get_halfedge(ind_he)?;
-        //         print!(
-        //             "({} -> {}), ",
-        //             hedge.first_vertex().ind(),
-        //             hedge.last_vertex().ind()
-        //         );
-        //     }
-        //     println!("");
-        // }
-        // println!("");
-
         // emptying paths
         loop {
             if let Some(mesh_path_external) = mesh_paths_external.last() {
@@ -710,14 +691,15 @@ pub fn collect_mesh_faces_index(
 /// Estimates Delaunay faces to add on mesh to close the given separation
 pub fn collect_closing_faces(
     skeleton_separation: &SkeletonSeparation,
-    removed_faces: &Vec<usize>,
+    removed_faces: &Vec<[usize; 3]>,
 ) -> Result<Option<Vec<[usize; 3]>>> {
     let mut unfaced_hedges = HashSet::new();
     for &ind_fac in removed_faces {
         let fac = skeleton_separation
             .skeleton_interface()
             .get_mesh()
-            .get_face(ind_fac)?;
+            .is_face_in(ind_fac[0], ind_fac[1], ind_fac[2])
+            .unwrap();
         let [hedg0, hedg1, hedg2] = fac.halfedges();
         unfaced_hedges.insert(hedg0.halfedge());
         unfaced_hedges.insert(hedg1.halfedge());

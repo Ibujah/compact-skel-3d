@@ -14,7 +14,7 @@ pub struct SkeletonInterface3D<'a> {
     pub(super) debug_meshes: Vec<GenericMesh3D>,
 
     // For non linked vertices
-    pub(super) out_vert_per_face: HashMap<usize, Vec<usize>>,
+    pub(super) out_vert_per_face: HashMap<[usize; 3], Vec<usize>>,
 
     // existing delaunay: neighbor information
     pub(super) faces: HashMap<[usize; 3], Vec<[usize; 4]>>,
@@ -146,7 +146,7 @@ impl<'a, 'b> SkeletonInterface3D<'a> {
     }
 
     /// Final skeleton reinitialisation
-    pub fn reinit_skeleton(&mut self) -> () {
+    pub fn reinit_skeleton(&mut self) {
         self.skeleton = Skeleton3D::new();
         for lab in self.alve_label.iter_mut() {
             *lab = None;
@@ -283,7 +283,7 @@ impl<'a, 'b> SkeletonInterface3D<'a> {
         ind_alve
     }
 
-    fn add_partial_alveolae(&mut self, ind_alve: usize, del_seg: &[usize; 2]) -> () {
+    fn add_partial_alveolae(&mut self, ind_alve: usize, del_seg: &[usize; 2]) {
         let mut array_palveolae = [0; 2];
         for i in 0..2 {
             let ind_palve = self.palve_alve.len();
@@ -374,7 +374,7 @@ impl<'a, 'b> SkeletonInterface3D<'a> {
         Ok(())
     }
 
-    fn link_edge_alves(&mut self, ind_edge: usize, ind_alve: [usize; 3]) -> () {
+    fn link_edge_alves(&mut self, ind_edge: usize, ind_alve: [usize; 3]) {
         self.edge_alve.push(ind_alve);
 
         for alv in ind_alve {
@@ -524,9 +524,17 @@ impl<'a, 'b> SkeletonInterface3D<'a> {
     }
 
     /// Removes face and gets free vertices
-    pub fn remove_mesh_face(&mut self, ind_face: usize) -> Result<Option<Vec<usize>>> {
-        self.mesh.remove_face(ind_face)?;
-        if let Some((_, verts)) = self.out_vert_per_face.remove_entry(&ind_face) {
+    pub fn remove_mesh_face(
+        &mut self,
+        ind_v1: usize,
+        ind_v2: usize,
+        ind_v3: usize,
+    ) -> Result<Option<Vec<usize>>> {
+        self.mesh.remove_face(ind_v1, ind_v2, ind_v3)?;
+        if let Some((_, verts)) = self
+            .out_vert_per_face
+            .remove_entry(&[ind_v1, ind_v2, ind_v3])
+        {
             return Ok(Some(verts));
         }
         Ok(None)
@@ -538,13 +546,12 @@ impl<'a, 'b> SkeletonInterface3D<'a> {
         ind_v1: usize,
         ind_v2: usize,
         ind_v3: usize,
-        opt_vert_out: Option<Vec<usize>>,
-    ) -> Result<usize> {
-        let ind_face = self.mesh.add_face(ind_v1, ind_v2, ind_v3)?;
-        if let Some(vert_out) = opt_vert_out {
-            self.out_vert_per_face.insert(ind_face, vert_out);
-        }
-        Ok(ind_face)
+        vert_out: Vec<usize>,
+    ) -> Result<[usize; 3]> {
+        self.mesh.add_face(ind_v1, ind_v2, ind_v3)?;
+        self.out_vert_per_face
+            .insert([ind_v1, ind_v2, ind_v3], vert_out);
+        Ok([ind_v1, ind_v2, ind_v3])
     }
 
     /// Debug meshed getter
@@ -553,7 +560,7 @@ impl<'a, 'b> SkeletonInterface3D<'a> {
     }
 
     /// Adds a debug mesh
-    pub fn add_debug_mesh(&mut self, mesh: &GenericMesh3D) -> () {
+    pub fn add_debug_mesh(&mut self, mesh: &GenericMesh3D) {
         self.debug_meshes.push(mesh.clone());
     }
 
@@ -579,7 +586,7 @@ impl<'a, 'b> SkeletonInterface3D<'a> {
     }
 
     /// Reset all forced edges to non singular
-    pub fn reset_edge_sing(&mut self) -> () {
+    pub fn reset_edge_sing(&mut self) {
         for i in 0..self.edge_set_sing.len() {
             self.edge_set_sing[i] = false;
         }
@@ -888,7 +895,7 @@ impl<'a, 'b> SkeletonInterface3D<'a> {
     }
 
     /// Prints node information
-    pub fn print_node(&self, ind_node: usize) -> () {
+    pub fn print_node(&self, ind_node: usize) {
         let tet = self.node_tet[ind_node];
         let pnods = self.node_pnode[ind_node];
         let edges = self.node_edge[ind_node];
@@ -908,7 +915,7 @@ impl<'a, 'b> SkeletonInterface3D<'a> {
     }
 
     /// Prints edge information
-    pub fn print_edge(&self, ind_edge: usize) -> () {
+    pub fn print_edge(&self, ind_edge: usize) {
         let tri = self.edge_tri[ind_edge];
         let nods = self.edge_node[ind_edge];
         let pedg_dir = self.edge_pedge_dir[ind_edge];
@@ -939,7 +946,7 @@ impl<'a, 'b> SkeletonInterface3D<'a> {
     }
 
     /// Prints alveola information
-    pub fn print_alveola(&self, ind_alve: usize) -> () {
+    pub fn print_alveola(&self, ind_alve: usize) {
         let seg = self.alve_seg[ind_alve];
         let edgs = self.alve_edge[ind_alve].iter();
         let palv = self.alve_palve[ind_alve];
@@ -954,7 +961,7 @@ impl<'a, 'b> SkeletonInterface3D<'a> {
     }
 
     /// Prints partial node information
-    pub fn print_partial_node(&self, ind_pnode: usize) -> () {
+    pub fn print_partial_node(&self, ind_pnode: usize) {
         let nod = self.pnode_node[ind_pnode];
         let corner = self.pnode_corner[ind_pnode];
         let pedg_next = self.pnode_pedge_next[ind_pnode].iter();
@@ -974,7 +981,7 @@ impl<'a, 'b> SkeletonInterface3D<'a> {
     }
 
     /// Prints partial edge information
-    pub fn print_partial_edge(&self, ind_pedge: usize) -> () {
+    pub fn print_partial_edge(&self, ind_pedge: usize) {
         let edg = self.pedge_edge[ind_pedge];
         let corner = self.pedge_corner[ind_pedge];
         let pnods = self.pedge_pnode[ind_pedge];
@@ -1000,7 +1007,7 @@ impl<'a, 'b> SkeletonInterface3D<'a> {
     }
 
     /// Prints all information
-    pub fn print_all(&self) -> () {
+    pub fn print_all(&self) {
         println!("Nodes");
         for ind_node in 0..self.node_tet.len() {
             self.print_node(ind_node);
@@ -1085,7 +1092,7 @@ impl<'a, 'b> SkeletonInterface3D<'a> {
                         .mesh
                         .is_face_in(ind_vertex1, ind_vertex2, ind_vertex3)
                         .unwrap();
-                    if let Some(l_v) = self.out_vert_per_face.get(&ind_f.ind()) {
+                    if let Some(l_v) = self.out_vert_per_face.get(&ind_f.vertices_inds()) {
                         for &v in l_v {
                             verts.push(v);
                         }

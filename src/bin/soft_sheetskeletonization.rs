@@ -79,7 +79,7 @@ fn main() -> Result<()> {
             .iter()
             .fold(
                 None,
-                |bb_val: Option<(Vector3<f64>, Vector3<f64>)>, (_, &vert)| {
+                |bb_val: Option<(Vector3<f64>, Vector3<f64>)>, &vert| {
                     if let Some((mut bb_min, mut bb_max)) = bb_val {
                         if vert[0] < bb_min[0] {
                             bb_min[0] = vert[0];

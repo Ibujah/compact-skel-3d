@@ -26,7 +26,7 @@ pub struct DelaunayInterface<'a> {
 impl<'a> DelaunayInterface<'a> {
     fn generate_struct(&mut self) -> Result<()> {
         let mut points = Vec::new();
-        for v in self.mesh.vertex_indices() {
+        for v in 0..self.mesh.get_nb_vertices() {
             let vert = self.mesh.get_vertex(v)?.vertex();
             points.push([vert[0], vert[1], vert[2]]);
             self.vertex_edges.push(Vec::new());
@@ -100,20 +100,19 @@ impl<'a> DelaunayInterface<'a> {
         Ok(())
     }
 
-    fn fill_non_del(&mut self) -> () {
+    fn fill_non_del(&mut self) {
         self.non_del_edges.clear();
         self.non_del_faces.clear();
 
-        for (&ind_fac, _) in self.mesh.faces() {
+        for ind_fac in 0..self.mesh.get_nb_faces() {
             let face = self.mesh.get_face(ind_fac).unwrap();
             let face_vert = face.vertices_inds();
             if !self.is_face_in(&face_vert) {
                 self.non_del_faces.push(ind_fac);
-                for ind_he in face.face_halfedges() {
-                    let edge = self.mesh.get_halfedge(ind_he).unwrap();
-                    let edge_vert = edge.halfedge();
-                    if !self.is_edge_in(&edge_vert) {
-                        self.non_del_edges.push(ind_he);
+                for he in face.halfedges() {
+                    let hedg_vert = he.halfedge();
+                    if !self.is_edge_in(&hedg_vert) {
+                        self.non_del_edges.push(he.ind());
                     };
                 }
             };

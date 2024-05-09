@@ -135,7 +135,7 @@ impl<'a, 'b> MovableDelaunayPath<'a, 'b> {
                 .get_mesh()
                 .is_edge_in(seg[0], seg[1])
                 .unwrap();
-            let [v1, v2, v3] = hedge.face().unwrap().vertices();
+            let [v1, v2, v3] = hedge.face().vertices();
             let vert1 = v1.vertex();
             let vert2 = v2.vertex();
             let vert3 = v3.vertex();
