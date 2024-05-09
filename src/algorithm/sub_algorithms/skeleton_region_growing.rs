@@ -3,6 +3,7 @@ use std::collections::HashMap;
 
 use super::SkeletonInterface3D;
 
+/// Skeletal sheet region growing function
 pub fn region_grow(
     skeleton_interface: &SkeletonInterface3D,
     passed_alveolae: &mut HashMap<usize, usize>,
@@ -10,50 +11,7 @@ pub fn region_grow(
 ) -> Result<()> {
     while let Some((ind_alveola, ind_region)) = next_to_add(passed_alveolae, near_alveolae) {
         passed_alveolae.insert(ind_alveola, ind_region);
-        let (mut to_add_near, mut ind_region_near) =
-            neighbors_to_add(skeleton_interface, passed_alveolae, ind_alveola)?;
-        // while let Some((ind_reg, _)) = ind_region_near
-        //     .into_iter()
-        //     .filter(|&ind_reg_near| {
-        //         can_merge_region(
-        //             skeleton_interface,
-        //             passed_alveolae,
-        //             ind_region,
-        //             ind_reg_near,
-        //         )
-        //     })
-        //     .map(|ind_reg_near| {
-        //         (
-        //             ind_reg_near,
-        //             score_fusion(
-        //                 skeleton_interface,
-        //                 passed_alveolae,
-        //                 ind_alveola,
-        //                 ind_reg_near,
-        //             )
-        //             .unwrap(),
-        //         )
-        //     })
-        //     .fold(None, |curr_min, (ind_reg_near, score)| {
-        //         if let Some((_, score_min)) = curr_min {
-        //             if score_min > score {
-        //                 Some((ind_reg_near, score))
-        //             } else {
-        //                 curr_min
-        //             }
-        //         } else {
-        //             Some((ind_reg_near, score))
-        //         }
-        //     })
-        // {
-        //     for (_, ind_region_i) in passed_alveolae.iter_mut() {
-        //         if *ind_region_i == ind_reg {
-        //             *ind_region_i = ind_region;
-        //         }
-        //     }
-        //     (to_add_near, ind_region_near) =
-        //         neighbors_to_add(skeleton_interface, passed_alveolae, ind_alveola)?;
-        // }
+        let (to_add_near, _) = neighbors_to_add(skeleton_interface, passed_alveolae, ind_alveola)?;
         for &ind_to_add in to_add_near.iter() {
             let score = score_alveola(skeleton_interface, passed_alveolae, ind_to_add, ind_region)?;
             near_alveolae.push((ind_to_add, ind_region, score));
@@ -62,6 +20,7 @@ pub fn region_grow(
     Ok(())
 }
 
+/// Skeletal sheet region merging function
 pub fn region_merge(
     skeleton_interface: &SkeletonInterface3D,
     passed_alveolae: &mut HashMap<usize, usize>,
@@ -79,7 +38,7 @@ pub fn region_merge(
     while let Some((&(ind_region1, ind_region2), _)) =
         neighboring_score
             .iter()
-            .fold(None, |curr_min, (ind, &(score_sum_tst, nb_tst))| {
+            .fold(None, |curr_min, (ind, &(score_sum_tst, _))| {
                 // If a current minimum is found, check if the current score is greater than the current minimum
                 let score_tst = score_sum_tst; // / nb_tst as f64;
                 if let Some((_, score_curr)) = curr_min {
@@ -164,6 +123,7 @@ pub fn region_merge(
     Ok(())
 }
 
+/// Inits region growing score
 pub fn init_neighboring_score(
     skeleton_interface: &SkeletonInterface3D,
     passed_alveolae: &HashMap<usize, usize>,
@@ -194,18 +154,6 @@ pub fn init_neighboring_score(
                 continue;
             }
 
-            // let seg = palveola.alveola().delaunay_segment();
-            // let v1 = skeleton_interface.get_mesh().vertices()[&seg[0]];
-            // let v2 = skeleton_interface.get_mesh().vertices()[&seg[1]];
-            // let normal = (v2 - v1).normalize();
-
-            // let seg_near = palveola.alveola().delaunay_segment();
-            // let v1_near = skeleton_interface.get_mesh().vertices()[&seg_near[0]];
-            // let v2_near = skeleton_interface.get_mesh().vertices()[&seg_near[1]];
-            // let normal_near = (v2_near - v1_near).normalize();
-
-            // let cos_ang = normal.dot(&normal_near).abs();
-
             let v1 = pedge
                 .partial_node_first()
                 .unwrap()
@@ -233,6 +181,7 @@ pub fn init_neighboring_score(
     Ok(())
 }
 
+/// Finds next alveola to add for region growing
 pub fn next_to_add(
     passed_alveolae: &HashMap<usize, usize>,
     near_alveolae: &mut Vec<(usize, usize, f64)>,
@@ -273,6 +222,7 @@ pub fn next_to_add(
     }
 }
 
+/// Finds neighbors alveolae to add to given alveola
 pub fn neighbors_to_add(
     skeleton_interface: &SkeletonInterface3D,
     passed_alveolae: &HashMap<usize, usize>,
@@ -299,9 +249,37 @@ pub fn neighbors_to_add(
             }
         }
     }
+    for pedge in alveola.partial_alveolae()[0]
+        .partial_edges()
+        .iter()
+        .filter(|pedge| pedge.is_boundary() && pedge.partial_edge_next().unwrap().is_boundary())
+    {
+        let ind_e1 = pedge.edge().ind();
+        let ind_e2 = pedge.partial_edge_next().unwrap().edge().ind();
+
+        let node_last = pedge.partial_node_last().unwrap().node();
+        for edg in node_last.edges() {
+            if edg.is_boundary() && edg.ind() != ind_e1 && edg.ind() != ind_e2 {
+                for alveola in edg.alveolae() {
+                    if !alveola.is_full() {
+                        continue;
+                    }
+                    if let Some(&ind_region) = passed_alveolae.get(&alveola.ind()) {
+                        if ind_region != ind_region_curr {
+                            in_region.push(ind_region);
+                        }
+                    } else {
+                        to_add.push(alveola.ind());
+                    }
+                }
+            }
+        }
+    }
     Ok((to_add, in_region))
 }
 
+/// Computes score of ading a given alveola in a given region:
+/// difference between bonudary length after and before
 pub fn score_alveola(
     skeleton_interface: &SkeletonInterface3D,
     passed_alveolae: &HashMap<usize, usize>,
@@ -351,53 +329,7 @@ pub fn score_alveola(
     Ok(score)
 }
 
-pub fn score_fusion(
-    skeleton_interface: &SkeletonInterface3D,
-    passed_alveolae: &HashMap<usize, usize>,
-    ind_alveola: usize,
-    ind_region: usize,
-) -> Result<f64> {
-    let alveola = skeleton_interface.get_alveola(ind_alveola)?;
-
-    let mut score = 0.0;
-
-    for pedge in alveola.partial_alveolae()[0].partial_edges() {
-        if !pedge.edge().is_regular() {
-            continue;
-        }
-
-        // compute edge length
-        let v1 = pedge
-            .partial_node_first()
-            .unwrap()
-            .node()
-            .center_and_radius()?
-            .0;
-        let v2 = pedge
-            .partial_node_last()
-            .unwrap()
-            .node()
-            .center_and_radius()?
-            .0;
-
-        let length = (v1 - v2).norm();
-
-        let mut pedge_opp = pedge.partial_edge_neighbor();
-        while !pedge_opp.partial_alveola().alveola().is_full() {
-            pedge_opp = pedge_opp.partial_edge_opposite().partial_edge_neighbor();
-        }
-
-        let alveola_neigh = pedge_opp.partial_alveola().alveola();
-
-        if let Some(&ind_reg) = passed_alveolae.get(&alveola_neigh.ind()) {
-            if ind_region == ind_reg {
-                score -= length;
-            }
-        }
-    }
-    Ok(score)
-}
-
+/// Computes permeter of an alveola
 pub fn alveola_regular_perimeter(
     skeleton_interface: &SkeletonInterface3D,
     ind_alveola: usize,
@@ -428,6 +360,7 @@ pub fn alveola_regular_perimeter(
     Ok(regular_perimeter)
 }
 
+/// Check if two regions can be merged, i.e. if it does not create problematic edges
 pub fn can_merge_region(
     skeleton_interface: &SkeletonInterface3D,
     passed_alveolae: &HashMap<usize, usize>,
