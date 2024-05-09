@@ -186,7 +186,7 @@ pub fn save_ply(
 
     writeln!(file, "element face {}", skeleton.alveolae.len())?;
     writeln!(file, "property list uchar int vertex_index")?;
-    writeln!(file, "property uchar label")?;
+    writeln!(file, "property int label")?;
     writeln!(file, "property uchar red")?;
     writeln!(file, "property uchar green")?;
     writeln!(file, "property uchar blue")?;
@@ -197,10 +197,10 @@ pub fn save_ply(
     let mut max_rad = -1.0;
     for (_, sph) in skeleton.nodes.iter() {
         let rad = sph.radius;
-        if min_rad < 0.0 || min_rad < rad {
+        if min_rad < 0.0 || min_rad > rad {
             min_rad = rad;
         }
-        if max_rad < 0.0 || max_rad > rad {
+        if max_rad < 0.0 || max_rad < rad {
             max_rad = rad;
         }
     }

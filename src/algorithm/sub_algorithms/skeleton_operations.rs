@@ -196,30 +196,49 @@ pub fn compute_sheet(
     let mut to_compute = Vec::new();
     to_compute.push(ind_alveola);
 
-    loop {
-        if let Some(ind_alveola) = to_compute.pop() {
-            let alve = skeleton_interface.get_alveola_uncheck(ind_alveola);
-            if alve.label() != Some(label) {
-                if !alve.is_computed() {
-                    skeleton_interface.compute_alveola(ind_alveola)?;
-                }
-
-                for edge in skeleton_interface
-                    .get_alveola_uncheck(ind_alveola)
-                    .edges()
-                    .iter()
-                    .filter(|edge| edge.is_regular())
-                {
-                    edge.alveolae().iter().fold((), |_, alv| {
-                        if alv.ind() != ind_alveola && alv.is_full() {
-                            to_compute.push(alv.ind());
-                        }
-                    });
-                }
-                skeleton_interface.alve_label[ind_alveola] = Some(label);
+    while let Some(ind_alveola) = to_compute.pop() {
+        let alve = skeleton_interface.get_alveola_uncheck(ind_alveola);
+        if alve.label() != Some(label) {
+            if !alve.is_computed() {
+                skeleton_interface.compute_alveola(ind_alveola)?;
             }
-        } else {
-            break;
+
+            for edge in skeleton_interface
+                .get_alveola_uncheck(ind_alveola)
+                .edges()
+                .iter()
+                .filter(|edge| edge.is_regular())
+            {
+                edge.alveolae().iter().fold((), |_, alv| {
+                    if alv.ind() != ind_alveola && alv.is_full() {
+                        to_compute.push(alv.ind());
+                    }
+                });
+            }
+            for pedge in skeleton_interface
+                .get_alveola_uncheck(ind_alveola)
+                .partial_alveolae()[0]
+                .partial_edges()
+                .iter()
+                .filter(|pedge| {
+                    pedge.is_boundary() && pedge.partial_edge_next().unwrap().is_boundary()
+                })
+            {
+                let ind_e1 = pedge.edge().ind();
+                let ind_e2 = pedge.partial_edge_next().unwrap().edge().ind();
+
+                let node_last = pedge.partial_node_last().unwrap().node();
+                for edg in node_last.edges() {
+                    if edg.is_boundary() && edg.ind() != ind_e1 && edg.ind() != ind_e2 {
+                        for alv in edg.alveolae() {
+                            if alv.is_full() {
+                                to_compute.push(alv.ind());
+                            }
+                        }
+                    }
+                }
+            }
+            skeleton_interface.alve_label[ind_alveola] = Some(label);
         }
     }
 
@@ -246,6 +265,31 @@ pub fn outer_partial_edges(
         }
     }
     vec_pedges
+}
+
+/// Returns neighbors degree 0 edges connected to one alveola point
+pub fn lone_edges(
+    skeleton_interface: &SkeletonInterface3D,
+    current_sheet: &Vec<usize>,
+) -> Vec<usize> {
+    let mut vec_lone_edg = Vec::new();
+    for &ind_alveola in current_sheet.iter() {
+        for palve in skeleton_interface
+            .get_alveola_uncheck(ind_alveola)
+            .partial_alveolae()
+        {
+            for pedge in palve.partial_edges().iter() {
+                let node = pedge.partial_node_first().unwrap().node();
+                let edgs = node.edges();
+                for e in edgs {
+                    if e.degree() == 0 {
+                        vec_lone_edg.push(e.ind());
+                    }
+                }
+            }
+        }
+    }
+    vec_lone_edg
 }
 
 /// Returns boundary edges on skeleton
@@ -1109,55 +1153,17 @@ pub fn handle_problematic_pedge(
     Ok(label)
 }
 
-// pub fn handle_problematic_pedge_by_region_growing(
-//     ind_pedge: usize,
-//     skeleton_interface: &mut SkeletonInterface3D,
-//     label: usize,
-// ) -> Result<usize> {
-//     // Create a new instance of the SkeletonProblematicPath struct for the given problematic edge
-//     let mut skel_prob0 =
-//         skeleton_problematic_path::SkeletonProblematicPath::create(ind_pedge, skeleton_interface)?;
-//
-//     // Follow the problematic path from the starting edge to its end
-//     skel_prob0.follow_problematic_path(skeleton_interface)?;
-//
-//     // Create a rotated version of the problematic path for each rotation
-//     let skel_prob1 = skel_prob0.rotated_problematic_path(skeleton_interface);
-//     let skel_prob2 = skel_prob1.rotated_problematic_path(skeleton_interface);
-//
-//     // Get the indices of the supporting alveolae for each rotation
-//     let region0 = skel_prob0.supporting_alveolae(skeleton_interface);
-//     let region1 = skel_prob1.supporting_alveolae(skeleton_interface);
-//     let region2 = skel_prob2.supporting_alveolae(skeleton_interface);
-//
-//     // Create a hash map to keep track of the proximity of each alveola to the current location along the problematic edge
-//     let mut passed_alveolae: HashMap<usize, usize> = HashMap::new();
-//
-//     // Add the indices of the supporting alveoli for each rotation to the hash map
-//     for &ind_alveola in region0.iter() {
-//         passed_alveolae.insert(ind_alveola, 0);
-//     }
-//     for &ind_alveola in region1.iter() {
-//         passed_alveolae.insert(ind_alveola, 1);
-//     }
-//     for &ind_alveola in region2.iter() {
-//         passed_alveolae.insert(ind_alveola, 2);
-//     }
-//
-//     // Initialize a new instance of the NearAlveolae struct using the skeleton interface and the hash map of passed alveoli
-//     let near_alveolae = init_near_alveolae(skeleton_interface, &passed_alveolae)?;
-//
-//     Ok(label)
-// }
-
 /// handles all the problematic edges of the skeleton
-pub fn handle_all_problematic_pedge_by_region_growing(
-    skeleton_interface: &mut SkeletonInterface3D,
-    last_label: usize,
-) -> Result<usize> {
-    let problematics = problematic_partial_edges(skeleton_interface);
+pub fn relabel_all_skeleton(skeleton_interface: &mut SkeletonInterface3D) -> Result<()> {
+    let mut vec_pedges = Vec::new();
+    for ind_pedge in 0..skeleton_interface.pedge_edge.len() {
+        let pedge = skeleton_interface.get_partial_edge_uncheck(ind_pedge);
+        if pedge.edge().degree() == 3 && pedge.partial_alveola().alveola().label().is_some() {
+            vec_pedges.push(pedge.ind());
+        }
+    }
 
-    let mut seeds: Vec<usize> = problematics
+    let mut seeds: Vec<usize> = vec_pedges
         .iter()
         .map(|&ind_pedge| {
             skeleton_interface
@@ -1187,13 +1193,13 @@ pub fn handle_all_problematic_pedge_by_region_growing(
     region_merge(skeleton_interface, &mut passed_alveolae)?;
 
     for (&ind_alveola, &ind_region) in passed_alveolae.iter() {
-        skeleton_interface.set_alveola_label(ind_alveola, Some(ind_region + last_label + 1))?;
+        skeleton_interface.set_alveola_label(ind_alveola, Some(ind_region))?;
         skeleton_interface
             .skeleton
-            .set_label(ind_alveola, ind_region + last_label + 1);
+            .set_label(ind_alveola, ind_region);
     }
 
-    Ok(last_label + seeds.len())
+    Ok(())
 }
 
 /// Remap sheet indices to remove unused
