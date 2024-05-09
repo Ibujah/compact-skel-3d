@@ -92,6 +92,8 @@ fn loop_skeletonization(
         vec_lone_edges.sort();
         vec_lone_edges.dedup();
 
+        let mut vec_pedges_deg_1 = Vec::new();
+
         println!("Searching paths");
         loop {
             if let Some(ind_pedge) = vec_pedges.pop() {
@@ -125,22 +127,23 @@ fn loop_skeletonization(
                                         &mesh_faces,
                                     )?
                                 {
-                                    if !mesh_faces.is_empty() && !closing_faces.is_empty() {
-                                        if skeleton_operations::try_remove_and_add(
+                                    if !mesh_faces.is_empty()
+                                        && !closing_faces.is_empty()
+                                        && skeleton_operations::try_remove_and_add(
                                             skeleton_interface,
                                             &mesh_faces,
                                             &closing_faces,
-                                        )? {
-                                            removed = true;
-                                            modif_done = true;
-                                        }
+                                        )?
+                                    {
+                                        removed = true;
+                                        modif_done = true;
                                     }
                                 }
                             }
                         }
                     }
                     if !removed {
-                        label = label + 1;
+                        label += 1;
                         let ind_alveola = skeleton_interface
                             .get_partial_edge(ind_pedge)?
                             .partial_alveola()
@@ -151,7 +154,6 @@ fn loop_skeletonization(
 
                         if current_sheet.len() > sheet_siz_max {
                             sheet_siz_max = current_sheet.len();
-                            //ind_first_alveola = ind_alveola;
                         }
 
                         for &ind_alveola in current_sheet.iter() {
@@ -164,11 +166,11 @@ fn loop_skeletonization(
                             }
                         }
                         let mut vec_pedges_new = skeleton_operations::outer_partial_edges(
-                            &skeleton_interface,
+                            skeleton_interface,
                             &current_sheet,
                         );
                         let mut vec_lone_edges_new =
-                            skeleton_operations::lone_edges(&skeleton_interface, &current_sheet);
+                            skeleton_operations::lone_edges(skeleton_interface, &current_sheet);
                         vec_pedges.append(&mut vec_pedges_new);
                         vec_pedges.sort();
                         vec_pedges.dedup();
@@ -177,6 +179,82 @@ fn loop_skeletonization(
                         vec_lone_edges.dedup();
                     }
                 }
+            } else if let Some(ind_pedge) = vec_pedges_deg_1.pop() {
+                let pedge = skeleton_interface.get_partial_edge(ind_pedge)?;
+                if pedge.edge().degree() != 1 {
+                    continue;
+                }
+                if pedge.edge().is_computed() {
+                    continue;
+                }
+                if pedge.partial_alveola().alveola().label().is_some() {
+                    continue;
+                }
+                label += 1;
+                let ind_alveola = pedge.partial_alveola().alveola().ind();
+                skeleton_operations::compute_sheet(skeleton_interface, ind_alveola, label)?;
+                let current_sheet = skeleton_interface.get_sheet(label);
+
+                if current_sheet.len() > sheet_siz_max {
+                    sheet_siz_max = current_sheet.len();
+                }
+
+                for &ind_alveola in current_sheet.iter() {
+                    if skeleton_interface.get_alveola(ind_alveola)?.is_full() {
+                        skeleton_operations::include_alveola_in_skel(
+                            skeleton_interface,
+                            ind_alveola,
+                            Some(label),
+                        )?;
+                    }
+                }
+                let mut vec_pedges_new =
+                    skeleton_operations::outer_partial_edges(skeleton_interface, &current_sheet);
+                let mut vec_lone_edges_new =
+                    skeleton_operations::lone_edges(skeleton_interface, &current_sheet);
+                vec_pedges.append(&mut vec_pedges_new);
+                vec_pedges.sort();
+                vec_pedges.dedup();
+                vec_lone_edges.append(&mut vec_lone_edges_new);
+                vec_lone_edges.sort();
+                vec_lone_edges.dedup();
+            } else if let Some(ind_edge) = vec_lone_edges.pop() {
+                let edge = skeleton_interface.get_edge(ind_edge)?;
+                if !edge.is_full() {
+                    continue;
+                }
+                if edge.degree() != 0 {
+                    continue;
+                }
+                if edge.is_computed() {
+                    continue;
+                }
+                skeleton_interface.propagate_edge(ind_edge)?;
+                for node in skeleton_interface.get_edge(ind_edge)?.nodes() {
+                    for edge in node.edges() {
+                        if !edge.is_full() {
+                            continue;
+                        }
+                        if edge.is_computed() {
+                            continue;
+                        }
+                        if edge.degree() == 0 {
+                            vec_lone_edges.push(edge.ind());
+                        }
+                        if edge.degree() == 1 {
+                            for pedge in edge.partial_edges() {
+                                if pedge.partial_alveola().alveola().is_full() {
+                                    vec_pedges_deg_1.push(pedge.ind());
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+                vec_pedges_deg_1.sort();
+                vec_pedges_deg_1.dedup();
+                vec_lone_edges.sort();
+                vec_lone_edges.dedup();
             } else {
                 break;
             }
@@ -255,27 +333,26 @@ fn loop_skeletonization(
                                 &skeleton_separation,
                                 &mesh_faces,
                             )? {
-                                if !mesh_faces.is_empty() && !closing_faces.is_empty() {
-                                    if skeleton_operations::try_remove_and_add(
+                                if !mesh_faces.is_empty()
+                                    && !closing_faces.is_empty()
+                                    && skeleton_operations::try_remove_and_add(
                                         skeleton_interface,
                                         &mesh_faces,
                                         &closing_faces,
-                                    )? {
-                                        for &ind_alve in set_alve.iter() {
-                                            if !skeleton_interface.get_alveola(ind_alve)?.is_full()
-                                            {
-                                                skeleton_interface
-                                                    .set_alveola_label(ind_alve, None)?;
-                                            }
+                                    )?
+                                {
+                                    for &ind_alve in set_alve.iter() {
+                                        if !skeleton_interface.get_alveola(ind_alve)?.is_full() {
+                                            skeleton_interface.set_alveola_label(ind_alve, None)?;
                                         }
-                                        let mut new_saliencies =
-                                            skeleton_operations::estimate_saliencies(
-                                                skeleton_interface,
-                                                &vec_new_pedges,
-                                            )?;
-                                        saliencies.append(&mut new_saliencies);
-                                        skeleton_operations::sort_saliencies(&mut saliencies);
                                     }
+                                    let mut new_saliencies =
+                                        skeleton_operations::estimate_saliencies(
+                                            skeleton_interface,
+                                            &vec_new_pedges,
+                                        )?;
+                                    saliencies.append(&mut new_saliencies);
+                                    skeleton_operations::sort_saliencies(&mut saliencies);
                                 }
                             }
                         }
@@ -357,7 +434,7 @@ pub fn sheet_skeletonization(
         }
     }
     for (ind_face, lab) in assignment.iter() {
-        mesh.set_face_in_group(*ind_face, lab.clone());
+        mesh.set_face_in_group(*ind_face, *lab);
     }
 
     Ok((
