@@ -193,7 +193,6 @@ pub fn to_delaunay(
         nb_non_del_faces,
         deltet.get_mesh().get_nb_faces()
     );
-    deltet.get_mesh().check_mesh()?;
 
     Ok(deltet.get_faces())
 }
