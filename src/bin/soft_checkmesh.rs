@@ -39,9 +39,17 @@ fn main() -> Result<()> {
     };
 
     mesh.check_mesh()?;
+    let has_self_inter = mesh.has_self_intersection();
 
     let mut file_manifold = File::create(&format!("{}manifold.txt", out_path_str))?;
     writeln!(file_manifold, "1")?;
+
+    let mut file_self_inter = File::create(&format!("{}self_inter.txt", out_path_str))?;
+    if has_self_inter {
+        writeln!(file_self_inter, "1")?;
+    } else {
+        writeln!(file_self_inter, "0")?;
+    }
 
     Ok(())
 }

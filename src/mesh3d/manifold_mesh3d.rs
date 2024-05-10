@@ -504,6 +504,101 @@ impl ManifoldMesh3D {
         Ok(())
     }
 
+    /// Checks if face has self intersection with edges
+    fn check_face_self_inter(&self, ind_face: usize) -> bool {
+        let face = self.get_face(ind_face).unwrap();
+
+        let [ind_v1, ind_v2, ind_v3] = face.vertices_inds();
+        let vert1 = self.get_vertex(ind_v1).unwrap().vertex();
+        let vert2 = self.get_vertex(ind_v2).unwrap().vertex();
+        let vert3 = self.get_vertex(ind_v3).unwrap().vertex();
+
+        let vec1 = vert2 - vert1;
+        let vec2 = vert3 - vert1;
+        let normal = vec1.cross(&vec2).normalize();
+
+        for ind_vert in 0..self.get_nb_vertices() {
+            if ind_vert == ind_v1 || ind_vert == ind_v2 || ind_vert == ind_v3 {
+                continue;
+            }
+
+            let vertex = self.get_vertex(ind_vert).unwrap();
+            let coo = vertex.vertex();
+
+            // checks if vertex is above the face
+            let above = (coo - vert1).dot(&normal) > 0.0;
+            if !above {
+                continue;
+            }
+
+            // checks for all edges if other extremity is below
+            for edg in vertex.halfedges() {
+                let vertex_ext2 = edg.last_vertex();
+                let ind_vert_ext2 = vertex_ext2.ind();
+                if ind_vert_ext2 == ind_v1 || ind_vert_ext2 == ind_v2 || ind_vert_ext2 == ind_v3 {
+                    continue;
+                }
+                let coo_ext2 = vertex_ext2.vertex();
+
+                // checks if vertex is below the face
+                let below = (coo_ext2 - vert1).dot(&normal) < 0.0;
+                if !below {
+                    continue;
+                }
+
+                // computes intersection between edge and plane
+                let line_vec = (coo_ext2 - coo).normalize();
+                let d = (vert1 - coo).dot(&normal) / line_vec.dot(&normal);
+                let point = coo + d * line_vec;
+
+                // checks if intersection is in the triangle
+                let vert1_mov = vert1 - point;
+                let vert2_mov = vert2 - point;
+                let vert3_mov = vert3 - point;
+
+                let n1 = vert2_mov.cross(&vert3_mov);
+                let n2 = vert3_mov.cross(&vert1_mov);
+                let n3 = vert1_mov.cross(&vert2_mov);
+
+                let in_trangle = n1.dot(&n2) > 0.0 && n1.dot(&n3) > 0.0;
+                if in_trangle {
+                    println!("{}", (coo - vert1).dot(&normal));
+                    println!("{}", (point - vert1).dot(&normal));
+                    println!("{}", (coo_ext2 - vert1).dot(&normal));
+
+                    print!("face ({} {} {})  ", ind_v1, ind_v2, ind_v3);
+                    print!("[{}, {}, {}], ", vert1[0], vert1[1], vert1[2]);
+                    print!("[{}, {}, {}], ", vert2[0], vert2[1], vert2[2]);
+                    println!("[{}, {}, {}]", vert3[0], vert3[1], vert3[2]);
+
+                    print!("edge ({} {})  ", ind_vert, ind_vert_ext2);
+                    print!("[{}, {}, {}], ", coo[0], coo[1], coo[2]);
+                    println!("[{}, {}, {}]", coo_ext2[0], coo_ext2[1], coo_ext2[2]);
+
+                    print!("face_mov  ");
+                    print!("[{}, {}, {}], ", vert1_mov[0], vert1_mov[1], vert1_mov[2]);
+                    print!("[{}, {}, {}], ", vert2_mov[0], vert2_mov[1], vert2_mov[2]);
+                    println!("[{}, {}, {}]", vert3_mov[0], vert3_mov[1], vert3_mov[2]);
+
+                    return true;
+                }
+            }
+        }
+
+        false
+    }
+
+    /// Checks self intersections of the mesh
+    pub fn has_self_intersection(&self) -> bool {
+        for f in 0..self.get_nb_faces() {
+            if self.check_face_self_inter(f) {
+                return true;
+            }
+        }
+
+        false
+    }
+
     /// Assign a group to a face
     pub fn set_face_in_group(&mut self, ind_face: usize, group: usize) {
         self.face_groups[ind_face] = Some(group);
