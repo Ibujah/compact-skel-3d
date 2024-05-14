@@ -504,6 +504,20 @@ impl ManifoldMesh3D {
         Ok(())
     }
 
+    /// Checks if edge is too sharp
+    fn check_too_sharp_edge(&self, ind_edge: usize) -> bool {
+        let he = self.get_halfedge(ind_edge).unwrap();
+        let face = he.face();
+        let face_opp = he.opposite_halfedge().unwrap().face();
+
+        let normal = face.normal();
+        let normal_opp = face_opp.normal();
+
+        let cos_ang = normal.dot(&normal_opp);
+
+        cos_ang < -0.99
+    }
+
     /// Checks if face has self intersection with edges
     fn check_face_self_inter(&self, ind_face: usize) -> bool {
         let face = self.get_face(ind_face).unwrap();
@@ -592,6 +606,21 @@ impl ManifoldMesh3D {
     pub fn has_self_intersection(&self) -> bool {
         for f in 0..self.get_nb_faces() {
             if self.check_face_self_inter(f) {
+                return true;
+            }
+        }
+
+        false
+    }
+
+    /// Checks sharp edges of the mesh
+    pub fn has_sharp_edges(&self) -> bool {
+        for e in 0..self.get_nb_halfedges() {
+            let [ind1, ind2] = self.get_halfedge(e).unwrap().halfedge();
+            if ind1 > ind2 {
+                continue;
+            }
+            if self.check_too_sharp_edge(e) {
                 return true;
             }
         }
@@ -777,5 +806,18 @@ impl<'a> IterFace<'a> {
                 ind_vertex: face_ve[2],
             },
         ]
+    }
+
+    /// Face normal
+    pub fn normal(&self) -> Vector3<f64> {
+        let [v1, v2, v3] = self.vertices();
+        let vert1 = v1.vertex();
+        let vert2 = v2.vertex();
+        let vert3 = v3.vertex();
+
+        let vec1 = vert2 - vert1;
+        let vec2 = vert3 - vert2;
+
+        vec1.cross(&vec2).normalize()
     }
 }

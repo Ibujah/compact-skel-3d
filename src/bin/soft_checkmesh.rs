@@ -40,6 +40,7 @@ fn main() -> Result<()> {
 
     mesh.check_mesh()?;
     let has_self_inter = mesh.has_self_intersection();
+    let has_sharp_edge = mesh.has_sharp_edges();
 
     let mut file_manifold = File::create(&format!("{}manifold.txt", out_path_str))?;
     writeln!(file_manifold, "1")?;
@@ -49,6 +50,12 @@ fn main() -> Result<()> {
         writeln!(file_self_inter, "1")?;
     } else {
         writeln!(file_self_inter, "0")?;
+    }
+    let mut file_sharp_edge = File::create(&format!("{}sharp_edge.txt", out_path_str))?;
+    if has_sharp_edge {
+        writeln!(file_sharp_edge, "1")?;
+    } else {
+        writeln!(file_sharp_edge, "0")?;
     }
 
     Ok(())
