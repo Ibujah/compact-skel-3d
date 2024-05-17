@@ -183,6 +183,10 @@ pub fn save_ply(
     writeln!(file, "property uchar red")?;
     writeln!(file, "property uchar green")?;
     writeln!(file, "property uchar blue")?;
+    writeln!(file, "property int vertex1")?;
+    writeln!(file, "property int vertex2")?;
+    writeln!(file, "property int vertex3")?;
+    writeln!(file, "property int vertex4")?;
 
     writeln!(file, "element face {}", skeleton.alveolae.len())?;
     writeln!(file, "property list uchar int vertex_index")?;
@@ -210,18 +214,23 @@ pub fn save_ply(
     for (skel_ind, sph) in skeleton.nodes.iter() {
         let vert = sph.center;
         let rad = sph.radius;
+        let boundary_ind = skeleton.boundary_inds.get(skel_ind).unwrap();
 
         let p = (rad - min_rad) / (max_rad - min_rad);
         writeln!(
             file,
-            "{} {} {} {} {} {} {}",
+            "{} {} {} {} {} {} {} {} {} {} {}",
             vert[0],
             vert[1],
             vert[2],
             rad,
             (p * 255.0) as u8,
             0,
-            ((1.0 - p) * 255.0) as u8
+            ((1.0 - p) * 255.0) as u8,
+            boundary_ind[0],
+            boundary_ind[1],
+            boundary_ind[2],
+            boundary_ind[3],
         )?;
         skel_ind_to_ind.insert(skel_ind, ind);
         ind = ind + 1;

@@ -134,7 +134,7 @@ pub fn include_alveola_in_skel(
             .try_into()
             .map_err(|_x: Vec<_>| anyhow::Error::msg("Could not convert vec to array"))
             .unwrap();
-        bnd_pts.insert(node.ind(), boundary_points);
+        bnd_pts.insert(node.ind(), (boundary_points, node.delaunay_tetrahedron()));
         let ind_edg_cur = pedg_cur.edge().ind();
         let nod_ext = [
             pedg_cur.edge().nodes()[0].ind(),
@@ -146,10 +146,10 @@ pub fn include_alveola_in_skel(
             .partial_edge_next()
             .ok_or(anyhow::Error::msg("Non complete partial edge"))?;
     }
-    for (ind_nod, boundary_points) in bnd_pts {
+    for (ind_nod, (boundary_points, boundary_inds)) in bnd_pts {
         skeleton_interface
             .skeleton
-            .add_node(ind_nod, boundary_points)?;
+            .add_node(ind_nod, boundary_points, boundary_inds)?;
     }
     for (ind_edge, ind_nodes) in edges_map {
         skeleton_interface.skeleton.add_edge(ind_edge, ind_nodes);

@@ -17,6 +17,7 @@ pub struct Sphere {
 /// 3D Skeleton structure
 pub struct Skeleton3D {
     pub(super) nodes: HashMap<usize, Sphere>,
+    pub(super) boundary_inds: HashMap<usize, [usize; 4]>,
     pub(super) edges: HashMap<usize, [usize; 2]>, // connects two nodes
     pub(super) alveolae: HashMap<usize, Vec<usize>>, // ordered list of nodes
 
@@ -28,6 +29,7 @@ impl Skeleton3D {
     pub fn new() -> Skeleton3D {
         Skeleton3D {
             nodes: HashMap::new(),
+            boundary_inds: HashMap::new(),
             edges: HashMap::new(),
             alveolae: HashMap::new(),
             labels: HashMap::new(),
@@ -35,12 +37,13 @@ impl Skeleton3D {
     }
 
     /// Adds a node to the skeleton
-    pub fn add_node(&mut self, ind_node: usize, boundary_points: [Vector3<f64>; 4]) -> Result<()> {
+    pub fn add_node(&mut self, ind_node: usize, boundary_points: [Vector3<f64>; 4], boundary_inds: [usize; 4]) -> Result<()> {
         if !self.nodes.contains_key(&ind_node) {
             let (center, radius) = geometry_operations::center_and_radius(boundary_points, None)
                 .ok_or(anyhow::Error::msg("Flat tetrahedron"))?;
             let sphere = Sphere { center, radius };
             self.nodes.insert(ind_node, sphere);
+            self.boundary_inds.insert(ind_node, boundary_inds);
         }
         Ok(())
     }
