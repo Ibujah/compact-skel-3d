@@ -24,7 +24,10 @@ fn main() -> Result<()> {
 
     let skel = skeleton3d::io::import_from_ply(skel_ply_path)?;
 
-    let nb_sheets = skel.get_labels().len();
+    let mut vec_lab: Vec<usize> = skel.get_labels().iter().map(|(_, &l)| l.unwrap()).collect();
+    vec_lab.sort();
+    vec_lab.dedup();
+    let nb_sheets = vec_lab.len();
     let nb_vert = skel.get_nodes().len();
     let nb_alv = skel.get_alveolae().len();
     let nb_cc = cc_count::connected_components_count(&skel);
