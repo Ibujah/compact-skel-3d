@@ -1,3 +1,5 @@
+/// Connected components count
+pub mod cc_count;
 /// Delaunay mesh algorihm
 pub mod delaunay_alg;
 /// Hausdorf distance computation
