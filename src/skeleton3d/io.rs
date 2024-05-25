@@ -615,6 +615,7 @@ pub fn import_from_ply(file_path: &str) -> Result<Skeleton3D> {
     let mut ind_alv = 0;
     for f in ply.payload["face"].iter() {
         let mut list_vertices = None;
+        let mut label = None;
         let mut properties = HashMap::new();
 
         for (key, prop) in f.into_iter() {
@@ -622,6 +623,7 @@ pub fn import_from_ply(file_path: &str) -> Result<Skeleton3D> {
                 ("vertex_index", Property::ListInt(val)) => {
                     list_vertices = Some(val.iter().map(|&v| usize::try_from(v).unwrap()).collect())
                 }
+                ("label", Property::Int(val)) => label = Some(*val as usize),
                 (k, p) => {
                     properties.insert(k.to_string(), p.clone());
                     ()
@@ -633,6 +635,9 @@ pub fn import_from_ply(file_path: &str) -> Result<Skeleton3D> {
             list_vertices.ok_or(anyhow::Error::msg("No vertex_index property in face"))?;
 
         skel.add_alveola(ind_alv, list_vertices);
+        if let Some(lab) = label {
+            skel.set_label(ind_alv, lab);
+        }
         ind_alv = ind_alv + 1;
     }
 

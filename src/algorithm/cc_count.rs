@@ -26,6 +26,10 @@ pub fn connected_components_count(skel: &Skeleton3D) -> usize {
         let &cc1 = node_cc.get(indv1).unwrap();
         let &cc2 = node_cc.get(indv2).unwrap();
 
+        if cc1 == cc2 {
+            continue;
+        }
+
         let (cc1, cc2) = if cc1 < cc2 { (cc1, cc2) } else { (cc2, cc1) };
         node_cc.iter_mut().for_each(|(_, cc)| {
             if *cc == cc2 {
