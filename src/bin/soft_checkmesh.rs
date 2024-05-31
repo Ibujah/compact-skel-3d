@@ -58,5 +58,8 @@ fn main() -> Result<()> {
         writeln!(file_sharp_edge, "0")?;
     }
 
+    let mut file_nb_vert = File::create(&format!("{}nb_vert.txt", out_path_str))?;
+    writeln!(file_nb_vert, "{}", mesh.get_nb_vertices())?;
+
     Ok(())
 }
