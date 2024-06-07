@@ -9,8 +9,7 @@ fn extract_physical_edges(
     mesh: &ManifoldMesh3D,
     ang_max: Option<f64>,
 ) -> Result<HashSet<manifold_mesh3d::HalfEdge>> {
-    let ang_max = ang_max.unwrap_or(std::f64::consts::PI);
-    let cos_min = ang_max.cos();
+    let cos_min_opt = ang_max.map(|ang| ang.cos());
 
     let mut physical: HashSet<manifold_mesh3d::HalfEdge> = HashSet::new();
     // set physical edges
@@ -20,38 +19,39 @@ fn extract_physical_edges(
             continue;
         }
 
-        if ang_max == std::f64::consts::PI {
-            physical.insert(he.halfedge());
-            continue;
+        if let Some(cos_min) = cos_min_opt {
+            // compute angles between adjacent faces
+            let face_a = he.face();
+            let face_b = he.opposite_halfedge().unwrap().face();
+
+            // getting vertices
+            let [vert_a_1, vert_a_2, vert_a_3] = face_a.vertices();
+            let [vert_b_1, vert_b_2, vert_b_3] = face_b.vertices();
+            let pt_a_1 = vert_a_1.vertex();
+            let pt_a_2 = vert_a_2.vertex();
+            let pt_a_3 = vert_a_3.vertex();
+            let pt_b_1 = vert_b_1.vertex();
+            let pt_b_2 = vert_b_2.vertex();
+            let pt_b_3 = vert_b_3.vertex();
+
+            // computing normals
+            let vec_u_1 = pt_a_2 - pt_a_1;
+            let vec_v_1 = pt_a_3 - pt_a_2;
+            let vec_u_2 = pt_b_2 - pt_b_1;
+            let vec_v_2 = pt_b_3 - pt_b_2;
+
+            let nor_1 = vec_u_1.cross(&vec_v_1).normalize();
+            let nor_2 = vec_u_2.cross(&vec_v_2).normalize();
+
+            // cosinus between normals
+            let cos_cur = nor_1.dot(&nor_2);
+
+            if cos_cur < cos_min {
+                physical.insert(he.halfedge());
+            }
         }
-
-        // compute angles between adjacent faces
-        let face_a = he.face();
-        let face_b = he.opposite_halfedge().unwrap().face();
-
-        // getting vertices
-        let [vert_a_1, vert_a_2, vert_a_3] = face_a.vertices();
-        let [vert_b_1, vert_b_2, vert_b_3] = face_b.vertices();
-        let pt_a_1 = vert_a_1.vertex();
-        let pt_a_2 = vert_a_2.vertex();
-        let pt_a_3 = vert_a_3.vertex();
-        let pt_b_1 = vert_b_1.vertex();
-        let pt_b_2 = vert_b_2.vertex();
-        let pt_b_3 = vert_b_3.vertex();
-
-        // computing normals
-        let vec_u_1 = pt_a_2 - pt_a_1;
-        let vec_v_1 = pt_a_3 - pt_a_2;
-        let vec_u_2 = pt_b_2 - pt_b_1;
-        let vec_v_2 = pt_b_3 - pt_b_2;
-
-        let nor_1 = vec_u_1.cross(&vec_v_1).normalize();
-        let nor_2 = vec_u_2.cross(&vec_v_2).normalize();
-
-        // cosinus between normals
-        let cos_cur = nor_1.dot(&nor_2);
-
-        if cos_cur < cos_min {
+        else
+        {
             physical.insert(he.halfedge());
         }
     }
