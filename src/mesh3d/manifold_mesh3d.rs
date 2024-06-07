@@ -515,7 +515,7 @@ impl ManifoldMesh3D {
 
         let cos_ang = normal.dot(&normal_opp);
 
-        cos_ang < -0.99
+        cos_ang < -0.866
     }
 
     /// Checks if face has self intersection with edges
