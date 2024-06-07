@@ -22,6 +22,7 @@ fn extract_physical_edges(
 
         if ang_max == std::f64::consts::PI {
             physical.insert(he.halfedge());
+            continue;
         }
 
         // compute angles between adjacent faces
@@ -40,15 +41,15 @@ fn extract_physical_edges(
 
         // computing normals
         let vec_u_1 = pt_a_2 - pt_a_1;
+        let vec_v_1 = pt_a_3 - pt_a_2;
         let vec_u_2 = pt_b_2 - pt_b_1;
-        let vec_v_1 = pt_a_3 - pt_a_1;
-        let vec_v_2 = pt_b_3 - pt_b_1;
+        let vec_v_2 = pt_b_3 - pt_b_2;
 
         let nor_1 = vec_u_1.cross(&vec_v_1).normalize();
         let nor_2 = vec_u_2.cross(&vec_v_2).normalize();
 
         // cosinus between normals
-        let cos_cur = nor_1.dot(&nor_2).abs();
+        let cos_cur = nor_1.dot(&nor_2);
 
         if cos_cur < cos_min {
             physical.insert(he.halfedge());
