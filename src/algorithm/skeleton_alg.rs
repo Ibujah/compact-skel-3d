@@ -14,7 +14,7 @@ use super::sub_algorithms::SkeletonInterface3D;
 /// Computes the full skeletonization of a delaunay mesh
 pub fn full_skeletonization(mesh: &mut ManifoldMesh3D) -> Result<Skeleton3D> {
     println!("Mesh to delaunay");
-    let faces = delaunay_alg::to_delaunay(mesh, Some(std::f64::consts::PI * 20.0 / 180.0))?;
+    let faces = delaunay_alg::to_delaunay(mesh, Some(std::f64::consts::PI * 60.0 / 180.0))?;
     println!();
 
     println!("Init skeleton interface");
@@ -389,7 +389,7 @@ pub fn sheet_skeletonization(
     let mut mesh_cl = mesh.clone();
 
     println!("Mesh to delaunay");
-    let faces = delaunay_alg::to_delaunay(&mut mesh_cl, Some(std::f64::consts::PI * 20.0 / 180.0))?;
+    let faces = delaunay_alg::to_delaunay(&mut mesh_cl, Some(std::f64::consts::PI * 60.0 / 180.0))?;
     println!();
 
     println!("Init skeleton interface");
