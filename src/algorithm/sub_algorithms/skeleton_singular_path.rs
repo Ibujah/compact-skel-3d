@@ -244,6 +244,29 @@ impl SkeletonSingularPath {
         Ok((center_mat, radius_mat))
     }
 
+    pub fn contact_mesh_indices(
+        &self,
+        skeleton_interface: &SkeletonInterface3D,
+    ) -> Result<Vec<usize>> {
+        let ind_nodes = self.nodes(skeleton_interface);
+        
+        let mut vec_mesh_ind = Vec::new();
+
+        for i in 0..ind_nodes.len() {
+            let ind_node = ind_nodes[i];
+            let [ind0, ind1, ind2, ind3] = skeleton_interface
+                .get_node_uncheck(ind_node)
+                .delaunay_tetrahedron();
+            vec_mesh_ind.push(ind0);
+            vec_mesh_ind.push(ind1);
+            vec_mesh_ind.push(ind2);
+            vec_mesh_ind.push(ind3);
+        }
+        vec_mesh_ind.sort();
+        vec_mesh_ind.dedup();
+        Ok(vec_mesh_ind)
+    }
+
     pub fn follow_singular_path(
         &mut self,
         skeleton_interface: &mut SkeletonInterface3D,

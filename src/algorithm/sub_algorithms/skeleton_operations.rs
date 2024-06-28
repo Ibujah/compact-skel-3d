@@ -2,6 +2,7 @@ use anyhow::Result;
 use nalgebra::base::*;
 use std::collections::{HashMap, HashSet};
 
+use crate::algorithm::sub_algorithms::skeleton_operations;
 use crate::algorithm::sub_algorithms::skeleton_problematic_path::{
     first_to_boundary, last_to_boundary, SkeletonProblematicPath,
 };
@@ -656,66 +657,73 @@ pub fn collect_mesh_faces_index(
         }
         Ok(false)
     }
-
+    
     fn last_hedge_expansion(
         mesh_paths_external: &mut Vec<Vec<usize>>,
         skeleton_separation: &SkeletonSeparation,
         center_mat: &MatrixXx3<f64>,
         radius_mat: &MatrixXx1<f64>,
+        contact_mesh_indices: &Vec<usize>,
         epsilon: f64,
         faces: &mut Vec<[usize; 3]>,
     ) -> Result<bool> {
         if let Some(mut mesh_path_external) = mesh_paths_external.pop() {
             if let Some(ind_hedge) = mesh_path_external.pop() {
                 let hedge = skeleton_separation
-                    .skeleton_interface()
-                    .get_mesh()
-                    .get_halfedge(ind_hedge)?;
+                .skeleton_interface()
+                .get_mesh()
+                .get_halfedge(ind_hedge)?;
                 let ind_face = hedge.face().vertices_inds();
-                let vert_test = hedge.next_halfedge().last_vertex().vertex().transpose();
-
-                if center_mat
+                
+                // test face indices
+                if !contact_mesh_indices.contains(&ind_face[0]) || 
+                !contact_mesh_indices.contains(&ind_face[1]) ||
+                !contact_mesh_indices.contains(&ind_face[2]) {
+                    let vert_test = hedge.next_halfedge().last_vertex().vertex().transpose();
+                    
+                    if center_mat
                     .row_iter()
                     .zip(radius_mat.iter())
                     .find(|(row, &rad)| {
                         let diff = row - vert_test;
                         diff[0] * diff[0] + diff[1] * diff[1] + diff[2] * diff[2]
-                            < (rad + epsilon) * (rad + epsilon)
+                        < (rad + epsilon) * (rad + epsilon)
                     })
                     .is_none()
-                {
-                    return Ok(false);
-                }
-                if let Some(vec_inds) = skeleton_separation
+                    {
+                        return Ok(false);
+                    }
+                    if let Some(vec_inds) = skeleton_separation
                     .skeleton_interface()
                     .out_vert_per_face
                     .get(&ind_face)
-                {
-                    for &ind_v in vec_inds.iter() {
-                        let vert = skeleton_separation
+                    {
+                        for &ind_v in vec_inds.iter() {
+                            let vert = skeleton_separation
                             .skeleton_interface()
                             .get_mesh()
                             .get_vertex(ind_v)
                             .unwrap()
                             .vertex()
                             .transpose();
-                        if center_mat
+                            if center_mat
                             .row_iter()
                             .zip(radius_mat.iter())
                             .find(|(row, &rad)| {
                                 let diff = row - vert;
                                 diff[0] * diff[0] + diff[1] * diff[1] + diff[2] * diff[2]
-                                    < (rad + epsilon) * (rad + epsilon)
+                                < (rad + epsilon) * (rad + epsilon)
                             })
                             .is_none()
-                        {
-                            return Ok(false);
+                            {
+                                return Ok(false);
+                            }
                         }
                     }
+                    
                 }
-
                 let face = hedge.face();
-
+                
                 faces.push(face.vertices_inds());
                 let hedge_rep1 = hedge.prev_halfedge().opposite_halfedge().unwrap();
                 let hedge_rep2 = hedge.next_halfedge().opposite_halfedge().unwrap();
@@ -727,10 +735,13 @@ pub fn collect_mesh_faces_index(
         }
         Err(anyhow::Error::msg("Paths should not be empty"))
     }
-
+    
     let (center_mat, radius_mat) = skeleton_separation
         .external_path()
         .basis_spheres_matrices(&skeleton_separation.skeleton_interface())?;
+    let contact_mesh_indices = skeleton_separation
+        .external_path()
+        .contact_mesh_indices(&skeleton_separation.skeleton_interface())?;
     let mut mesh_paths_external = {
         let mesh_path_external = skeleton_separation
             .external_path()
@@ -779,6 +790,7 @@ pub fn collect_mesh_faces_index(
             &skeleton_separation,
             &center_mat,
             &radius_mat,
+            &contact_mesh_indices,
             epsilon,
             &mut faces,
         )? {
