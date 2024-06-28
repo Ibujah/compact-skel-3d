@@ -61,6 +61,8 @@ fn loop_skeletonization(
     let mut cpt_loop = 0;
     let mut nb_sheets_prev = 0;
     let mut label;
+    
+    let epsilon = opt_epsilon.unwrap_or(0.);
     loop {
         cpt_loop += 1;
         label = 1;
@@ -115,29 +117,27 @@ fn loop_skeletonization(
                     skeleton_operations::extract_skeleton_separation(skeleton_interface, ind_pedge)?
                 {
                     let mut removed = false;
-                    if let Some(epsilon) = opt_epsilon {
-                        if skeleton_separation.closable_path()? {
-                            if let Some(mesh_faces) = skeleton_operations::collect_mesh_faces_index(
+                    if skeleton_separation.closable_path()? {
+                        if let Some(mesh_faces) = skeleton_operations::collect_mesh_faces_index(
+                            &skeleton_separation,
+                            epsilon,
+                        )? {
+                            if let Some(closing_faces) =
+                            skeleton_operations::collect_closing_faces(
                                 &skeleton_separation,
-                                epsilon,
-                            )? {
-                                if let Some(closing_faces) =
-                                    skeleton_operations::collect_closing_faces(
-                                        &skeleton_separation,
-                                        &mesh_faces,
-                                    )?
+                                &mesh_faces,
+                            )?
+                            {
+                                if !mesh_faces.is_empty()
+                                && !closing_faces.is_empty()
+                                && skeleton_operations::try_remove_and_add(
+                                    skeleton_interface,
+                                    &mesh_faces,
+                                    &closing_faces,
+                                )?
                                 {
-                                    if !mesh_faces.is_empty()
-                                        && !closing_faces.is_empty()
-                                        && skeleton_operations::try_remove_and_add(
-                                            skeleton_interface,
-                                            &mesh_faces,
-                                            &closing_faces,
-                                        )?
-                                    {
-                                        removed = true;
-                                        modif_done = true;
-                                    }
+                                    removed = true;
+                                    modif_done = true;
                                 }
                             }
                         }
@@ -326,42 +326,40 @@ fn loop_skeletonization(
                 if contains_nod_junction {
                     continue;
                 }
-
+                
                 if let Some((sing_path, vec_new_pedges, set_alve)) =
-                    skeleton_operations::exclusion_singular_path(ind_pedge, skeleton_interface)?
+                skeleton_operations::exclusion_singular_path(ind_pedge, skeleton_interface)?
                 {
                     let skeleton_separation =
-                        SkeletonSeparation::from_singular_path(skeleton_interface, sing_path);
-                    if let Some(epsilon) = opt_epsilon {
-                        if let Some(mesh_faces) = skeleton_operations::collect_mesh_faces_index(
+                    SkeletonSeparation::from_singular_path(skeleton_interface, sing_path);
+                    if let Some(mesh_faces) = skeleton_operations::collect_mesh_faces_index(
+                        &skeleton_separation,
+                        epsilon,
+                    )? {
+                        if let Some(closing_faces) = skeleton_operations::collect_closing_faces(
                             &skeleton_separation,
-                            epsilon,
+                            &mesh_faces,
                         )? {
-                            if let Some(closing_faces) = skeleton_operations::collect_closing_faces(
-                                &skeleton_separation,
+                            if !mesh_faces.is_empty()
+                            && !closing_faces.is_empty()
+                            && skeleton_operations::try_remove_and_add(
+                                skeleton_interface,
                                 &mesh_faces,
-                            )? {
-                                if !mesh_faces.is_empty()
-                                    && !closing_faces.is_empty()
-                                    && skeleton_operations::try_remove_and_add(
-                                        skeleton_interface,
-                                        &mesh_faces,
-                                        &closing_faces,
-                                    )?
-                                {
-                                    for &ind_alve in set_alve.iter() {
-                                        if !skeleton_interface.get_alveola(ind_alve)?.is_full() {
-                                            skeleton_interface.set_alveola_label(ind_alve, None)?;
-                                        }
+                                &closing_faces,
+                            )?
+                            {
+                                for &ind_alve in set_alve.iter() {
+                                    if !skeleton_interface.get_alveola(ind_alve)?.is_full() {
+                                        skeleton_interface.set_alveola_label(ind_alve, None)?;
                                     }
-                                    let mut new_saliencies =
-                                        skeleton_operations::estimate_saliencies(
-                                            skeleton_interface,
-                                            &vec_new_pedges,
-                                        )?;
-                                    saliencies.append(&mut new_saliencies);
-                                    skeleton_operations::sort_saliencies(&mut saliencies);
                                 }
+                                let mut new_saliencies =
+                                skeleton_operations::estimate_saliencies(
+                                    skeleton_interface,
+                                    &vec_new_pedges,
+                                )?;
+                                saliencies.append(&mut new_saliencies);
+                                skeleton_operations::sort_saliencies(&mut saliencies);
                             }
                         }
                     }
