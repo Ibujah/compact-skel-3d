@@ -359,12 +359,13 @@ pub fn save_problematics_ply(
     }
 
     for ind_edge in problematic_edge.iter() {
-        let edge = skeleton.lone_edges[ind_edge];
-        writeln!(
-            file,
-            "{} {}",
-            skel_ind_to_ind[&edge[0]], skel_ind_to_ind[&edge[1]]
-        )?;
+        if let Some(edge) = skeleton.lone_edges.get(&ind_edge) {
+            writeln!(
+                file,
+                "{} {}",
+                skel_ind_to_ind[&edge[0]], skel_ind_to_ind[&edge[1]]
+            )?;
+        }
     }
 
     Ok(())
