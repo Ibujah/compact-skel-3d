@@ -328,4 +328,88 @@ impl<'a> DelaunayInterface<'a> {
         let ind_vertex = mesh_operations::split_face(self.mesh, vert, ind_face)?;
         self.insert_vertex(ind_vertex, ind_tet)
     }
+
+    /// Check if tetrahedra are in or out
+    pub fn compute_tetras_in_out(&mut self) -> Result<HashMap<[usize; 4], bool>> {
+        // create Option<bool> vector for each tetrahedra
+        let mut is_tetra_in = vec![None; self.del_struct.get_simplicial().get_nb_tetrahedra()];
+        let mut to_check: Vec<usize> = vec![];
+
+        // for all mesh faces, classify neighbor tetrahedra
+        for ind_face in 0..self.mesh.get_nb_faces() {
+            let face = self.mesh.get_face(ind_face)?;
+            let [node1, node2, node3]= face.vertices_inds();
+            let half_tri = 
+                self.del_struct
+                    .get_simplicial()
+                    .get_halftriangle_containing(&Node::Value(node1), &Node::Value(node2),&Node::Value(node3))
+                    .unwrap();
+            let ind_tetra_in = half_tri.tetrahedron().ind();
+            let ind_tetra_out = half_tri.opposite().tetrahedron().ind();
+            
+            // checks if tetrahedron are already in or not
+            if let Some(val) = is_tetra_in[ind_tetra_in] {
+                if val == false {
+                    return Err(anyhow::Error::msg("Tetrahedron is both in and out"))
+                }
+            }
+            if let Some(val) = is_tetra_in[ind_tetra_out] {
+                if val == true {
+                    return Err(anyhow::Error::msg("Tetrahedron is both in and out"))
+                }
+            }
+
+            is_tetra_in[ind_tetra_in] = Some(true);
+            is_tetra_in[ind_tetra_out] = Some(false);
+
+            to_check.push(ind_tetra_in);
+            to_check.push(ind_tetra_out);
+        }
+
+        // propagate insideness/ousideness for each neighbor
+        while let Some(ind_tet) = to_check.pop() {
+            let tet = self.del_struct.get_simplicial().get_tetrahedron(ind_tet)?;
+
+            let val_cur = is_tetra_in[ind_tet].unwrap();
+            
+            for halftri in tet.halftriangles().iter() {
+                // checks if the triangle is a mesh face
+                if let [Node::Value(ind_vertex1), Node::Value(ind_vertex2), Node::Value(ind_vertex3) ] = halftri.nodes() {
+                    if self.mesh.is_face_in(ind_vertex1, ind_vertex2, ind_vertex3).is_some() {
+                        continue;
+                    }
+                }
+                // if not, sets neighbor tetrahedron as in or out
+                let ind_neighbor = halftri.opposite().tetrahedron().ind();
+
+                if let Some(val) = is_tetra_in[ind_neighbor] {
+                    if val_cur != val {
+                        return Err(anyhow::Error::msg("Tetrahedron went outside"))
+                    }
+                }
+                else {
+                    is_tetra_in[ind_neighbor] = Some(val_cur);
+                    to_check.push(ind_neighbor);
+                }
+            }
+        }
+
+        let mut tetra_in = HashMap::new();
+        for ind_tet in 0..self.del_struct.get_simplicial().get_nb_tetrahedra() {
+            let tetra = self
+                .del_struct
+                .get_simplicial()
+                .get_tetrahedron(ind_tet)
+                .unwrap();
+            if let [Node::Value(i1), Node::Value(i2), Node::Value(i3), Node::Value(i4)] =
+                tetra.nodes()
+            {
+                let mut tetra_ind = [i1, i2, i3, i4];
+                tetra_ind.sort();
+                tetra_in.insert(tetra_ind, is_tetra_in[ind_tet].unwrap());
+            }
+        }
+
+        Ok(tetra_in)
+    }
 }

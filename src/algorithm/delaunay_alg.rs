@@ -110,7 +110,7 @@ fn compute_face_split_vertex(face: manifold_mesh3d::IterFace) -> Result<manifold
 pub fn to_delaunay(
     mesh: &mut ManifoldMesh3D,
     ang_max: Option<f64>,
-) -> Result<HashMap<[usize; 3], Vec<[usize; 4]>>> {
+) -> Result<(HashMap<[usize; 3], Vec<[usize; 4]>>, HashMap<[usize; 4], bool>)> {
     println!("Compute delaunay graph from mesh vertices");
     let mut deltet = DelaunayInterface::from_mesh(mesh)?;
 
@@ -194,6 +194,7 @@ pub fn to_delaunay(
         nb_non_del_faces,
         deltet.get_mesh().get_nb_faces()
     );
+    let tetras_in_out = deltet.compute_tetras_in_out()?;
 
-    Ok(deltet.get_faces())
+    Ok((deltet.get_faces(), tetras_in_out))
 }

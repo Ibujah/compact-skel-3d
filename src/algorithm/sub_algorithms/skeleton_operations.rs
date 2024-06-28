@@ -1,6 +1,5 @@
 use anyhow::Result;
 use nalgebra::base::*;
-use rand::Rng;
 use std::collections::{HashMap, HashSet};
 
 use crate::algorithm::sub_algorithms::skeleton_problematic_path::{
@@ -18,15 +17,52 @@ use super::SkeletonSeparation;
 
 /// Computes a random first node on skeleton
 pub fn first_node_in(skeleton_interface: &mut SkeletonInterface3D) -> Result<usize> {
-    let mut rng = rand::thread_rng();
-    let rand_fac = rng.gen_range(0..skeleton_interface.mesh.get_nb_faces());
-    println!("First face: {}", rand_fac);
+    let mut coords_min = skeleton_interface.get_mesh().get_vertex(0)?.vertex();
+    let mut coords_max = skeleton_interface.get_mesh().get_vertex(0)?.vertex();
+    for i in 0..skeleton_interface.get_mesh().get_nb_vertices() {
+        let coords = skeleton_interface.get_mesh().get_vertex(i)?.vertex();
+
+        for j in 0..3 {
+            if coords_max[j] < coords[j] {
+                coords_max[j] = coords[j];
+            }
+            if coords_min[j] > coords[j] {
+                coords_min[j] = coords[j];
+            }
+        }
+    }
+    let coords_mid = (coords_max + coords_min) / 2.0;
+
+    let mut dmin = None;
+    let mut ind_min = None;
+    for i in 0..skeleton_interface.get_mesh().get_nb_faces() {
+        let [v1, v2, v3] = skeleton_interface.get_mesh().get_face(i)?.vertices();
+        let coords1 = v1.vertex();
+        let coords2 = v2.vertex();
+        let coords3 = v3.vertex();
+        let coords_mean = (coords1 + coords2 + coords3) / 3.0;
+        let dist = (coords_mid - coords_mean).norm();
+
+        (dmin, ind_min) = if let (Some(d), _) = (dmin, ind_min) {
+            if dist < d {
+                (Some(dist), Some(i))
+            }
+            else{
+                (dmin, ind_min)
+            }
+        }
+        else{
+            (Some(dist), Some(i))
+        };
+    }
+    let first_fac = ind_min.unwrap();
+    println!("First face: {}", first_fac);
 
     let mut cpt = 0;
     let mut ind_face = 0;
     for fac in 0..skeleton_interface.get_mesh().get_nb_faces() {
         cpt = cpt + 1;
-        if cpt >= rand_fac {
+        if cpt >= first_fac {
             ind_face = fac;
             break;
         }
@@ -191,13 +227,44 @@ pub fn compute_sheet(
     skeleton_interface: &mut SkeletonInterface3D,
     ind_alveola: usize,
     label: usize,
-) -> Result<()> {
+) -> Result<bool> {
     skeleton_interface.get_alveola(ind_alveola)?;
     let mut to_compute = Vec::new();
     to_compute.push(ind_alveola);
 
     while let Some(ind_alveola) = to_compute.pop() {
         let alve = skeleton_interface.get_alveola_uncheck(ind_alveola);
+        let mut sheet_out = false;
+        for pedg in alve.partial_alveolae()[0].partial_edges().iter() {
+            if let Some(pnod) = pedg.partial_node_first() {
+                let mut tet = pnod.node().delaunay_tetrahedron();
+                tet.sort();
+                if !skeleton_interface.tetras_in.get(&tet).unwrap() {
+                    sheet_out = true;
+                    break;
+                }
+            }
+        }
+        if sheet_out{
+            let current_sheet = skeleton_interface.get_sheet(label);
+            let alve = skeleton_interface.get_alveola_uncheck(ind_alveola);
+            let mut vec_tet = Vec::new();
+            for pedg in alve.partial_alveolae()[0].partial_edges().iter() {
+                if let Some(pnod) = pedg.partial_node_first() {
+                    let mut tet = pnod.node().delaunay_tetrahedron();
+                    tet.sort();
+                    vec_tet.push(tet);
+                }
+            }
+            for &ind_alve in current_sheet.iter() {
+                skeleton_interface.set_alveola_label(ind_alve, None)?;
+            }
+            for &tet in vec_tet.iter() {
+                skeleton_interface.tetras_in.insert(tet, false);
+            }
+            
+            return Ok(false);
+        }
         if alve.label() != Some(label) {
             if !alve.is_computed() {
                 skeleton_interface.compute_alveola(ind_alveola)?;
@@ -242,7 +309,7 @@ pub fn compute_sheet(
         }
     }
 
-    Ok(())
+    Ok(true)
 }
 
 /// Returns neighbor partial edges to each singular edge on the sheet
@@ -486,7 +553,7 @@ pub fn try_remove_and_add<'a, 'b>(
     }
 
     // currently added faces
-    let mut vec_added = Vec::new();
+    let mut vec_added: Vec<[usize; 3]> = Vec::new();
     for i in 0..vec_add_faces.len() {
         let [ind_v1, ind_v2, ind_v3] = vec_add_faces[i];
         let res =

@@ -18,6 +18,7 @@ pub struct SkeletonInterface3D<'a> {
 
     // existing delaunay: neighbor information
     pub(super) faces: HashMap<[usize; 3], Vec<[usize; 4]>>,
+    pub(super) tetras_in : HashMap<[usize; 4], bool>,
 
     // delaunay related
     pub(super) del_tet: HashMap<[usize; 4], usize>, // list of delaunay tetrahedra
@@ -105,6 +106,7 @@ impl<'a, 'b> SkeletonInterface3D<'a> {
     pub fn init(
         mesh: &'a mut ManifoldMesh3D,
         faces: HashMap<[usize; 3], Vec<[usize; 4]>>,
+        tetras_in: HashMap<[usize; 4], bool>
     ) -> SkeletonInterface3D<'a> {
         SkeletonInterface3D {
             mesh,
@@ -112,6 +114,7 @@ impl<'a, 'b> SkeletonInterface3D<'a> {
             debug_meshes: Vec::new(),
             out_vert_per_face: HashMap::new(),
             faces,
+            tetras_in,
             del_tet: HashMap::new(),
             del_tri: HashMap::new(),
             del_seg: HashMap::new(),

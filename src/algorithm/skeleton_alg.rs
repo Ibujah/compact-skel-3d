@@ -14,11 +14,11 @@ use super::sub_algorithms::SkeletonInterface3D;
 /// Computes the full skeletonization of a delaunay mesh
 pub fn full_skeletonization(mesh: &mut ManifoldMesh3D) -> Result<Skeleton3D> {
     println!("Mesh to delaunay");
-    let faces = delaunay_alg::to_delaunay(mesh, Some(std::f64::consts::PI * 60.0 / 180.0))?;
+    let (faces, tetras_in) = delaunay_alg::to_delaunay(mesh, Some(std::f64::consts::PI * 60.0 / 180.0))?;
     println!();
 
     println!("Init skeleton interface");
-    let mut skeleton_interface = SkeletonInterface3D::init(mesh, faces);
+    let mut skeleton_interface = SkeletonInterface3D::init(mesh, faces, tetras_in);
 
     println!("Finding some first alveola");
     let ind_first_alveola = skeleton_operations::first_alveola_in(&mut skeleton_interface)?;
@@ -192,7 +192,9 @@ fn loop_skeletonization(
                 }
                 label += 1;
                 let ind_alveola = pedge.partial_alveola().alveola().ind();
-                skeleton_operations::compute_sheet(skeleton_interface, ind_alveola, label)?;
+                if !skeleton_operations::compute_sheet(skeleton_interface, ind_alveola, label)?{
+                    continue;
+                }
                 let current_sheet = skeleton_interface.get_sheet(label);
 
                 if current_sheet.len() > sheet_siz_max {
@@ -286,8 +288,14 @@ fn loop_skeletonization(
                 if pedge.edge().degree() != 1 {
                     continue;
                 }
+                if !pedge.edge().is_full() {
+                    continue;
+                }
                 let palve = pedge.partial_alveola();
                 if palve.alveola().label().is_none() {
+                    continue;
+                }
+                if !palve.alveola().is_full() {
                     continue;
                 }
 
@@ -389,11 +397,11 @@ pub fn sheet_skeletonization(
     let mut mesh_cl = mesh.clone();
 
     println!("Mesh to delaunay");
-    let faces = delaunay_alg::to_delaunay(&mut mesh_cl, Some(std::f64::consts::PI * 60.0 / 180.0))?;
+    let (faces, tetras_in) = delaunay_alg::to_delaunay(&mut mesh_cl, Some(std::f64::consts::PI * 60.0 / 180.0))?;
     println!();
 
     println!("Init skeleton interface");
-    let mut skeleton_interface = SkeletonInterface3D::init(&mut mesh_cl, faces);
+    let mut skeleton_interface = SkeletonInterface3D::init(&mut mesh_cl, faces, tetras_in);
     skeleton_interface.check()?;
 
     if let Some(err) = loop_skeletonization(&mut skeleton_interface, opt_epsilon).err() {
