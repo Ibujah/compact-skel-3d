@@ -206,6 +206,39 @@ pub fn include_alveola_in_skel(
     Ok(())
 }
 
+/// Includes an alveola in the final skeleton
+pub fn include_edge_in_skel(
+    skeleton_interface: &mut SkeletonInterface3D,
+    ind_edge: usize,
+) -> Result<()> {
+    let edge = skeleton_interface.get_edge(ind_edge)?;
+
+    let mut bnd_pts = HashMap::new();
+    for node in edge.nodes() {
+        let boundary_points = node
+            .delaunay_tetrahedron()
+            .iter()
+            .map(|&ind_vertex| Ok(skeleton_interface.mesh.get_vertex(ind_vertex)?.vertex()))
+            .collect::<Result<Vec<Vector3<f64>>>>()?
+            .try_into()
+            .map_err(|_x: Vec<_>| anyhow::Error::msg("Could not convert vec to array"))
+            .unwrap();
+
+        bnd_pts.insert(node.ind(), (boundary_points, node.delaunay_tetrahedron()));
+    }
+    for (ind_nod, (boundary_points, boundary_inds)) in bnd_pts {
+        skeleton_interface
+            .skeleton
+            .add_node(ind_nod, boundary_points, boundary_inds)?;
+    }
+    let edge = skeleton_interface.get_edge(ind_edge)?;
+    skeleton_interface
+        .skeleton
+        .add_lone_edge(ind_edge, [edge.nodes()[0].ind(), edge.nodes()[1].ind()]);
+
+    Ok(())
+}
+
 /// Returns neighbor alveola indices
 pub fn neighbor_alveolae(
     skeleton_interface: &mut SkeletonInterface3D,

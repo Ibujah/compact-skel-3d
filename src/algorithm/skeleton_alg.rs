@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use std::time::Instant;
 
 use crate::algorithm::delaunay_alg;
+use crate::algorithm::sub_algorithms::skeleton_operations::include_edge_in_skel;
 use crate::algorithm::sub_algorithms::skeleton_operations::remap_sheet_indices;
 use crate::algorithm::sub_algorithms::SkeletonSeparation;
 use crate::mesh3d::GenericMesh3D;
@@ -244,6 +245,7 @@ fn loop_skeletonization(
                 }
                 skeleton_interface.propagate_edge(ind_edge)?;
                 label += 1;
+                include_edge_in_skel(skeleton_interface, ind_edge)?;
                 skeleton_interface.set_edge_label(ind_edge, Some(label))?;
                 for node in skeleton_interface.get_edge(ind_edge)?.nodes() {
                     for edge in node.edges() {
