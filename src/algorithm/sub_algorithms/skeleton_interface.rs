@@ -18,7 +18,7 @@ pub struct SkeletonInterface3D<'a> {
 
     // existing delaunay: neighbor information
     pub(super) faces: HashMap<[usize; 3], Vec<[usize; 4]>>,
-    pub(super) tetras_in : HashMap<[usize; 4], bool>,
+    pub(super) tetras_in: HashMap<[usize; 4], bool>,
 
     // delaunay related
     pub(super) del_tet: HashMap<[usize; 4], usize>, // list of delaunay tetrahedra
@@ -37,6 +37,7 @@ pub struct SkeletonInterface3D<'a> {
     pub(super) edge_node: Vec<[Option<usize>; 2]>, // links two nodes (ordered)
     pub(super) edge_alve: Vec<[usize; 3]>,      // alveolae indices
     pub(super) edge_set_sing: Vec<bool>,        // True to force edge singularization
+    pub(super) edge_label: Vec<Option<usize>>,  // Edge label (for lone edges)
 
     // alveola related
     pub(super) alve_seg: Vec<[usize; 2]>, // link to delaunay segments
@@ -106,7 +107,7 @@ impl<'a, 'b> SkeletonInterface3D<'a> {
     pub fn init(
         mesh: &'a mut ManifoldMesh3D,
         faces: HashMap<[usize; 3], Vec<[usize; 4]>>,
-        tetras_in: HashMap<[usize; 4], bool>
+        tetras_in: HashMap<[usize; 4], bool>,
     ) -> SkeletonInterface3D<'a> {
         SkeletonInterface3D {
             mesh,
@@ -127,6 +128,7 @@ impl<'a, 'b> SkeletonInterface3D<'a> {
             edge_node: Vec::new(),
             edge_alve: Vec::new(),
             edge_set_sing: Vec::new(),
+            edge_label: Vec::new(),
             alve_seg: Vec::new(),
             alve_palve: Vec::new(),
             alve_edge: Vec::new(),
@@ -152,6 +154,9 @@ impl<'a, 'b> SkeletonInterface3D<'a> {
     pub fn reinit_skeleton(&mut self) {
         self.skeleton = Skeleton3D::new();
         for lab in self.alve_label.iter_mut() {
+            *lab = None;
+        }
+        for lab in self.edge_label.iter_mut() {
             *lab = None;
         }
         self.reset_edge_sing();
@@ -217,6 +222,7 @@ impl<'a, 'b> SkeletonInterface3D<'a> {
                 self.edge_pedge_dir.push(pedges_dir);
                 self.edge_pedge_opp.push(pedges_opp);
                 self.edge_set_sing.push(false);
+                self.edge_label.push(None);
 
                 let ind_alv0 = self.add_alveola(&[del_tri[1], del_tri[2]]);
                 let ind_alv1 = self.add_alveola(&[del_tri[0], del_tri[2]]);
@@ -466,6 +472,17 @@ impl<'a, 'b> SkeletonInterface3D<'a> {
             return Err(anyhow::Error::msg("Edge index out of bounds"));
         }
         Ok(self.get_edge_uncheck(ind_edge))
+    }
+
+    /// Set label to edge
+    pub fn set_edge_label(&'b mut self, ind_edge: usize, label: Option<usize>) -> Result<()> {
+        if ind_edge >= self.edge_tri.len() {
+            return Err(anyhow::Error::msg("edge index out of bounds"));
+        }
+
+        self.edge_label[ind_edge] = label;
+
+        Ok(())
     }
 
     /// Partial edge getter
@@ -868,7 +885,7 @@ impl<'a, 'b> SkeletonInterface3D<'a> {
         Ok(())
     }
 
-    /// Checks skelton interface integrity
+    /// Checks skeleton interface integrity
     pub fn check(&self) -> Result<()> {
         for ind_node in 0..self.node_tet.len() {
             if let Err(e) = self.check_node(ind_node) {
@@ -1129,6 +1146,120 @@ impl<'a, 'b> SkeletonInterface3D<'a> {
 
         Ok(labels_per_vert)
     }
+
+    fn check_vertex_cocone(&mut self, ind_vertex: usize) -> bool {
+        let vertex_coords = self.mesh.get_vertex(ind_vertex).unwrap().vertex();
+
+        // get delaunay tetrahedra containing ind_vertex
+        let del_tets: Vec<(usize, [usize; 4])> = self
+            .node_tet
+            .iter()
+            .enumerate()
+            .filter_map(|(i, &tet)| {
+                if tet.contains(&ind_vertex) {
+                    Some((i, tet))
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        // list in and out nodes
+        let tet_is_in: Vec<bool> = del_tets
+            .iter()
+            .map(|&(ind_node, _)| self.skeleton.get_nodes().contains_key(&ind_node))
+            .collect();
+
+        // compute each sphere center
+        let sphere_centers: Vec<Vector3<f64>> = del_tets
+            .iter()
+            .map(|(_, tet)| {
+                [
+                    self.mesh.get_vertex(tet[0]).unwrap().vertex(),
+                    self.mesh.get_vertex(tet[1]).unwrap().vertex(),
+                    self.mesh.get_vertex(tet[2]).unwrap().vertex(),
+                    self.mesh.get_vertex(tet[3]).unwrap().vertex(),
+                ]
+            })
+            .filter_map(|verts| geometry_operations::sphere_center(verts))
+            .collect();
+
+        if sphere_centers.len() != del_tets.len() {
+            return true;
+        }
+
+        // compute positive pole
+        let ind_positive = if let Some((ind_positive, _)) = sphere_centers
+            .iter()
+            .map(|ctr| (ctr - vertex_coords).norm())
+            .enumerate()
+            .max_by(|(_, a), (_, b)| a.total_cmp(b))
+        {
+            ind_positive
+        } else {
+            return true;
+        };
+        let positive_pole = sphere_centers[ind_positive];
+
+        // compute negative pole
+        let (ind_negative, _) = sphere_centers
+            .iter()
+            .map(|ctr| (ctr - positive_pole).norm())
+            .enumerate()
+            .max_by(|(_, a), (_, b)| a.total_cmp(b))
+            .unwrap();
+        let negative_pole = sphere_centers[ind_negative];
+
+        // compute pole direction
+        let pole_direction = (positive_pole - negative_pole).normalize();
+
+        // compute angle with cone: groups nodes in three categories
+        let threshold_cos = (3.0 * std::f64::consts::PI / 8.0).cos();
+        let categories: Vec<i32> = sphere_centers
+            .iter()
+            .map(|ctr| (ctr - vertex_coords).normalize())
+            .map(|vec| vec.dot(&pole_direction))
+            .map(|cos_ang| {
+                if cos_ang > threshold_cos {
+                    1
+                } else if cos_ang < -threshold_cos {
+                    -1
+                } else {
+                    0
+                }
+            })
+            .collect();
+
+        // ensure that one of the categories is fully outside
+        let mut nb_minus_one = 0;
+        let mut nb_plus_one = 0;
+        for i in 0..tet_is_in.len() {
+            println!("{}: {} {}", i, tet_is_in[i], categories[i]);
+            if tet_is_in[i] {
+                if categories[i] == 1 {
+                    nb_plus_one += 1;
+                } else if categories[i] == -1 {
+                    nb_minus_one += 1;
+                }
+            }
+        }
+
+        println!("{} {}", del_tets.len(), categories.len());
+        nb_minus_one == 0 || nb_plus_one == 0
+    }
+
+    /// Checks for each mesh vertex if cocone external criterion matches with skeleton state
+    pub fn check_cocone(&mut self) -> bool {
+        // checks cocone criterion for each mesh vertex
+        for ind_vertex in 0..self.mesh.get_nb_vertices() {
+            println!("{}/{}", ind_vertex, self.mesh.get_nb_vertices());
+            if !self.check_vertex_cocone(ind_vertex) {
+                return false;
+            }
+        }
+
+        true
+    }
 }
 
 impl<'a, 'b> IterNode<'a, 'b> {
@@ -1225,6 +1356,10 @@ impl<'a, 'b> IterEdge<'a, 'b> {
                 v
             });
         nods
+    }
+
+    pub fn label(&self) -> Option<usize> {
+        self.skeleton_interface.edge_label[self.ind_edge]
     }
 
     pub fn is_computed(&self) -> bool {

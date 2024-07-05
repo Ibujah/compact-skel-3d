@@ -2,7 +2,6 @@ use anyhow::Result;
 use nalgebra::base::*;
 use std::collections::{HashMap, HashSet};
 
-use crate::algorithm::sub_algorithms::skeleton_operations;
 use crate::algorithm::sub_algorithms::skeleton_problematic_path::{
     first_to_boundary, last_to_boundary, SkeletonProblematicPath,
 };
@@ -47,12 +46,10 @@ pub fn first_node_in(skeleton_interface: &mut SkeletonInterface3D) -> Result<usi
         (dmin, ind_min) = if let (Some(d), _) = (dmin, ind_min) {
             if dist < d {
                 (Some(dist), Some(i))
-            }
-            else{
+            } else {
                 (dmin, ind_min)
             }
-        }
-        else{
+        } else {
             (Some(dist), Some(i))
         };
     }
@@ -112,15 +109,23 @@ pub fn first_node_in(skeleton_interface: &mut SkeletonInterface3D) -> Result<usi
 }
 
 /// Computes a random first alveola on skeleton
-pub fn first_alveola_in(skeleton_interface: &mut SkeletonInterface3D) -> Result<usize> {
+pub fn first_alveola_in(
+    skeleton_interface: &mut SkeletonInterface3D,
+) -> Result<(Option<usize>, Option<usize>)> {
     let ind_first_node = first_node_in(skeleton_interface)?;
 
     let cur_node = skeleton_interface.get_node(ind_first_node)?;
 
     let edges = cur_node.edges();
 
+    let mut ind_edge = None;
+
     for edge in edges {
         let tri = edge.delaunay_triangle();
+
+        if edge.is_full() {
+            ind_edge = Some(edge.ind());
+        }
 
         if skeleton_interface
             .get_mesh()
@@ -134,13 +139,17 @@ pub fn first_alveola_in(skeleton_interface: &mut SkeletonInterface3D) -> Result<
                     .is_edge_in(seg[0], seg[1])
                     .is_none()
                 {
-                    return Ok(alve.ind());
+                    return Ok((Some(alve.ind()), None));
                 }
             }
         }
     }
 
-    Err(anyhow::Error::msg("No first alveola found"))
+    if ind_edge.is_some() {
+        return Ok((None, ind_edge));
+    }
+
+    Err(anyhow::Error::msg("No first alveola nor edgefound"))
 }
 
 /// Includes an alveola in the final skeleton
@@ -246,7 +255,7 @@ pub fn compute_sheet(
                 }
             }
         }
-        if sheet_out{
+        if sheet_out {
             let current_sheet = skeleton_interface.get_sheet(label);
             let alve = skeleton_interface.get_alveola_uncheck(ind_alveola);
             let mut vec_tet = Vec::new();
@@ -263,7 +272,7 @@ pub fn compute_sheet(
             for &tet in vec_tet.iter() {
                 skeleton_interface.tetras_in.insert(tet, false);
             }
-            
+
             return Ok(false);
         }
         if alve.label() != Some(label) {
@@ -657,7 +666,7 @@ pub fn collect_mesh_faces_index(
         }
         Ok(false)
     }
-    
+
     fn last_hedge_expansion(
         mesh_paths_external: &mut Vec<Vec<usize>>,
         skeleton_separation: &SkeletonSeparation,
@@ -670,60 +679,60 @@ pub fn collect_mesh_faces_index(
         if let Some(mut mesh_path_external) = mesh_paths_external.pop() {
             if let Some(ind_hedge) = mesh_path_external.pop() {
                 let hedge = skeleton_separation
-                .skeleton_interface()
-                .get_mesh()
-                .get_halfedge(ind_hedge)?;
+                    .skeleton_interface()
+                    .get_mesh()
+                    .get_halfedge(ind_hedge)?;
                 let ind_face = hedge.face().vertices_inds();
-                
+
                 // test face indices
-                if !contact_mesh_indices.contains(&ind_face[0]) || 
-                !contact_mesh_indices.contains(&ind_face[1]) ||
-                !contact_mesh_indices.contains(&ind_face[2]) {
+                if !contact_mesh_indices.contains(&ind_face[0])
+                    || !contact_mesh_indices.contains(&ind_face[1])
+                    || !contact_mesh_indices.contains(&ind_face[2])
+                {
                     let vert_test = hedge.next_halfedge().last_vertex().vertex().transpose();
-                    
+
                     if center_mat
-                    .row_iter()
-                    .zip(radius_mat.iter())
-                    .find(|(row, &rad)| {
-                        let diff = row - vert_test;
-                        diff[0] * diff[0] + diff[1] * diff[1] + diff[2] * diff[2]
-                        < (rad + epsilon) * (rad + epsilon)
-                    })
-                    .is_none()
+                        .row_iter()
+                        .zip(radius_mat.iter())
+                        .find(|(row, &rad)| {
+                            let diff = row - vert_test;
+                            diff[0] * diff[0] + diff[1] * diff[1] + diff[2] * diff[2]
+                                < (rad + epsilon) * (rad + epsilon)
+                        })
+                        .is_none()
                     {
                         return Ok(false);
                     }
                     if let Some(vec_inds) = skeleton_separation
-                    .skeleton_interface()
-                    .out_vert_per_face
-                    .get(&ind_face)
+                        .skeleton_interface()
+                        .out_vert_per_face
+                        .get(&ind_face)
                     {
                         for &ind_v in vec_inds.iter() {
                             let vert = skeleton_separation
-                            .skeleton_interface()
-                            .get_mesh()
-                            .get_vertex(ind_v)
-                            .unwrap()
-                            .vertex()
-                            .transpose();
+                                .skeleton_interface()
+                                .get_mesh()
+                                .get_vertex(ind_v)
+                                .unwrap()
+                                .vertex()
+                                .transpose();
                             if center_mat
-                            .row_iter()
-                            .zip(radius_mat.iter())
-                            .find(|(row, &rad)| {
-                                let diff = row - vert;
-                                diff[0] * diff[0] + diff[1] * diff[1] + diff[2] * diff[2]
-                                < (rad + epsilon) * (rad + epsilon)
-                            })
-                            .is_none()
+                                .row_iter()
+                                .zip(radius_mat.iter())
+                                .find(|(row, &rad)| {
+                                    let diff = row - vert;
+                                    diff[0] * diff[0] + diff[1] * diff[1] + diff[2] * diff[2]
+                                        < (rad + epsilon) * (rad + epsilon)
+                                })
+                                .is_none()
                             {
                                 return Ok(false);
                             }
                         }
                     }
-                    
                 }
                 let face = hedge.face();
-                
+
                 faces.push(face.vertices_inds());
                 let hedge_rep1 = hedge.prev_halfedge().opposite_halfedge().unwrap();
                 let hedge_rep2 = hedge.next_halfedge().opposite_halfedge().unwrap();
@@ -735,7 +744,7 @@ pub fn collect_mesh_faces_index(
         }
         Err(anyhow::Error::msg("Paths should not be empty"))
     }
-    
+
     let (center_mat, radius_mat) = skeleton_separation
         .external_path()
         .basis_spheres_matrices(&skeleton_separation.skeleton_interface())?;
