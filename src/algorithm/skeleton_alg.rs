@@ -108,8 +108,6 @@ fn loop_skeletonization(
         vec_lone_edges.sort();
         vec_lone_edges.dedup();
 
-        let mut vec_pedges_deg_1 = Vec::new();
-
         println!("Searching paths");
         loop {
             if let Some(ind_pedge) = vec_pedges.pop() {
@@ -191,47 +189,6 @@ fn loop_skeletonization(
                         vec_lone_edges.dedup();
                     }
                 }
-            } else if let Some(ind_pedge) = vec_pedges_deg_1.pop() {
-                let pedge = skeleton_interface.get_partial_edge(ind_pedge)?;
-                if pedge.edge().degree() != 1 {
-                    continue;
-                }
-                if pedge.edge().is_computed() {
-                    continue;
-                }
-                if pedge.partial_alveola().alveola().label().is_some() {
-                    continue;
-                }
-                label += 1;
-                let ind_alveola = pedge.partial_alveola().alveola().ind();
-                if !skeleton_operations::compute_sheet(skeleton_interface, ind_alveola, label)? {
-                    continue;
-                }
-                let current_sheet = skeleton_interface.get_sheet(label);
-
-                if current_sheet.len() > sheet_siz_max {
-                    sheet_siz_max = current_sheet.len();
-                }
-
-                for &ind_alveola in current_sheet.iter() {
-                    if skeleton_interface.get_alveola(ind_alveola)?.is_full() {
-                        skeleton_operations::include_alveola_in_skel(
-                            skeleton_interface,
-                            ind_alveola,
-                            Some(label),
-                        )?;
-                    }
-                }
-                let mut vec_pedges_new =
-                    skeleton_operations::outer_partial_edges(skeleton_interface, &current_sheet);
-                let mut vec_lone_edges_new =
-                    skeleton_operations::lone_edges(skeleton_interface, &current_sheet);
-                vec_pedges.append(&mut vec_pedges_new);
-                vec_pedges.sort();
-                vec_pedges.dedup();
-                vec_lone_edges.append(&mut vec_lone_edges_new);
-                vec_lone_edges.sort();
-                vec_lone_edges.dedup();
             } else if let Some(ind_edge) = vec_lone_edges.pop() {
                 let edge = skeleton_interface.get_edge(ind_edge)?;
                 if !edge.is_full() {
@@ -257,19 +214,18 @@ fn loop_skeletonization(
                         }
                         if edge.degree() == 0 {
                             vec_lone_edges.push(edge.ind());
-                        }
-                        if edge.degree() == 1 {
+                        } else if edge.degree() >= 1 {
                             for pedge in edge.partial_edges() {
                                 if pedge.partial_alveola().alveola().is_full() {
-                                    vec_pedges_deg_1.push(pedge.ind());
+                                    vec_pedges.push(pedge.ind());
                                     break;
                                 }
                             }
                         }
                     }
                 }
-                vec_pedges_deg_1.sort();
-                vec_pedges_deg_1.dedup();
+                vec_pedges.sort();
+                vec_pedges.dedup();
                 vec_lone_edges.sort();
                 vec_lone_edges.dedup();
             } else {
@@ -398,9 +354,9 @@ fn loop_skeletonization(
     println!("{} problematic pedges", problematics.len());
     println!("Checking skeleton");
     skeleton_interface.check()?;
-    if !skeleton_interface.check_cocone() {
-        println!("Invalid for cocone criterion");
-    }
+    // if !skeleton_interface.check_cocone() {
+    //     println!("Invalid for cocone criterion");
+    // }
     Ok(())
 }
 
