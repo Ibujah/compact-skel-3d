@@ -1,10 +1,16 @@
 use anyhow::Result;
-use simple_delaunay_lib::delaunay_3d::delaunay_struct_3d::DelaunayStructure3D;
-use simple_delaunay_lib::delaunay_3d::simplicial_struct_3d::Node;
+use nalgebra::base::*;
 use std::collections::{HashMap, HashSet};
+
+use simple_delaunay_lib::delaunay_3d::delaunay_struct_3d::{
+    DelaunayStructure3D, ExtendedTetrahedron,
+};
+use simple_delaunay_lib::delaunay_3d::simplicial_struct_3d::Node;
 
 use crate::mesh3d::mesh_operations;
 use crate::mesh3d::{manifold_mesh3d, ManifoldMesh3D};
+
+use crate::geometry::geometry_operations::center_and_radius;
 
 pub type Edge = [usize; 2];
 pub type Triangle = [usize; 3];
@@ -21,6 +27,10 @@ pub struct DelaunayInterface<'a> {
     non_del_faces: Vec<usize>,
 
     initial_vertices_number: usize,
+
+    sphere_centers: Vec<[f64; 4]>, // indexed by tetrahedron indices
+    voro_cell: Vec<Vec<usize>>,    // indexed by mesh vertex indices
+    cell_axis: Vec<Vector3<f64>>,  // indexed by mesh vertex indices
 }
 
 impl<'a> DelaunayInterface<'a> {
@@ -32,6 +42,9 @@ impl<'a> DelaunayInterface<'a> {
             self.vertex_edges.push(Vec::new());
         }
         self.del_struct.insert_vertices(&points, true)?;
+
+        self.sphere_centers.clear();
+        self.voro_cell = vec![Vec::new(); points.len()];
 
         for ind_tet in 0..self.del_struct.get_simplicial().get_nb_tetrahedra() {
             let tetra = self.del_struct.get_simplicial().get_tetrahedron(ind_tet)?;
@@ -46,6 +59,66 @@ impl<'a> DelaunayInterface<'a> {
                     }
                 }
             }
+
+            let ext_tet = self.del_struct.get_extended_tetrahedron(ind_tet)?;
+            let center = match ext_tet {
+                ExtendedTetrahedron::Tetrahedron([p1, p2, p3, p4]) => {
+                    let pts = [
+                        Vector3::new(p1[0], p1[1], p1[2]),
+                        Vector3::new(p2[0], p2[1], p2[2]),
+                        Vector3::new(p3[0], p3[1], p3[2]),
+                        Vector3::new(p4[0], p4[1], p4[2]),
+                    ];
+                    let (center, _) = center_and_radius(pts, None).unwrap();
+                    [center[0], center[1], center[2], 1.0]
+                }
+                ExtendedTetrahedron::Triangle([p1, p2, p3]) => {
+                    let pt1 = Vector3::new(p1[0], p1[1], p1[2]);
+                    let pt2 = Vector3::new(p2[0], p2[1], p2[2]);
+                    let pt3 = Vector3::new(p3[0], p3[1], p3[2]);
+                    let v12 = pt2 - pt1;
+                    let v23 = pt3 - pt2;
+                    let nor = v12.cross(&v23).normalize();
+                    [nor[0], nor[1], nor[2], 0.]
+                }
+            };
+            self.sphere_centers.push(center);
+
+            for &nod in tetra.nodes().iter() {
+                if let Node::Value(ind_v) = nod {
+                    self.voro_cell[ind_v].push(ind_tet);
+                }
+            }
+        }
+
+        for ind_cell in 0..self.voro_cell.len() {
+            let vert = self.mesh.get_vertex(ind_cell)?.vertex();
+            let mut axis = Vector3::new(0.0, 0.0, 0.0);
+            let mut dmin_opt = None;
+            for sub_ind_sph in 0..self.voro_cell[ind_cell].len() {
+                let ind_sph = self.voro_cell[ind_cell][sub_ind_sph];
+                let center = self.sphere_centers[ind_sph];
+                let ctr = Vector3::new(center[0], center[1], center[2]);
+                if center[3] == 0. {
+                    axis = ctr;
+                    break;
+                } else {
+                    let vec = ctr - vert;
+                    let dist = vec.norm();
+                    dmin_opt = if let Some(dmin) = dmin_opt {
+                        if dmin < dist {
+                            Some(dmin)
+                        } else {
+                            axis = vec / dist;
+                            Some(dist)
+                        }
+                    } else {
+                        axis = vec / dist;
+                        Some(dist)
+                    };
+                }
+            }
+            self.cell_axis.push(axis);
         }
 
         Ok(())
@@ -78,6 +151,38 @@ impl<'a> DelaunayInterface<'a> {
                     }
                 }
             }
+
+            let ind_tet = tetra.ind();
+            let ext_tet = self.del_struct.get_extended_tetrahedron(ind_tet)?;
+            let center = match ext_tet {
+                ExtendedTetrahedron::Tetrahedron([p1, p2, p3, p4]) => {
+                    let pts = [
+                        Vector3::new(p1[0], p1[1], p1[2]),
+                        Vector3::new(p2[0], p2[1], p2[2]),
+                        Vector3::new(p3[0], p3[1], p3[2]),
+                        Vector3::new(p4[0], p4[1], p4[2]),
+                    ];
+                    let center = if let Some((ctr, __)) = center_and_radius(pts, None) {
+                        ctr
+                    } else {
+                        (pts[0] + pts[1] + pts[2] + pts[3]) / 4.0
+                    };
+                    [center[0], center[1], center[2], 1.0]
+                }
+                ExtendedTetrahedron::Triangle([p1, p2, p3]) => {
+                    let pt1 = Vector3::new(p1[0], p1[1], p1[2]);
+                    let pt2 = Vector3::new(p2[0], p2[1], p2[2]);
+                    let pt3 = Vector3::new(p3[0], p3[1], p3[2]);
+                    let v12 = pt2 - pt1;
+                    let v23 = pt3 - pt2;
+                    let nor = v12.cross(&v23).normalize();
+                    [nor[0], nor[1], nor[2], 0.]
+                }
+            };
+            while ind_tet >= self.sphere_centers.len() {
+                self.sphere_centers.push([0., 0., 0., 0.]);
+            }
+            self.sphere_centers[ind_tet] = center;
         }
 
         for iv in vert_to_check {
@@ -95,19 +200,70 @@ impl<'a> DelaunayInterface<'a> {
                     }
                 })
                 .collect();
+
+            let tet_update_i = self
+                .del_struct
+                .get_simplicial()
+                .get_tetrahedra_containing(&Node::Value(iv));
+            while iv >= self.voro_cell.len() {
+                self.voro_cell.push(Vec::new());
+            }
+            self.voro_cell[iv].clear();
+            for tet in tet_update_i.iter() {
+                self.voro_cell[iv].push(tet.ind());
+            }
+            let vert = self.mesh.get_vertex(iv)?.vertex();
+            let mut axis_opt = None;
+            let mut farthest_opt = None;
+            let mut dmin_opt = None;
+            for sub_ind_sph in 0..self.voro_cell[iv].len() {
+                let ind_sph = self.voro_cell[iv][sub_ind_sph];
+                let center = self.sphere_centers[ind_sph];
+                let ctr = Vector3::new(center[0], center[1], center[2]);
+                if center[3] == 0. {
+                    axis_opt = Some(ctr);
+                } else {
+                    let vec = ctr - vert;
+                    let dist = vec.norm();
+                    if let Some(dmin) = dmin_opt {
+                        if dmin > dist {
+                            farthest_opt = Some(vec / dist);
+                            dmin_opt = Some(dist);
+                        }
+                    } else {
+                        farthest_opt = Some(vec / dist);
+                        dmin_opt = Some(dist);
+                    };
+                }
+            }
+            let farthest = farthest_opt.unwrap();
+            let axis = if let Some(axis) = axis_opt {
+                if axis.dot(&farthest) > 0. {
+                    -axis
+                } else {
+                    axis
+                }
+            } else {
+                farthest
+            };
+
+            while iv >= self.cell_axis.len() {
+                self.cell_axis.push(Vector3::new(0., 0., 0.));
+            }
+            self.cell_axis[iv] = axis;
         }
 
         Ok(())
     }
 
-    fn fill_non_del(&mut self) {
+    fn fill_non_del(&mut self) -> Result<()> {
         self.non_del_edges.clear();
         self.non_del_faces.clear();
 
         for ind_fac in 0..self.mesh.get_nb_faces() {
             let face = self.mesh.get_face(ind_fac).unwrap();
             let face_vert = face.vertices_inds();
-            if !self.is_face_in(&face_vert) {
+            if !self.is_face_in(&face_vert)? {
                 self.non_del_faces.push(ind_fac);
                 for he in face.halfedges() {
                     let hedg_vert = he.halfedge();
@@ -117,6 +273,7 @@ impl<'a> DelaunayInterface<'a> {
                 }
             };
         }
+        Ok(())
     }
 
     /// Creates Delaunay structure from mesh
@@ -129,11 +286,14 @@ impl<'a> DelaunayInterface<'a> {
             non_del_edges: Vec::new(),
             non_del_faces: Vec::new(),
             initial_vertices_number,
+            sphere_centers: Vec::new(),
+            voro_cell: Vec::new(),
+            cell_axis: Vec::new(),
         };
 
         deltet.generate_struct()?;
 
-        deltet.fill_non_del();
+        deltet.fill_non_del()?;
 
         Ok(deltet)
     }
@@ -198,39 +358,89 @@ impl<'a> DelaunayInterface<'a> {
             .is_some()
     }
 
+    fn respects_cocone_conditions(
+        &self,
+        ind_cell: usize,
+        ind_sph1: usize,
+        ind_sph2: usize,
+    ) -> Result<bool> {
+        let p = self.mesh.get_vertex(ind_cell)?.vertex();
+        let vp = self.cell_axis[ind_cell];
+        let ctr1h = self.sphere_centers[ind_sph1];
+        let ctr2h = self.sphere_centers[ind_sph2];
+
+        let a = if ctr1h[3] == 0. {
+            Vector3::new(ctr1h[0], ctr1h[1], ctr1h[2]).normalize()
+        } else {
+            let ctr1 = Vector3::new(ctr1h[0], ctr1h[1], ctr1h[2]);
+            (ctr1 - p).normalize()
+        };
+        let b = if ctr2h[3] == 0. {
+            Vector3::new(ctr2h[0], ctr2h[1], ctr2h[2]).normalize()
+        } else {
+            let ctr2 = Vector3::new(ctr2h[0], ctr2h[1], ctr2h[2]);
+            (ctr2 - p).normalize()
+        };
+
+        let vp_a = vp.dot(&a);
+        let vp_b = vp.dot(&b);
+        let cos_3_pi_on_8 = -0.125;
+
+        Ok(vp_a * vp_b < 0. || vp_a < cos_3_pi_on_8 || vp_b < cos_3_pi_on_8)
+    }
+
     /// Checks if face is in Delaunay
-    fn is_face_in(&self, face: &Triangle) -> bool {
-        self.vertex_edges[face[0]]
-            .iter()
-            .position(|&(it, i)| {
-                if let Ok(tri) = self.del_struct.get_simplicial().get_halftriangle(it) {
-                    let he = tri.halfedges()[i];
-                    if he.last_node().equals(&Node::Value(face[1])) {
-                        he.next().last_node().equals(&Node::Value(face[2]))
-                    } else {
-                        false
-                    }
+    fn is_face_in(&self, face: &Triangle) -> Result<bool> {
+        let simpl_tri = self.vertex_edges[face[0]].iter().position(|&(it, i)| {
+            if let Ok(tri) = self.del_struct.get_simplicial().get_halftriangle(it) {
+                let he = tri.halfedges()[i];
+                if he.last_node().equals(&Node::Value(face[1])) {
+                    he.next().last_node().equals(&Node::Value(face[2]))
                 } else {
                     false
                 }
-            })
-            .is_some()
+            } else {
+                false
+            }
+        });
+        if let Some(ind_tri) = simpl_tri {
+            let tri = self.del_struct.get_simplicial().get_halftriangle(ind_tri)?;
+            let ind_tet1 = tri.tetrahedron().ind();
+            let ind_tet2 = tri.opposite().tetrahedron().ind();
+
+            let mut respect_cocone = true;
+            for nod in tri.nodes() {
+                if let Node::Value(ind_v) = nod {
+                    if !self.respects_cocone_conditions(ind_v, ind_tet1, ind_tet2)? {
+                        respect_cocone = false;
+                        break;
+                    }
+                } else {
+                    respect_cocone = false;
+                    break;
+                }
+            }
+
+            Ok(respect_cocone)
+        } else {
+            Ok(false)
+        }
     }
 
     /// Count number of non Delaunay halfedges
-    pub fn count_non_del_halfedges(&mut self) -> usize {
+    pub fn count_non_del_halfedges(&mut self) -> Result<usize> {
         if self.non_del_edges.len() == 0 {
-            self.fill_non_del();
+            self.fill_non_del()?;
         }
-        self.non_del_edges.len()
+        Ok(self.non_del_edges.len())
     }
 
     /// Count number of non Delaunay faces
-    pub fn count_non_del_faces(&mut self) -> usize {
+    pub fn count_non_del_faces(&mut self) -> Result<usize> {
         if self.non_del_faces.len() == 0 {
-            self.fill_non_del();
+            self.fill_non_del()?;
         }
-        self.non_del_faces.len()
+        Ok(self.non_del_faces.len())
     }
 
     /// Gets first globally non Delaunay halfedge, starting from a shift
@@ -273,7 +483,7 @@ impl<'a> DelaunayInterface<'a> {
             if let Some(ind_fac) = self.non_del_faces.pop() {
                 if let Ok(face) = self.mesh.get_face(ind_fac) {
                     let face_vert = face.vertices_inds();
-                    if !self.is_face_in(&face_vert) {
+                    if !self.is_face_in(&face_vert)? {
                         break Ok(Some(face));
                     };
                 }
@@ -338,24 +548,28 @@ impl<'a> DelaunayInterface<'a> {
         // for all mesh faces, classify neighbor tetrahedra
         for ind_face in 0..self.mesh.get_nb_faces() {
             let face = self.mesh.get_face(ind_face)?;
-            let [node1, node2, node3]= face.vertices_inds();
-            let half_tri = 
-                self.del_struct
-                    .get_simplicial()
-                    .get_halftriangle_containing(&Node::Value(node1), &Node::Value(node2),&Node::Value(node3))
-                    .unwrap();
+            let [node1, node2, node3] = face.vertices_inds();
+            let half_tri = self
+                .del_struct
+                .get_simplicial()
+                .get_halftriangle_containing(
+                    &Node::Value(node1),
+                    &Node::Value(node2),
+                    &Node::Value(node3),
+                )
+                .unwrap();
             let ind_tetra_in = half_tri.tetrahedron().ind();
             let ind_tetra_out = half_tri.opposite().tetrahedron().ind();
-            
+
             // checks if tetrahedron are already in or not
             if let Some(val) = is_tetra_in[ind_tetra_in] {
                 if val == false {
-                    return Err(anyhow::Error::msg("Tetrahedron is both in and out"))
+                    return Err(anyhow::Error::msg("Tetrahedron is both in and out"));
                 }
             }
             if let Some(val) = is_tetra_in[ind_tetra_out] {
                 if val == true {
-                    return Err(anyhow::Error::msg("Tetrahedron is both in and out"))
+                    return Err(anyhow::Error::msg("Tetrahedron is both in and out"));
                 }
             }
 
@@ -371,11 +585,17 @@ impl<'a> DelaunayInterface<'a> {
             let tet = self.del_struct.get_simplicial().get_tetrahedron(ind_tet)?;
 
             let val_cur = is_tetra_in[ind_tet].unwrap();
-            
+
             for halftri in tet.halftriangles().iter() {
                 // checks if the triangle is a mesh face
-                if let [Node::Value(ind_vertex1), Node::Value(ind_vertex2), Node::Value(ind_vertex3) ] = halftri.nodes() {
-                    if self.mesh.is_face_in(ind_vertex1, ind_vertex2, ind_vertex3).is_some() {
+                if let [Node::Value(ind_vertex1), Node::Value(ind_vertex2), Node::Value(ind_vertex3)] =
+                    halftri.nodes()
+                {
+                    if self
+                        .mesh
+                        .is_face_in(ind_vertex1, ind_vertex2, ind_vertex3)
+                        .is_some()
+                    {
                         continue;
                     }
                 }
@@ -384,10 +604,9 @@ impl<'a> DelaunayInterface<'a> {
 
                 if let Some(val) = is_tetra_in[ind_neighbor] {
                     if val_cur != val {
-                        return Err(anyhow::Error::msg("Tetrahedron went outside"))
+                        return Err(anyhow::Error::msg("Tetrahedron went outside"));
                     }
-                }
-                else {
+                } else {
                     is_tetra_in[ind_neighbor] = Some(val_cur);
                     to_check.push(ind_neighbor);
                 }

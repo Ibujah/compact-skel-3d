@@ -395,9 +395,9 @@ fn loop_skeletonization(
     println!("{} problematic pedges", problematics.len());
     println!("Checking skeleton");
     skeleton_interface.check()?;
-    if !skeleton_interface.check_cocone() {
-        println!("Invalid for cocone criterion");
-    }
+    // if !skeleton_interface.check_cocone() {
+    //     println!("Invalid for cocone criterion");
+    // }
     Ok(())
 }
 
