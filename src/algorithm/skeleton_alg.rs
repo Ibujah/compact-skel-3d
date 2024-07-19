@@ -81,8 +81,10 @@ fn loop_skeletonization(
         let (ind_first_alveola_opt, ind_first_edge_opt) =
             skeleton_operations::first_alveola_in(skeleton_interface)?;
         if let Some(ind_first_alveola) = ind_first_alveola_opt {
+            println!("First alveola : {}", ind_first_alveola);
             skeleton_operations::compute_sheet(skeleton_interface, ind_first_alveola, label)?;
             let current_sheet = skeleton_interface.get_sheet(label);
+            println!("{}", current_sheet.len());
             sheet_siz_max = current_sheet.len();
             for &ind_alveola in current_sheet.iter() {
                 if skeleton_interface.get_alveola(ind_alveola)?.is_full() {
@@ -100,6 +102,7 @@ fn loop_skeletonization(
                 skeleton_operations::lone_edges(skeleton_interface, &current_sheet);
             vec_lone_edges.append(&mut vec_lone_edges_new);
         } else if let Some(ind_first_edge) = ind_first_edge_opt {
+            println!("First edge : {}", ind_first_edge);
             vec_lone_edges.push(ind_first_edge)
         }
         vec_pedges.sort();
@@ -111,10 +114,11 @@ fn loop_skeletonization(
         println!("Searching paths");
         loop {
             if let Some(ind_pedge) = vec_pedges.pop() {
-                print!(
-                    "\rSheet {},  {} pedges remaining                                   ",
+                println!(
+                    "\rSheet {},  {} + {} pedges remaining                                   ",
                     label,
-                    vec_pedges.len()
+                    vec_pedges.len(),
+                    vec_lone_edges.len(),
                 );
                 if skeleton_interface
                     .get_partial_edge(ind_pedge)?
@@ -123,6 +127,48 @@ fn loop_skeletonization(
                     .label()
                     .is_some()
                 {
+                    continue;
+                }
+                if skeleton_interface
+                    .get_partial_edge(ind_pedge)?
+                    .edge()
+                    .degree()
+                    == 1
+                {
+                    label += 1;
+                    let ind_alveola = skeleton_interface
+                        .get_partial_edge(ind_pedge)?
+                        .partial_alveola()
+                        .alveola()
+                        .ind();
+                    skeleton_operations::compute_sheet(skeleton_interface, ind_alveola, label)?;
+                    let current_sheet = skeleton_interface.get_sheet(label);
+
+                    if current_sheet.len() > sheet_siz_max {
+                        sheet_siz_max = current_sheet.len();
+                    }
+
+                    for &ind_alveola in current_sheet.iter() {
+                        if skeleton_interface.get_alveola(ind_alveola)?.is_full() {
+                            skeleton_operations::include_alveola_in_skel(
+                                skeleton_interface,
+                                ind_alveola,
+                                Some(label),
+                            )?;
+                        }
+                    }
+                    let mut vec_pedges_new = skeleton_operations::outer_partial_edges(
+                        skeleton_interface,
+                        &current_sheet,
+                    );
+                    let mut vec_lone_edges_new =
+                        skeleton_operations::lone_edges(skeleton_interface, &current_sheet);
+                    vec_pedges.append(&mut vec_pedges_new);
+                    vec_pedges.sort();
+                    vec_pedges.dedup();
+                    vec_lone_edges.append(&mut vec_lone_edges_new);
+                    vec_lone_edges.sort();
+                    vec_lone_edges.dedup();
                     continue;
                 }
                 if let Some(skeleton_separation) =
@@ -190,6 +236,12 @@ fn loop_skeletonization(
                     }
                 }
             } else if let Some(ind_edge) = vec_lone_edges.pop() {
+                println!(
+                    "\rSheet {},  {} + {} pedges remaining                                   ",
+                    label,
+                    vec_pedges.len(),
+                    vec_lone_edges.len(),
+                );
                 let edge = skeleton_interface.get_edge(ind_edge)?;
                 if !edge.is_full() {
                     continue;
@@ -234,9 +286,10 @@ fn loop_skeletonization(
         }
 
         println!(
-            "\r{} Sheets,  {} pedges remaining                                   ",
+            "\r{} Sheets,  {} + {} pedges remaining                                   ",
             label,
-            vec_pedges.len()
+            vec_pedges.len(),
+            vec_lone_edges.len(),
         );
 
         if !modif_done || nb_sheets_prev == label {
@@ -349,7 +402,7 @@ fn loop_skeletonization(
     println!("{} problematic pedges", problematics.len());
     skeleton_operations::relabel_all_skeleton(skeleton_interface)?;
     let nb_sheets = remap_sheet_indices(skeleton_interface);
-    println!("{} Sheets", nb_sheets,);
+    println!("{} Sheets", nb_sheets);
     let problematics = skeleton_operations::problematic_partial_edges(skeleton_interface);
     println!("{} problematic pedges", problematics.len());
     println!("Checking skeleton");
