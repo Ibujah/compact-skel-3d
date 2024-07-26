@@ -119,8 +119,8 @@ pub fn to_delaunay(
     println!("Physical (i.e. non flippable) edges computation");
     let physical = extract_physical_edges(deltet.get_mesh(), ang_max)?;
 
-    let nb_non_del_hedges_init = deltet.count_non_del_halfedges()?;
-    let nb_non_del_faces_init = deltet.count_non_del_faces()?;
+    let nb_non_del_hedges_init = deltet.count_non_del_halfedges();
+    let nb_non_del_faces_init = deltet.count_non_del_faces();
     let mut nb_non_del_hedges = nb_non_del_hedges_init;
     let mut nb_non_del_faces = nb_non_del_faces_init;
     println!("Vertices: {}", deltet.get_mesh().get_nb_vertices());
@@ -166,11 +166,11 @@ pub fn to_delaunay(
             let ind_face = face.ind();
             deltet.split_face(&vert_split, ind_face)?;
             num_split_face += 1;
-        } else if deltet.count_non_del_faces()? == 0 && deltet.count_non_del_halfedges()? == 0 {
+        } else if deltet.count_non_del_faces() == 0 && deltet.count_non_del_halfedges() == 0 {
             break;
         }
-        nb_non_del_hedges = deltet.count_non_del_halfedges()?;
-        nb_non_del_faces = deltet.count_non_del_faces()?;
+        nb_non_del_hedges = deltet.count_non_del_halfedges();
+        nb_non_del_faces = deltet.count_non_del_faces();
         if step % 100 == 0 {
             print!("\r{} non del edges, {} non del faces, {} flip(s), {} edge split(s), {} face split(s)    ",
                nb_non_del_hedges >> 1, nb_non_del_faces, num_flip, num_split_edge, num_split_face);
@@ -183,8 +183,8 @@ pub fn to_delaunay(
 
     println!("\r{} flip(s), {} edge split(s), {} face split(s)                                                                          ", num_flip, num_split_edge, num_split_face);
 
-    nb_non_del_hedges = deltet.count_non_del_halfedges()?;
-    nb_non_del_faces = deltet.count_non_del_faces()?;
+    nb_non_del_hedges = deltet.count_non_del_halfedges();
+    nb_non_del_faces = deltet.count_non_del_faces();
     println!("Vertices: {}", deltet.get_mesh().get_nb_vertices());
     println!(
         "Non delaunay edges: {}/{}",

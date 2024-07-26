@@ -183,6 +183,7 @@ impl<'a> DelaunayInterface<'a> {
             .get_simplicial()
             .get_tetrahedra_containing(&Node::Value(self.vertex_edges.len() - 1));
 
+        let mut vert_to_check = HashSet::new();
         for tetra in tet_update {
             for tri in tetra.halftriangles() {
                 let hes = tri.halfedges();
@@ -191,15 +192,34 @@ impl<'a> DelaunayInterface<'a> {
                         (hes[i].first_node(), hes[i].last_node())
                     {
                         self.vertex_edges[i1].push((tri.ind(), i));
+                        vert_to_check.insert(i1);
+                        vert_to_check.insert(i2);
                     }
                 }
             }
         }
 
+        for iv in vert_to_check {
+            self.vertex_edges[iv] = self.vertex_edges[iv]
+                .iter()
+                .filter_map(|&(it, i)| {
+                    if let Ok(tri) = self.del_struct.get_simplicial().get_halftriangle(it) {
+                        if tri.halfedges()[i].first_node().equals(&Node::Value(iv)) {
+                            Some((it, i))
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+        }
+
         Ok(())
     }
 
-    fn fill_non_del(&mut self) -> Result<()> {
+    fn fill_non_del(&mut self) -> () {
         self.non_del_edges.clear();
         self.non_del_faces.clear();
 
@@ -216,7 +236,6 @@ impl<'a> DelaunayInterface<'a> {
                 }
             };
         }
-        Ok(())
     }
 
     /// Creates Delaunay structure from mesh
@@ -233,7 +252,7 @@ impl<'a> DelaunayInterface<'a> {
 
         deltet.generate_struct()?;
 
-        deltet.fill_non_del()?;
+        deltet.fill_non_del();
 
         Ok(deltet)
     }
@@ -350,19 +369,19 @@ impl<'a> DelaunayInterface<'a> {
     }
 
     /// Count number of non Delaunay halfedges
-    pub fn count_non_del_halfedges(&mut self) -> Result<usize> {
+    pub fn count_non_del_halfedges(&mut self) -> usize {
         if self.non_del_edges.len() == 0 {
-            self.fill_non_del()?;
+            self.fill_non_del();
         }
-        Ok(self.non_del_edges.len())
+        self.non_del_edges.len()
     }
 
     /// Count number of non Delaunay faces
-    pub fn count_non_del_faces(&mut self) -> Result<usize> {
+    pub fn count_non_del_faces(&mut self) -> usize {
         if self.non_del_faces.len() == 0 {
-            self.fill_non_del()?;
+            self.fill_non_del();
         }
-        Ok(self.non_del_faces.len())
+        self.non_del_faces.len()
     }
 
     /// Gets first globally non Delaunay halfedge, starting from a shift
@@ -479,7 +498,7 @@ impl<'a> DelaunayInterface<'a> {
                     &Node::Value(node2),
                     &Node::Value(node3),
                 )
-                .ok_or(anyhow::Error::msg("face does not exists"))?;
+                .unwrap();
             let ind_tetra_in = half_tri.tetrahedron().ind();
             let ind_tetra_out = half_tri.opposite().tetrahedron().ind();
 
@@ -506,8 +525,7 @@ impl<'a> DelaunayInterface<'a> {
         while let Some(ind_tet) = to_check.pop() {
             let tet = self.del_struct.get_simplicial().get_tetrahedron(ind_tet)?;
 
-            let val_cur =
-                is_tetra_in[ind_tet].ok_or(anyhow::Error::msg("tetra does not exists"))?;
+            let val_cur = is_tetra_in[ind_tet].unwrap();
 
             for halftri in tet.halftriangles().iter() {
                 // checks if the triangle is a mesh face
