@@ -14,12 +14,12 @@ use super::sub_algorithms::SkeletonInterface3D;
 /// Computes the full skeletonization of a delaunay mesh
 pub fn full_skeletonization(mesh: &mut ManifoldMesh3D) -> Result<Skeleton3D> {
     println!("Mesh to delaunay");
-    let (faces, tetras_in) =
+    let (faces, tetras_in, tri_cocone) =
         delaunay_alg::to_delaunay(mesh, Some(std::f64::consts::PI * 60.0 / 180.0))?;
     println!();
 
     println!("Init skeleton interface");
-    let mut skeleton_interface = SkeletonInterface3D::init(mesh, faces, tetras_in);
+    let mut skeleton_interface = SkeletonInterface3D::init(mesh, faces, tetras_in, tri_cocone);
 
     println!("Finding some first alveola");
     let (ind_first_alveola, _) = skeleton_operations::first_alveola_in(&mut skeleton_interface)?;
@@ -409,12 +409,13 @@ pub fn sheet_skeletonization(
     let mut mesh_cl = mesh.clone();
 
     println!("Mesh to delaunay");
-    let (faces, tetras_in) =
+    let (faces, tetras_in, tri_cocone) =
         delaunay_alg::to_delaunay(&mut mesh_cl, Some(std::f64::consts::PI * 60.0 / 180.0))?;
     println!();
 
     println!("Init skeleton interface");
-    let mut skeleton_interface = SkeletonInterface3D::init(&mut mesh_cl, faces, tetras_in);
+    let mut skeleton_interface =
+        SkeletonInterface3D::init(&mut mesh_cl, faces, tetras_in, tri_cocone);
     skeleton_interface.check()?;
 
     if let Some(err) = loop_skeletonization(&mut skeleton_interface, opt_epsilon).err() {

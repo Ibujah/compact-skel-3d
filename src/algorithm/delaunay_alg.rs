@@ -111,6 +111,7 @@ pub fn to_delaunay(
 ) -> Result<(
     HashMap<[usize; 3], Vec<[usize; 4]>>,
     HashMap<[usize; 4], bool>,
+    HashMap<[usize; 3], bool>,
 )> {
     println!("Compute delaunay graph from mesh vertices");
     let mut deltet = DelaunayInterface::from_mesh(mesh)?;
@@ -196,6 +197,7 @@ pub fn to_delaunay(
         deltet.get_mesh().get_nb_faces()
     );
     let tetras_in_out = deltet.compute_tetras_in_out()?;
+    let tri_cocone = deltet.compute_cocone()?;
 
-    Ok((deltet.get_faces(), tetras_in_out))
+    Ok((deltet.get_faces(), tetras_in_out, tri_cocone))
 }
