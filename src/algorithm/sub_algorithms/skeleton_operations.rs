@@ -412,6 +412,12 @@ pub fn estimate_saliencies(
 ) -> Result<Vec<(usize, f64)>> {
     let mut saliencies = Vec::new();
     for &ind_pedge in vec_pedges.iter() {
+        let pedge = skeleton_interface.get_partial_edge(ind_pedge)?;
+        let tri = pedge.edge().delaunay_triangle();
+        // if *skeleton_interface.tri_cocone.get(&tri).unwrap() {
+        //     saliencies.push((ind_pedge, 0.0));
+        // }
+        // else
         if let Some(saliency) =
             skeleton_boundary_path::compute_saliency(ind_pedge, skeleton_interface)?
         {

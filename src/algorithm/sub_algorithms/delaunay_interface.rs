@@ -146,20 +146,23 @@ impl<'a> DelaunayInterface<'a> {
                     let ind_tet1 = tri.tetrahedron().ind();
                     let ind_tet2 = tri.opposite().tetrahedron().ind();
 
-                    let mut respect_cocone = true;
-                    for nod in tri.nodes() {
-                        if let Node::Value(ind_v) = nod {
-                            let p = self.mesh.get_vertex(ind_v)?.vertex();
-                            let vp = cell_axis[ind_v];
-                            let ctr1h = sphere_centers[ind_tet1];
-                            let ctr2h = sphere_centers[ind_tet2];
-                            if !self.respects_cocone_conditions(p, vp, ctr1h, ctr2h)? {
+                    // let mut respect_cocone = self.mesh.is_face_in(i1, i2, i3).is_some();
+                    let mut respect_cocone = false;
+                    if respect_cocone {
+                        for nod in tri.nodes() {
+                            if let Node::Value(ind_v) = nod {
+                                let p = self.mesh.get_vertex(ind_v)?.vertex();
+                                let vp = cell_axis[ind_v];
+                                let ctr1h = sphere_centers[ind_tet1];
+                                let ctr2h = sphere_centers[ind_tet2];
+                                if !self.respects_cocone_conditions(p, vp, ctr1h, ctr2h)? {
+                                    respect_cocone = false;
+                                    break;
+                                }
+                            } else {
                                 respect_cocone = false;
                                 break;
                             }
-                        } else {
-                            respect_cocone = false;
-                            break;
                         }
                     }
                     tri_cocone.insert(tri_ind, respect_cocone);

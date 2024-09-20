@@ -143,7 +143,7 @@ fn main() -> Result<()> {
     )?;
     mesh3d::io::save_ply_manifold(
         &format!("{}{}", out_path_str, mesh_out_name_str),
-        &mesh,
+        &_work_mesh,
         Some(vec_col),
     )?;
     skeleton3d::io::save_problematics_ply(
