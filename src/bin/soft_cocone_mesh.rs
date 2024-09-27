@@ -3,7 +3,7 @@ use clap::Parser;
 use env_logger;
 use std::time::Instant;
 
-use compact_skel_3d::algorithm::delaunay_alg;
+use compact_skel_3d::algorithm::cocone_alg;
 use compact_skel_3d::mesh3d::io;
 
 #[derive(Parser)]
@@ -37,7 +37,7 @@ fn main() -> Result<()> {
 
     println!("Mesh to delaunay");
     let now = Instant::now();
-    delaunay_alg::to_delaunay(&mut mesh, Some(std::f64::consts::PI * 60.0 / 180.0))?;
+    let cocone_triangles = cocone_alg::cocone_faces(&mut mesh)?;
     let duration = now.elapsed();
     let sec = duration.as_secs();
     let min = sec / 60;
