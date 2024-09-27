@@ -59,15 +59,20 @@ impl<'a> DelaunayInterface<'a> {
 
     /// compute if each triangle is cocone or not
     pub fn compute_cocone(&self) -> Result<HashMap<[usize; 3], bool>> {
+        // sphere center associated to each tetrahedron (includes points at infinity)
         let mut sphere_centers = Vec::new();
-        let mut voro_cell = vec![Vec::new(); self.mesh.get_nb_vertices()];
-        let mut cell_axis = Vec::new();
 
+        // for each vertex, returns the delaunay tetrahedra including the vertex
+        let mut del_tet_by_vertex = vec![Vec::new(); self.mesh.get_nb_vertices()];
+
+        // for each teetrahedron, computes its center, in homogeneous coordinates
+        // includes points at infinity (as vectors)
         for ind_tet in 0..self.del_struct.get_simplicial().get_nb_tetrahedra() {
             let tetra = self.del_struct.get_simplicial().get_tetrahedron(ind_tet)?;
 
             let ext_tet = self.del_struct.get_extended_tetrahedron(ind_tet)?;
             let center = match ext_tet {
+                // if tetrahedra does not contain infinity, returns sphere center
                 ExtendedTetrahedron::Tetrahedron([p1, p2, p3, p4]) => {
                     let pts = [
                         Vector3::new(p1[0], p1[1], p1[2]),
@@ -78,6 +83,7 @@ impl<'a> DelaunayInterface<'a> {
                     let (center, _) = center_and_radius(pts, None).unwrap();
                     [center[0], center[1], center[2], 1.0]
                 }
+                // if tetrahedra does contain infinity, returns vector normal to the point
                 ExtendedTetrahedron::Triangle([p1, p2, p3]) => {
                     let pt1 = Vector3::new(p1[0], p1[1], p1[2]);
                     let pt2 = Vector3::new(p2[0], p2[1], p2[2]);
@@ -90,71 +96,92 @@ impl<'a> DelaunayInterface<'a> {
             };
             sphere_centers.push(center);
 
+            // points each tetrahedron vertex to the tetrahedron index
             for &nod in tetra.nodes().iter() {
                 if let Node::Value(ind_v) = nod {
-                    voro_cell[ind_v].push(ind_tet);
+                    del_tet_by_vertex[ind_v].push(ind_tet);
                 }
             }
         }
 
-        for ind_cell in 0..voro_cell.len() {
-            let vert = self.mesh.get_vertex(ind_cell)?.vertex();
-            let mut axis_opt = None;
-            let mut farthest_opt = None;
-            let mut dmin_opt = None;
-            for sub_ind_sph in 0..voro_cell[ind_cell].len() {
-                let ind_sph = voro_cell[ind_cell][sub_ind_sph];
-                let center = sphere_centers[ind_sph];
-                let ctr = Vector3::new(center[0], center[1], center[2]);
-                if center[3] == 0. {
-                    axis_opt = Some(ctr);
+        // for each cell (i.e. vertex), gives the cocone axis
+        let mut cell_axis = Vec::new();
+        for ind_cell in 0..self.mesh.get_nb_vertices() {
+            let cell_center = self.mesh.get_vertex(ind_cell)?.vertex();
+
+            // step 1 get farthest vertex (homogeneous coordinates) from cell center
+            let mut farthest_center_homog_opt = None;
+            let mut dmax_opt = None;
+            for &ind_sph in del_tet_by_vertex[ind_cell].iter() {
+                let center_h = sphere_centers[ind_sph];
+                if center_h[3] == 0. {
+                    // if center if at infinity, it is the farthest, then keep it and break
+                    farthest_center_homog_opt = Some(center_h);
+                    dmax_opt = Some(-1.);
+                    break;
                 } else {
-                    let vec = ctr - vert;
+                    // else computes distance and update max
+                    let center_3 = Vector3::new(center_h[0], center_h[1], center_h[2]);
+                    let vec = center_3 - cell_center;
                     let dist = vec.norm();
-                    if let Some(dmin) = dmin_opt {
-                        if dmin > dist {
-                            farthest_opt = Some(vec / dist);
-                            dmin_opt = Some(dist);
+                    if let Some(dmax) = dmax_opt {
+                        if dist > dmax {
+                            farthest_center_homog_opt = Some(center_h);
+                            dmax_opt = Some(dist);
                         }
                     } else {
-                        farthest_opt = Some(vec / dist);
-                        dmin_opt = Some(dist);
+                        farthest_center_homog_opt = Some(center_h);
+                        dmax_opt = Some(dist);
                     };
                 }
             }
-            let farthest = farthest_opt.unwrap();
-            let axis = if let Some(axis) = axis_opt {
-                if axis.dot(&farthest) > 0. {
-                    -axis
-                } else {
-                    axis
-                }
+
+            // build axis from farthest
+            let farthest_center_homog = farthest_center_homog_opt.unwrap();
+            let axis = if farthest_center_homog[3] == 0. {
+                Vector3::new(
+                    farthest_center_homog[0],
+                    farthest_center_homog[1],
+                    farthest_center_homog[2],
+                )
+                .normalize()
             } else {
-                farthest
+                let center_3 = Vector3::new(
+                    farthest_center_homog[0],
+                    farthest_center_homog[1],
+                    farthest_center_homog[2],
+                );
+                (center_3 - cell_center).normalize()
             };
             cell_axis.push(axis);
         }
 
+        // for each delaunay triangle, checks if it is cocone
         let mut tri_cocone = HashMap::new();
         for ind_tri in 0..self.del_struct.get_simplicial().get_nb_tetrahedra() * 4 {
+            // checks each delaunay triangle
             let tri = self.del_struct.get_simplicial().get_halftriangle(ind_tri)?;
 
+            // if triangle does not contain infinity
             if let [Node::Value(i1), Node::Value(i2), Node::Value(i3)] = tri.nodes() {
                 let mut tri_ind = [i1, i2, i3];
                 tri_ind.sort();
+                // only includes non existing triangles
                 if !tri_cocone.contains_key(&tri_ind) {
+                    // each triangle in on two delaunay tetrahedra
                     let ind_tet1 = tri.tetrahedron().ind();
                     let ind_tet2 = tri.opposite().tetrahedron().ind();
+                    let ctr1h = sphere_centers[ind_tet1];
+                    let ctr2h = sphere_centers[ind_tet2];
 
-                    // let mut respect_cocone = self.mesh.is_face_in(i1, i2, i3).is_some();
-                    let mut respect_cocone = false;
+                    // on each triangle node, checks cocone condition
+                    // if one condition does not handle, then triangle is not cocone
+                    let mut respect_cocone = true;
                     if respect_cocone {
                         for nod in tri.nodes() {
                             if let Node::Value(ind_v) = nod {
                                 let p = self.mesh.get_vertex(ind_v)?.vertex();
                                 let vp = cell_axis[ind_v];
-                                let ctr1h = sphere_centers[ind_tet1];
-                                let ctr2h = sphere_centers[ind_tet2];
                                 if !self.respects_cocone_conditions(p, vp, ctr1h, ctr2h)? {
                                     respect_cocone = false;
                                     break;

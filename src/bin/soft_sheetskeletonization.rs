@@ -141,10 +141,12 @@ fn main() -> Result<()> {
         &skeleton,
         None,
     )?;
+
+    let vec_col_cocone = vec![[255, 0, 0], [255, 0, 0], [0, 255, 0]];
     mesh3d::io::save_ply_manifold(
         &format!("{}{}", out_path_str, mesh_out_name_str),
         &_work_mesh,
-        Some(vec_col),
+        Some(vec_col_cocone),
     )?;
     skeleton3d::io::save_problematics_ply(
         &format!("{}problematics.ply", out_path_str),

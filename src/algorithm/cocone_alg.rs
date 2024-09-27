@@ -86,10 +86,11 @@ fn is_sharp(edge: &[usize; 2], faces: &Vec<[usize; 3]>, verts: &Vec<Vector3<f64>
         let y = base_vec1.dot(vec);
         let angle = y.atan2(x);
 
-        angles.push(angles);
+        angles.push(angle);
     }
 
-    angles.sort();
+    // sort f64 vector
+    angles.sort_by(|a, b| b.partial_cmp(a).unwrap());
 
     // check if two consecutives angles are higher than 3pi/2
     for i in 0..angles.len() {

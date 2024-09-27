@@ -415,7 +415,7 @@ pub fn sheet_skeletonization(
 
     println!("Init skeleton interface");
     let mut skeleton_interface =
-        SkeletonInterface3D::init(&mut mesh_cl, faces, tetras_in, tri_cocone);
+        SkeletonInterface3D::init(&mut mesh_cl, faces, tetras_in, tri_cocone.clone());
     skeleton_interface.check()?;
 
     if let Some(err) = loop_skeletonization(&mut skeleton_interface, opt_epsilon).err() {
@@ -459,9 +459,24 @@ pub fn sheet_skeletonization(
         mesh.set_face_in_group(*ind_face, *lab);
     }
 
+    let mut _work_mesh = skeleton_interface.get_mesh().clone();
+    // recolorize mesh faces depending on they are cocone or not
+    for ind_face in 0.._work_mesh.get_nb_faces() {
+        let face = _work_mesh.get_face(ind_face)?;
+        let mut verts = face.vertices_inds();
+        verts.sort();
+        let mut lab = 1;
+        if let Some(&res) = tri_cocone.get(&verts) {
+            if res {
+                lab = 2;
+            }
+        }
+        _work_mesh.set_face_in_group(ind_face, lab);
+    }
+
     Ok((
         skeleton_interface.get_skeleton().clone(),
-        skeleton_interface.get_mesh().clone(),
+        _work_mesh,
         skeleton_interface.get_debug_meshes().clone(),
         problematic_edges,
     ))
