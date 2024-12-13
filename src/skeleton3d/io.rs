@@ -224,7 +224,7 @@ pub fn save_ply(
     for (skel_ind, sph) in skeleton.nodes.iter() {
         let vert = sph.center;
         let rad = sph.radius;
-        let boundary_ind = skeleton.boundary_inds.get(skel_ind).unwrap();
+        let boundary_ind = skeleton.boundary_inds.get(skel_ind).unwrap_or(&[0; 4]);
 
         let p = (rad - min_rad) / (max_rad - min_rad);
         writeln!(

@@ -1,7 +1,8 @@
 use anyhow::Result;
 use std::collections::HashMap;
+use std::collections::HashSet;
 
-use crate::skeleton3d::Skeleton3D;
+use crate::{mesh3d::ManifoldMesh3D, skeleton3d::Skeleton3D};
 
 /// Returns singular edges on skeleton
 pub fn seeds(skeleton: &Skeleton3D) -> Vec<usize> {
@@ -348,8 +349,67 @@ pub fn region_merge(
     Ok(())
 }
 
+/// associates a skeleton label for each mesh vertex
+pub fn get_label_per_vertex(
+    skeleton: &Skeleton3D,
+    mesh: &ManifoldMesh3D,
+) -> Result<HashMap<usize, HashSet<usize>>> {
+    let mut labels_per_node: HashMap<usize, HashSet<usize>> = HashMap::new();
+    let mut labels_per_vert: HashMap<usize, HashSet<usize>> = HashMap::new();
+    let mut node_per_vert: Vec<usize> = vec![0; mesh.get_nb_vertices()];
+
+    for ind_vertex in 0..mesh.get_nb_vertices() {
+        let coord = mesh.get_vertex(ind_vertex)?.vertex();
+        let mut cur_ind_opt = None;
+        let mut cur_dist_opt = None;
+        for (ind_nod, sph) in skeleton.get_nodes() {
+            let dist = (coord - sph.center).norm() - sph.radius;
+            if let Some(cur_dist) = cur_dist_opt {
+                if dist < cur_dist {
+                    cur_ind_opt = Some(ind_nod);
+                    cur_dist_opt = Some(dist);
+                }
+            } else {
+                cur_ind_opt = Some(ind_nod);
+                cur_dist_opt = Some(dist);
+            }
+        }
+        if let Some(&cur_ind) = cur_ind_opt {
+            node_per_vert[ind_vertex] = cur_ind;
+        }
+    }
+
+    for (ind_alv, nods) in skeleton.get_alveolae().iter() {
+        if let Some(label_opt) = skeleton.get_labels().get(ind_alv) {
+            if let Some(label) = label_opt {
+                for &nod in nods.iter() {
+                    labels_per_node
+                        .entry(nod)
+                        .or_insert(HashSet::new())
+                        .insert(*label);
+                }
+            }
+        }
+    }
+
+    for ind_vert in 0..node_per_vert.len() {
+        let nod = node_per_vert[ind_vert];
+        // get label
+        if let Some(lab) = labels_per_node.get(&nod) {
+            labels_per_vert.insert(ind_vert, lab.clone());
+        } else {
+            labels_per_vert.insert(ind_vert, HashSet::new());
+        }
+    }
+
+    Ok(labels_per_vert)
+}
+
 /// Estimates regions on given skeleton
-pub fn compute_regions(skeleton: &mut Skeleton3D) -> Result<usize> {
+pub fn compute_regions(
+    skeleton: &mut Skeleton3D,
+    mesh_opt: &mut Option<ManifoldMesh3D>,
+) -> Result<usize> {
     let mut seeds = seeds(skeleton);
     seeds.sort();
     seeds.dedup();
@@ -374,5 +434,43 @@ pub fn compute_regions(skeleton: &mut Skeleton3D) -> Result<usize> {
         skeleton.set_label(ind_alveola, ind_region + 1);
     }
 
+    if let Some(mesh) = mesh_opt {
+        println!("Computing labels");
+
+        let label_per_vertex = get_label_per_vertex(&skeleton, &mesh)?;
+        let mut assignment: Vec<(usize, usize)> = Vec::new();
+        for ind_face in 0..mesh.get_nb_faces() {
+            let vert_inds = mesh.get_face(ind_face)?.vertices_inds();
+            let mut nb_vote_per_lab = HashMap::new();
+            for ind_v in vert_inds.iter() {
+                if let Some(list_lab) = label_per_vertex.get(ind_v) {
+                    for &lab in list_lab.iter() {
+                        nb_vote_per_lab
+                            .entry(lab)
+                            .and_modify(|c| *c += 1)
+                            .or_insert(1);
+                    }
+                }
+            }
+
+            let (opt_lab, _) =
+                nb_vote_per_lab
+                    .iter()
+                    .fold((None, 0), |(lab, nb), (&lab_cur, &nb_cur)| {
+                        if nb_cur > nb {
+                            (Some(lab_cur), nb_cur)
+                        } else {
+                            (lab, nb)
+                        }
+                    });
+
+            if let Some(lab) = opt_lab {
+                assignment.push((ind_face, lab));
+            }
+        }
+        for (ind_face, lab) in assignment.iter() {
+            mesh.set_face_in_group(*ind_face, *lab);
+        }
+    }
     Ok(seeds.len())
 }
