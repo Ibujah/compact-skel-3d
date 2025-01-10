@@ -1,6 +1,7 @@
 use anyhow::Result;
 use std::collections::HashMap;
 use std::collections::HashSet;
+use std::vec;
 
 use crate::{mesh3d::ManifoldMesh3D, skeleton3d::Skeleton3D};
 
@@ -165,6 +166,22 @@ pub fn region_grow_skel(
         }
     }
     Ok(())
+}
+/// Skeletal sheet region growing function
+pub fn search_forgot_alveolae(
+    skeleton: &Skeleton3D,
+    passed_alveolae: &mut HashMap<usize, usize>,
+    near_alveolae: &mut Vec<(usize, usize, f64)>,
+    nb_regions: &mut usize,
+) -> () {
+    for (ind_alv, _) in skeleton.get_alveolae().iter() {
+        if !passed_alveolae.contains_key(ind_alv) {
+            let perimeter = alveola_regular_perimeter(skeleton, *ind_alv).unwrap();
+            near_alveolae.push((*ind_alv, *nb_regions, -perimeter));
+            *nb_regions += 1;
+            break;
+        }
+    }
 }
 
 /// Inits region growing score
@@ -424,8 +441,18 @@ pub fn compute_regions(
             near_alveolae.push((ind_alveola, ind_region, -perimeter));
         });
 
+    let mut nb_regions = seeds.len();
     println!("region grow");
-    region_grow_skel(skeleton, &mut passed_alveolae, &mut near_alveolae)?;
+    while !near_alveolae.is_empty() {
+        region_grow_skel(skeleton, &mut passed_alveolae, &mut near_alveolae)?;
+
+        search_forgot_alveolae(
+            skeleton,
+            &mut passed_alveolae,
+            &mut near_alveolae,
+            &mut nb_regions,
+        );
+    }
 
     println!("region merge");
     region_merge(skeleton, &mut passed_alveolae)?;

@@ -3,7 +3,7 @@ use clap::Parser;
 use env_logger;
 
 use compact_skel_3d::algorithm::skeleton_region_grow::compute_regions;
-use compact_skel_3d::mesh3d::{self, ManifoldMesh3D};
+use compact_skel_3d::mesh3d;
 use compact_skel_3d::skeleton3d;
 
 #[derive(Parser)]
