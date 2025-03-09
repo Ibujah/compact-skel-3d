@@ -114,12 +114,6 @@ fn loop_skeletonization(
         println!("Searching paths");
         loop {
             if let Some(ind_pedge) = vec_pedges.pop() {
-                println!(
-                    "\rSheet {},  {} + {} pedges remaining                                   ",
-                    label,
-                    vec_pedges.len(),
-                    vec_lone_edges.len(),
-                );
                 if skeleton_interface
                     .get_partial_edge(ind_pedge)?
                     .partial_alveola()
@@ -236,12 +230,6 @@ fn loop_skeletonization(
                     }
                 }
             } else if let Some(ind_edge) = vec_lone_edges.pop() {
-                println!(
-                    "\rSheet {},  {} + {} pedges remaining                                   ",
-                    label,
-                    vec_pedges.len(),
-                    vec_lone_edges.len(),
-                );
                 let edge = skeleton_interface.get_edge(ind_edge)?;
                 if !edge.is_full() {
                     continue;
