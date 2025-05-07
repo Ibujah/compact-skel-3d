@@ -1,10 +1,16 @@
 use anyhow::Result;
+use nalgebra::base::*;
 use rand::Rng;
 use std::collections::HashMap;
 use std::fs::File;
-use std::io::Write;
+use std::io::{self, BufRead, Write};
+
+use ply_rs::parser::Parser;
+use ply_rs::ply::{DefaultElement, Property};
 
 use crate::skeleton3d::Skeleton3D;
+
+use super::skeleton3d::Sphere;
 
 fn write_alveola(
     file: &mut File,
@@ -188,6 +194,10 @@ pub fn save_ply(
     writeln!(file, "property int vertex3")?;
     writeln!(file, "property int vertex4")?;
 
+    writeln!(file, "element edge {}", skeleton.lone_edges.len())?;
+    writeln!(file, "property int vertex1")?;
+    writeln!(file, "property int vertex2")?;
+
     writeln!(file, "element face {}", skeleton.alveolae.len())?;
     writeln!(file, "property list uchar int vertex_index")?;
     writeln!(file, "property int label")?;
@@ -214,7 +224,7 @@ pub fn save_ply(
     for (skel_ind, sph) in skeleton.nodes.iter() {
         let vert = sph.center;
         let rad = sph.radius;
-        let boundary_ind = skeleton.boundary_inds.get(skel_ind).unwrap();
+        let boundary_ind = skeleton.boundary_inds.get(skel_ind).unwrap_or(&[0; 4]);
 
         let p = (rad - min_rad) / (max_rad - min_rad);
         writeln!(
@@ -263,6 +273,14 @@ pub fn save_ply(
         }
         vec_col
     };
+
+    for (_, edge) in skeleton.lone_edges.iter() {
+        writeln!(
+            file,
+            "{} {}",
+            skel_ind_to_ind[&edge[0]], skel_ind_to_ind[&edge[1]]
+        )?;
+    }
 
     for (alv_ind, alv_nods) in skeleton.alveolae.iter() {
         let label = skeleton.labels[alv_ind];
@@ -341,13 +359,288 @@ pub fn save_problematics_ply(
     }
 
     for ind_edge in problematic_edge.iter() {
-        let edge = skeleton.edges[ind_edge];
-        writeln!(
-            file,
-            "{} {}",
-            skel_ind_to_ind[&edge[0]], skel_ind_to_ind[&edge[1]]
-        )?;
+        if let Some(edge) = skeleton.lone_edges.get(&ind_edge) {
+            writeln!(
+                file,
+                "{} {}",
+                skel_ind_to_ind[&edge[0]], skel_ind_to_ind[&edge[1]]
+            )?;
+        }
     }
 
     Ok(())
+}
+
+/// Loads voxel core skeleton
+pub fn load_voxel_core(filename_ply: &str, filename_rad: &str) -> Result<Skeleton3D> {
+    let mut vec_vert = Vec::new();
+    let mut vec_rad = Vec::new();
+    let mut vec_edge = Vec::new();
+    let mut vec_face = Vec::new();
+
+    let file_ply = File::open(filename_ply)?;
+    let lines_ply = io::BufReader::new(file_ply).lines();
+    let mut opt_nb_vert = None;
+    let mut opt_nb_edge = None;
+    let mut opt_nb_face = None;
+    let mut cur_vert = 0;
+    let mut cur_edge = 0;
+    let mut cur_face = 0;
+    let mut header = true;
+    for line_ in lines_ply {
+        if let Ok(line) = line_ {
+            if header {
+                if line.len() > 15 && line[0..15].eq("element vertex ") {
+                    opt_nb_vert = Some(line[15..].parse::<usize>()?);
+                }
+                if line.len() > 13 && line[0..13].eq("element edge ") {
+                    opt_nb_edge = Some(line[13..].parse::<usize>()?);
+                }
+                if line.len() > 13 && line[0..13].eq("element face ") {
+                    opt_nb_face = Some(line[13..].parse::<usize>()?);
+                }
+                if line.eq("end_header") {
+                    header = false;
+                }
+            } else if cur_vert < opt_nb_vert.unwrap() {
+                let mut line_split = line.split_whitespace();
+                let mut vert: Vector3<f64> = Vector3::new(0.0, 0.0, 0.0);
+                for i in 0..3 {
+                    let ind = line_split
+                        .next()
+                        .ok_or(anyhow::Error::msg("Expected value3"))?
+                        .parse::<f64>()?;
+                    vert[i] = ind;
+                }
+                vec_vert.push(vert);
+                cur_vert += 1;
+            } else if cur_edge < opt_nb_edge.unwrap() {
+                let line_split: Vec<&str> = line.split_whitespace().collect();
+                let mut edge: Vec<usize> = vec![0 as usize; 2];
+                for i in 0..2 {
+                    let ind = line_split[i].parse::<usize>()?;
+                    edge[i] = ind;
+                }
+                vec_edge.push(edge);
+                cur_edge += 1;
+            } else if cur_face < opt_nb_face.unwrap() {
+                let line_split: Vec<&str> = line.split_whitespace().collect();
+                let mut face: Vec<usize> = vec![0 as usize; 3];
+                for i in 0..3 {
+                    let ind = line_split[line_split.len() + i - 3].parse::<usize>()?;
+                    face[i] = ind;
+                }
+                vec_face.push(face);
+                cur_face += 1;
+            } else {
+                break;
+            }
+        }
+    }
+    let file_rad = File::open(filename_rad)?;
+    let lines_rad = io::BufReader::new(file_rad).lines();
+    let mut header = true;
+    for line_ in lines_rad {
+        if let Ok(line) = line_ {
+            if header {
+                header = false;
+            } else {
+                let line_split: Vec<&str> = line.split_whitespace().collect();
+                let rad = line_split[3].parse::<f64>()?;
+                vec_rad.push(rad);
+            }
+        }
+    }
+
+    let mut skel = Skeleton3D::new();
+    for i in 0..vec_vert.len() {
+        let sphere = Sphere {
+            center: vec_vert[i],
+            radius: vec_rad[i],
+        };
+        skel.add_sphere(i, sphere)?;
+    }
+    for i in 0..vec_edge.len() {
+        let edg = if vec_edge[i][0] < vec_edge[i][1] {
+            [vec_edge[i][0], vec_edge[i][1]]
+        } else {
+            [vec_edge[i][1], vec_edge[i][0]]
+        };
+        skel.add_lone_edge(i, edg);
+    }
+    for i in 0..vec_face.len() {
+        skel.add_alveola(i, vec_face[i].clone());
+    }
+
+    Ok(skel)
+}
+
+/// Loads scale axis transform skeleton
+pub fn load_sat(filename_moff: &str) -> Result<Skeleton3D> {
+    let mut vec_vert = Vec::new();
+    let mut vec_rad = Vec::new();
+    let mut vec_face = Vec::new();
+
+    let file = File::open(filename_moff)?;
+    let lines = io::BufReader::new(file).lines();
+    let mut opt_nb_vert = None;
+    let mut opt_nb_face = None;
+    let mut cur_vert = 0;
+    let mut cur_face = 0;
+    for line_ in lines {
+        if let Ok(line) = line_ {
+            if opt_nb_vert.is_none() {
+                let mut line_split = line.split_whitespace();
+                let moff = line_split
+                    .next()
+                    .ok_or(anyhow::Error::msg("Expected value1"))?;
+                if moff != "MOFF" {
+                    return Err(anyhow::Error::msg("Expected MOFF string"));
+                }
+                let nb_vert = line_split
+                    .next()
+                    .ok_or(anyhow::Error::msg("Expected value1"))?
+                    .parse::<usize>()?;
+                opt_nb_vert = Some(nb_vert);
+                let nb_face = line_split
+                    .next()
+                    .ok_or(anyhow::Error::msg("Expected value2"))?
+                    .parse::<usize>()?;
+                opt_nb_face = Some(nb_face);
+            } else {
+                let nb_vert = opt_nb_vert.unwrap();
+                let nb_face = opt_nb_face.unwrap();
+                if cur_vert < nb_vert {
+                    let mut line_split = line.split_whitespace();
+                    let mut vert: Vector3<f64> = Vector3::new(0.0, 0.0, 0.0);
+                    for i in 0..3 {
+                        let ind = line_split
+                            .next()
+                            .ok_or(anyhow::Error::msg("Expected value3"))?
+                            .parse::<f64>()?;
+                        vert[i] = ind;
+                    }
+                    let rad = line_split
+                        .next()
+                        .ok_or(anyhow::Error::msg("Expected value3"))?
+                        .parse::<f64>()?;
+                    vec_vert.push(vert);
+                    vec_rad.push(rad);
+
+                    cur_vert = cur_vert + 1;
+                } else if cur_vert < nb_face {
+                    let mut line_split = line.split_whitespace();
+                    let mut face = Vec::new();
+                    let nbv = line_split
+                        .next()
+                        .ok_or(anyhow::Error::msg("Expected value4"))?
+                        .parse::<usize>()?;
+                    for _ in 0..nbv {
+                        let ind = line_split
+                            .next()
+                            .ok_or(anyhow::Error::msg("Expected value5"))?
+                            .parse::<usize>()?;
+                        face.push(ind);
+                    }
+                    vec_face.push(face);
+                    cur_face = cur_face + 1;
+                }
+            }
+        }
+    }
+
+    let mut skel = Skeleton3D::new();
+    for i in 0..vec_vert.len() {
+        let sphere = Sphere {
+            center: vec_vert[i],
+            radius: vec_rad[i],
+        };
+        skel.add_sphere(i, sphere)?;
+    }
+    for i in 0..vec_face.len() {
+        skel.add_alveola(i, vec_face[i].clone());
+    }
+
+    Ok(skel)
+}
+
+/// Loads Ply skeleton
+pub fn import_from_ply(file_path: &str) -> Result<Skeleton3D> {
+    let mut f = std::fs::File::open(file_path).unwrap();
+
+    let p = Parser::<DefaultElement>::new();
+    let ply = p.read_ply(&mut f)?;
+
+    let mut skel = Skeleton3D::new();
+
+    // load vertices
+    if !ply.payload.contains_key("vertex") {
+        return Err(anyhow::Error::msg("No vertex element in file"));
+    }
+    let mut ind_nod = 0;
+    for v in ply.payload["vertex"].iter() {
+        let mut x = None;
+        let mut y = None;
+        let mut z = None;
+        let mut radius = None;
+        let mut properties = HashMap::new();
+
+        for (key, prop) in v.into_iter() {
+            match (key.as_ref(), prop) {
+                ("x", Property::Float(val)) => x = Some(val),
+                ("y", Property::Float(val)) => y = Some(val),
+                ("z", Property::Float(val)) => z = Some(val),
+                ("radius", Property::Float(val)) => radius = Some(val),
+                (k, p) => {
+                    properties.insert(k.to_string(), p.clone());
+                    ()
+                }
+            }
+        }
+        let x = *x.ok_or(anyhow::Error::msg("No x property in vertex"))?;
+        let y = *y.ok_or(anyhow::Error::msg("No y property in vertex"))?;
+        let z = *z.ok_or(anyhow::Error::msg("No z property in vertex"))?;
+        let radius = *radius.ok_or(anyhow::Error::msg("No radius property in vertex"))?;
+        let sphere = Sphere {
+            center: Vector3::new(x.into(), y.into(), z.into()),
+            radius: radius.into(),
+        };
+        skel.add_sphere(ind_nod, sphere)?;
+        ind_nod = ind_nod + 1;
+    }
+
+    // load faces
+    if !ply.payload.contains_key("face") {
+        return Err(anyhow::Error::msg("No face element in file"));
+    }
+    let mut ind_alv = 0;
+    for f in ply.payload["face"].iter() {
+        let mut list_vertices = None;
+        let mut label = None;
+        let mut properties = HashMap::new();
+
+        for (key, prop) in f.into_iter() {
+            match (key.as_ref(), prop) {
+                ("vertex_index", Property::ListInt(val)) => {
+                    list_vertices = Some(val.iter().map(|&v| usize::try_from(v).unwrap()).collect())
+                }
+                ("label", Property::Int(val)) => label = Some(*val as usize),
+                (k, p) => {
+                    properties.insert(k.to_string(), p.clone());
+                    ()
+                }
+            }
+        }
+
+        let list_vertices: Vec<usize> =
+            list_vertices.ok_or(anyhow::Error::msg("No vertex_index property in face"))?;
+
+        skel.add_alveola(ind_alv, list_vertices);
+        if let Some(lab) = label {
+            skel.set_label(ind_alv, lab);
+        }
+        ind_alv = ind_alv + 1;
+    }
+
+    Ok(skel)
 }
